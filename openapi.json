@@ -1,0 +1,7161 @@
+{
+	"openapi": "3.1.0",
+	"info": {
+		"title": "FreeTicket B2B API",
+		"version": "1.4.0",
+		"description": "API REST B2B de FreeTicket para integraciones y el CLI. Autenticación por API key (header `Authorization: Bearer <key>` o `x-api-key`); el workspace activo se selecciona con el header `X-Workspace-Id`."
+	},
+	"servers": [
+		{
+			"url": "http://localhost:3000/api/v1"
+		}
+	],
+	"security": [
+		{
+			"apiKey": []
+		}
+	],
+	"paths": {
+		"/auth/device/code": {
+			"post": {
+				"operationId": "postAuthDeviceCode",
+				"tags": ["auth"],
+				"summary": "Inicia el Device Authorization Grant (RFC 8628)",
+				"description": "Endpoint público (sin auth): bootstrap de credenciales del Device Authorization Grant (RFC 8628).",
+				"security": [],
+				"responses": {
+					"200": {
+						"description": "Flujo iniciado: device_code (lo poll-ea el CLI) + user_code (lo aprueba el usuario en el browser).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeviceCodeResponse"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Demasiadas solicitudes desde la misma IP (anti-flood).",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/auth/device/token": {
+			"post": {
+				"operationId": "postAuthDeviceToken",
+				"tags": ["auth"],
+				"summary": "Poll del CLI: canjea el device_code por una API key al aprobar",
+				"description": "Endpoint público (sin auth): bootstrap de credenciales del Device Authorization Grant (RFC 8628).",
+				"security": [],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/DeviceTokenRequest"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "Aprobado: entrega la API key ft_live_… una sola vez y consume la fila.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeviceTokenResponse"
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Estado RFC 8628: authorization_pending | slow_down | expired_token | access_denied | invalid_request.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/DeviceTokenError"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/me": {
+			"get": {
+				"operationId": "getMe",
+				"tags": ["me"],
+				"summary": "Usuario autenticado, rol y workspaces accesibles",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Me"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/events": {
+			"get": {
+				"operationId": "getEvents",
+				"tags": ["events"],
+				"summary": "Listar eventos del workspace",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"description": "1-100, default 20",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"description": "id del último resultado de la página previa",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/Event"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postEvents",
+				"tags": ["events"],
+				"summary": "Crear evento (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/EventCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Event"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/events/{id}": {
+			"get": {
+				"operationId": "getEventsId",
+				"tags": ["events"],
+				"summary": "Obtener un evento",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Event"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchEventsId",
+				"tags": ["events"],
+				"summary": "Actualizar evento (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/EventUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Event"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteEventsId",
+				"tags": ["events"],
+				"summary": "Eliminar (soft) evento (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/events/{id}/publish": {
+			"post": {
+				"operationId": "postEventsIdPublish",
+				"tags": ["events"],
+				"summary": "Publicar evento (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Event"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/events/{id}/dates": {
+			"get": {
+				"operationId": "getEventsIdDates",
+				"tags": ["events"],
+				"summary": "Listar fechas de un evento",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/EventDate"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postEventsIdDates",
+				"tags": ["events"],
+				"summary": "Agregar fecha a un evento (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/EventDate"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/events/{id}/dates/{dateId}": {
+			"patch": {
+				"operationId": "patchEventsIdDatesDateId",
+				"tags": ["events"],
+				"summary": "Actualizar fecha (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "dateId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/EventDate"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteEventsIdDatesDateId",
+				"tags": ["events"],
+				"summary": "Eliminar fecha (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "dateId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/ticket-types": {
+			"get": {
+				"operationId": "getTicketTypes",
+				"tags": ["ticket-types"],
+				"summary": "Listar tipos de ticket del workspace",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "eventDateId",
+						"in": "query",
+						"required": false,
+						"description": "filtra por fecha de evento",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/TicketType"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postTicketTypes",
+				"tags": ["ticket-types"],
+				"summary": "Crear tipo de ticket (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/TicketTypeCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/TicketType"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/ticket-types/{id}": {
+			"get": {
+				"operationId": "getTicketTypesId",
+				"tags": ["ticket-types"],
+				"summary": "Obtener un tipo de ticket",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/TicketType"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchTicketTypesId",
+				"tags": ["ticket-types"],
+				"summary": "Actualizar tipo de ticket (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/TicketType"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteTicketTypesId",
+				"tags": ["ticket-types"],
+				"summary": "Eliminar (soft) tipo de ticket (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/sales": {
+			"get": {
+				"operationId": "getSales",
+				"tags": ["sales"],
+				"summary": "Listar ventas del workspace",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"description": "PENDING|CONFIRMED|ABANDONED|CANCELLED|REFUNDED",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "channel",
+						"in": "query",
+						"required": false,
+						"description": "WEB|MOBILE|POS|ADMIN",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "event",
+						"in": "query",
+						"required": false,
+						"description": "id del evento",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "eventDate",
+						"in": "query",
+						"required": false,
+						"description": "id de la fecha del evento",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "reference",
+						"in": "query",
+						"required": false,
+						"description": "referencia/código de la venta (parcial)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "buyer",
+						"in": "query",
+						"required": false,
+						"description": "nombre o email del comprador (parcial)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "from",
+						"in": "query",
+						"required": false,
+						"description": "fecha desde (ISO 8601, sobre created_at)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "to",
+						"in": "query",
+						"required": false,
+						"description": "fecha hasta (ISO 8601, sobre created_at)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/Sale"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postSales",
+				"tags": ["sales"],
+				"summary": "Crear una venta/orden (cortesías y ventas programáticas)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SaleCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/SaleDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/sales/{id}": {
+			"get": {
+				"operationId": "getSalesId",
+				"tags": ["sales"],
+				"summary": "Detalle de una venta con sus ítems",
+				"description": "Rol mínimo: `STAFF`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/SaleDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/sales/{id}/cancel": {
+			"post": {
+				"operationId": "postSalesIdCancel",
+				"tags": ["sales"],
+				"summary": "Cancelar una venta (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Sale"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/sales/{id}/refund": {
+			"post": {
+				"operationId": "postSalesIdRefund",
+				"tags": ["sales"],
+				"summary": "Reembolsar una venta (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Sale"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/membership-plans": {
+			"get": {
+				"operationId": "getMembershipPlans",
+				"tags": ["membership-plans"],
+				"summary": "Listar planes de membresía del workspace",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/MembershipPlan"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postMembershipPlans",
+				"tags": ["membership-plans"],
+				"summary": "Crear plan de membresía (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MembershipPlanCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MembershipPlan"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/membership-plans/{id}": {
+			"get": {
+				"operationId": "getMembershipPlansId",
+				"tags": ["membership-plans"],
+				"summary": "Obtener un plan de membresía",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MembershipPlan"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchMembershipPlansId",
+				"tags": ["membership-plans"],
+				"summary": "Actualizar plan (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MembershipPlan"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteMembershipPlansId",
+				"tags": ["membership-plans"],
+				"summary": "Eliminar (soft) plan (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/venues": {
+			"get": {
+				"operationId": "getVenues",
+				"tags": ["venues"],
+				"summary": "Listar venues del workspace",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/Venue"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postVenues",
+				"tags": ["venues"],
+				"summary": "Crear venue (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/VenueCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Venue"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/venues/{id}": {
+			"get": {
+				"operationId": "getVenuesId",
+				"tags": ["venues"],
+				"summary": "Obtener un venue",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Venue"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchVenuesId",
+				"tags": ["venues"],
+				"summary": "Actualizar venue (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Venue"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteVenuesId",
+				"tags": ["venues"],
+				"summary": "Eliminar (soft) venue (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/staff": {
+			"get": {
+				"operationId": "getStaff",
+				"tags": ["staff"],
+				"summary": "Listar staff con acceso al workspace",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/StaffUser"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postStaff",
+				"tags": ["staff"],
+				"summary": "Crear usuario staff (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/StaffCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/StaffUser"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/staff/{id}/role": {
+			"patch": {
+				"operationId": "patchStaffIdRole",
+				"tags": ["staff"],
+				"summary": "Cambiar rol de un usuario staff (fase 2)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/RoleUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/StaffUser"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/reports/summary": {
+			"get": {
+				"operationId": "getReportsSummary",
+				"tags": ["reports"],
+				"summary": "KPIs del workspace (revenue, tickets, ventas, membresías)",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "period",
+						"in": "query",
+						"required": false,
+						"description": "7d | 30d (default) | 90d | 1y",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ReportSummary"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/reports/inventory": {
+			"get": {
+				"operationId": "getReportsInventory",
+				"tags": ["reports"],
+				"summary": "Inventario agregado por evento/fecha/tipo (capacidad, vendidos, disponibles)",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "eventId",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por evento",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "eventDateId",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por fecha del evento",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "from",
+						"in": "query",
+						"required": false,
+						"description": "Inicio de función ≥ (ISO 8601)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "to",
+						"in": "query",
+						"required": false,
+						"description": "Inicio de función ≤ (ISO 8601)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "includeDrafts",
+						"in": "query",
+						"required": false,
+						"description": "Incluir eventos/fechas en DRAFT (default false)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "groupBy",
+						"in": "query",
+						"required": false,
+						"description": "event | date | ticketType (default)",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/InventoryRow"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/reports/reconciliation": {
+			"get": {
+				"operationId": "getReportsReconciliation",
+				"tags": ["reports"],
+				"summary": "Conciliación financiera CFO (MP ↔ venta ↔ factura Siigo)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "date_from",
+						"in": "query",
+						"required": true,
+						"description": "ISO 8601 (inicio, sobre Sale.created_at)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "date_to",
+						"in": "query",
+						"required": true,
+						"description": "ISO 8601 (fin)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "match_status",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por flag: OK|MISSING_INVOICE|MISSING_CUFE|AMOUNT_MISMATCH|MISSING_PAYMENT",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "provider",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por payment_provider (ej: mercadopago)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"required": false,
+						"description": "Página 1-based (default 1)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "page_size",
+						"in": "query",
+						"required": false,
+						"description": "Tamaño de página 1..500 (default 100)",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/ReconciliationRow"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/reports/exports/reconciliation": {
+			"get": {
+				"operationId": "getReportsExportsReconciliation",
+				"tags": ["reports"],
+				"summary": "Export CSV de la conciliación financiera CFO",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "date_from",
+						"in": "query",
+						"required": true,
+						"description": "ISO 8601 (inicio, sobre Sale.created_at)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "date_to",
+						"in": "query",
+						"required": true,
+						"description": "ISO 8601 (fin)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "match_status",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por flag: OK|MISSING_INVOICE|MISSING_CUFE|AMOUNT_MISMATCH|MISSING_PAYMENT",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "provider",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por payment_provider (ej: mercadopago)",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/reports/exports/attendees": {
+			"get": {
+				"operationId": "getReportsExportsAttendees",
+				"tags": ["reports"],
+				"summary": "Export de asistentes por ticket con filtros (máx 5000)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "event",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por Event.id",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "eventDate",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por EventDate.id",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "from",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601 — desde (sobre Sale.created_at)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "to",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601 — hasta (sobre Sale.created_at)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"description": "PENDING|CONFIRMED|ABANDONED|CANCELLED|REFUNDED (default CONFIRMED)",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/reports/exports/buyers": {
+			"get": {
+				"operationId": "getReportsExportsBuyers",
+				"tags": ["reports"],
+				"summary": "Export de compradores con filtros (máx 5000)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "event",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por Event.id",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "eventDate",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por EventDate.id",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "from",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601 — desde (sobre Sale.created_at)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "to",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601 — hasta (sobre Sale.created_at)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"description": "PENDING|CONFIRMED|ABANDONED|CANCELLED|REFUNDED (default CONFIRMED)",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/reports/exports/subscribers": {
+			"get": {
+				"operationId": "getReportsExportsSubscribers",
+				"tags": ["reports"],
+				"summary": "Export de suscriptores (máx 5000)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/reports/by-event": {
+			"get": {
+				"operationId": "getReportsByEvent",
+				"tags": ["reports"],
+				"summary": "KPIs de venta por evento del workspace",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "from",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601, filtra Sale.created_at (gte)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "to",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601, filtra Sale.created_at (lte)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"description": "PENDING|CONFIRMED (default)|ABANDONED|CANCELLED|REFUNDED",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/ReportByEventRow"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/reports/timeseries": {
+			"get": {
+				"operationId": "getReportsTimeseries",
+				"tags": ["reports"],
+				"summary": "Serie temporal de ventas CONFIRMED por bucket (day|week|month)",
+				"description": "Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "interval",
+						"in": "query",
+						"required": true,
+						"description": "day | week | month",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "from",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601, filtra Sale.created_at (gte)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "to",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601, filtra Sale.created_at (lte)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "event",
+						"in": "query",
+						"required": false,
+						"description": "ID de evento del workspace (opcional)",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/ReportTimeseriesRow"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/discounts": {
+			"get": {
+				"operationId": "getDiscounts",
+				"tags": ["discounts"],
+				"summary": "Listar cupones de descuento del workspace",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "event",
+						"in": "query",
+						"required": false,
+						"description": "id de evento para filtrar",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "active",
+						"in": "query",
+						"required": false,
+						"description": "true|false",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/Discount"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postDiscounts",
+				"tags": ["discounts"],
+				"summary": "Crear cupón de descuento",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/DiscountCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Discount"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/discounts/{id}": {
+			"patch": {
+				"operationId": "patchDiscountsId",
+				"tags": ["discounts"],
+				"summary": "Actualizar cupón de descuento",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/DiscountUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Discount"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteDiscountsId",
+				"tags": ["discounts"],
+				"summary": "Eliminar (soft) cupón de descuento",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/webhooks": {
+			"get": {
+				"operationId": "getWebhooks",
+				"tags": ["webhooks"],
+				"summary": "Listar webhooks del workspace",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/Webhook"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postWebhooks",
+				"tags": ["webhooks"],
+				"summary": "Crear webhook (devuelve el signingSecret una única vez)",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/WebhookCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/WebhookCreated"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/webhooks/{id}": {
+			"delete": {
+				"operationId": "deleteWebhooksId",
+				"tags": ["webhooks"],
+				"summary": "Eliminar un webhook del workspace",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/membership-plans/{id}/subscribers": {
+			"get": {
+				"operationId": "getMembershipPlansIdSubscribers",
+				"tags": ["membership-plans", "subscriptions"],
+				"summary": "Listar suscriptores de un plan de membresía",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"description": "PENDING|ACTIVE|EXPIRED|CANCELLED|PAUSED",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/Subscriber"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/subscriptions/{id}/cancel": {
+			"post": {
+				"operationId": "postSubscriptionsIdCancel",
+				"tags": ["subscriptions", "membership-plans"],
+				"summary": "Cancelar una suscripción de membresía",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/SubscriptionCancelResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/sales/{id}/tickets": {
+			"get": {
+				"operationId": "getSalesIdTickets",
+				"tags": ["sales"],
+				"summary": "Tickets individuales de una venta",
+				"description": "Rol mínimo: `STAFF`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/SaleTicket"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/tickets/{ticketCode}/checkin": {
+			"post": {
+				"operationId": "postTicketsTicketCodeCheckin",
+				"tags": ["tickets"],
+				"summary": "Registrar el ingreso (check-in) de un ticket en puerta",
+				"description": "Rol mínimo: `STAFF`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "ticketCode",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CheckinResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/tickets/{ticketCode}/access": {
+			"get": {
+				"operationId": "getTicketsTicketCodeAccess",
+				"tags": ["tickets"],
+				"summary": "Consultar la validez de un ticket sin consumirlo",
+				"description": "Rol mínimo: `STAFF`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "ticketCode",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/TicketAccess"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/tickets/{ticketCode}/resend": {
+			"post": {
+				"operationId": "postTicketsTicketCodeResend",
+				"tags": ["tickets"],
+				"summary": "Reenviar el correo de confirmación con el ticket",
+				"description": "Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.",
+				"security": [
+					{
+						"apiKey": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "ticketCode",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ResendTicket"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"components": {
+		"schemas": {
+			"Error": {
+				"type": "object",
+				"properties": {
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": {
+								"type": "string"
+							},
+							"message": {
+								"type": "string"
+							},
+							"details": {}
+						},
+						"required": ["code", "message"],
+						"additionalProperties": false
+					}
+				},
+				"required": ["error"],
+				"additionalProperties": false
+			},
+			"Page": {
+				"type": "object",
+				"properties": {
+					"nextCursor": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"hasMore": {
+						"type": "boolean"
+					}
+				},
+				"required": ["nextCursor", "hasMore"],
+				"additionalProperties": false
+			},
+			"Workspace": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					}
+				},
+				"required": ["id", "name", "slug"],
+				"additionalProperties": false
+			},
+			"Me": {
+				"type": "object",
+				"properties": {
+					"userId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"email": {
+						"type": "string"
+					},
+					"role": {
+						"type": "string",
+						"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
+					},
+					"activeWorkspaceId": {
+						"type": "string"
+					},
+					"workspaces": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/Workspace"
+						}
+					}
+				},
+				"required": [
+					"userId",
+					"name",
+					"email",
+					"role",
+					"activeWorkspaceId",
+					"workspaces"
+				],
+				"additionalProperties": false
+			},
+			"DeviceCodeResponse": {
+				"type": "object",
+				"properties": {
+					"device_code": {
+						"type": "string"
+					},
+					"user_code": {
+						"type": "string"
+					},
+					"verification_uri": {
+						"type": "string"
+					},
+					"verification_uri_complete": {
+						"type": "string"
+					},
+					"expires_in": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"interval": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"device_code",
+					"user_code",
+					"verification_uri",
+					"verification_uri_complete",
+					"expires_in",
+					"interval"
+				],
+				"additionalProperties": false
+			},
+			"DeviceTokenRequest": {
+				"type": "object",
+				"properties": {
+					"device_code": {
+						"type": "string",
+						"minLength": 1
+					},
+					"grant_type": {
+						"type": "string",
+						"const": "urn:ietf:params:oauth:grant-type:device_code"
+					}
+				},
+				"required": ["device_code"],
+				"additionalProperties": false
+			},
+			"DeviceTokenResponse": {
+				"type": "object",
+				"properties": {
+					"access_token": {
+						"type": "string"
+					},
+					"token_type": {
+						"type": "string",
+						"const": "Bearer"
+					},
+					"user": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"email": {
+								"type": "string"
+							},
+							"role": {
+								"type": "string",
+								"enum": [
+									"SUPER_ADMIN",
+									"ADMIN",
+									"STAFF",
+									"VIEWER",
+									"MINCULTURA"
+								]
+							}
+						},
+						"required": ["id", "email", "role"],
+						"additionalProperties": false
+					},
+					"workspaces": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/Workspace"
+						}
+					}
+				},
+				"required": ["access_token", "token_type", "user", "workspaces"],
+				"additionalProperties": false
+			},
+			"DeviceTokenError": {
+				"type": "object",
+				"properties": {
+					"error": {
+						"type": "string",
+						"enum": [
+							"authorization_pending",
+							"slow_down",
+							"expired_token",
+							"access_denied",
+							"invalid_request"
+						]
+					}
+				},
+				"required": ["error"],
+				"additionalProperties": false
+			},
+			"Event": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"description": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"status": {
+						"type": "string",
+						"enum": ["DRAFT", "PUBLISHED", "SOLD_OUT", "CANCELLED", "COMPLETED"]
+					},
+					"coverImageUrl": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"organizationId": {
+						"type": "string"
+					},
+					"venueId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"updatedAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"slug",
+					"description",
+					"status",
+					"coverImageUrl",
+					"organizationId",
+					"venueId",
+					"createdAt",
+					"updatedAt"
+				],
+				"additionalProperties": false
+			},
+			"EventDate": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"label": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"startsAt": {
+						"type": "string"
+					},
+					"endsAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"doorsOpenAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"timezone": {
+						"type": "string"
+					},
+					"venueId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"status": {
+						"type": "string",
+						"enum": ["DRAFT", "PUBLISHED", "SOLD_OUT", "CANCELLED", "COMPLETED"]
+					},
+					"streamType": {
+						"type": "string"
+					},
+					"createdAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"eventId",
+					"label",
+					"startsAt",
+					"endsAt",
+					"doorsOpenAt",
+					"timezone",
+					"venueId",
+					"status",
+					"streamType",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"EventCreate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1
+					},
+					"slug": {
+						"type": "string",
+						"minLength": 1,
+						"pattern": "^[a-z0-9-]+$"
+					},
+					"description": {
+						"type": "string"
+					},
+					"venueId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"dates": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"startsAt": {
+									"type": "string",
+									"format": "date-time",
+									"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+								},
+								"endsAt": {
+									"anyOf": [
+										{
+											"type": "string",
+											"format": "date-time",
+											"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"timezone": {
+									"default": "America/Bogota",
+									"type": "string"
+								}
+							},
+							"required": ["startsAt", "timezone"],
+							"additionalProperties": false
+						}
+					}
+				},
+				"required": ["name", "slug", "dates"],
+				"additionalProperties": false
+			},
+			"EventUpdate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1
+					},
+					"description": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"venueId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"coverImageUrl": {
+						"anyOf": [
+							{
+								"type": "string",
+								"format": "uri"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": false
+			},
+			"TicketType": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"eventDateId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"price": {
+						"type": "number"
+					},
+					"currency": {
+						"type": "string"
+					},
+					"capacity": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"maxPerOrder": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"saleStartsAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"saleEndsAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"isVisible": {
+						"type": "boolean"
+					},
+					"organizerAbsorbsFee": {
+						"type": "boolean"
+					},
+					"createdAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"eventDateId",
+					"name",
+					"description",
+					"price",
+					"currency",
+					"capacity",
+					"maxPerOrder",
+					"saleStartsAt",
+					"saleEndsAt",
+					"isVisible",
+					"organizerAbsorbsFee",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"TicketTypeCreate": {
+				"type": "object",
+				"properties": {
+					"eventDateId": {
+						"type": "string",
+						"minLength": 1
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1
+					},
+					"description": {
+						"type": "string"
+					},
+					"price": {
+						"type": "number",
+						"minimum": 0
+					},
+					"currency": {
+						"default": "COP",
+						"type": "string"
+					},
+					"capacity": {
+						"type": "integer",
+						"exclusiveMinimum": 0,
+						"maximum": 9007199254740991
+					},
+					"maxPerOrder": {
+						"default": 10,
+						"type": "integer",
+						"exclusiveMinimum": 0,
+						"maximum": 9007199254740991
+					},
+					"isVisible": {
+						"default": true,
+						"type": "boolean"
+					},
+					"organizerAbsorbsFee": {
+						"default": false,
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"eventDateId",
+					"name",
+					"price",
+					"currency",
+					"capacity",
+					"maxPerOrder",
+					"isVisible",
+					"organizerAbsorbsFee"
+				],
+				"additionalProperties": false
+			},
+			"SaleItem": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"ticketTypeId": {
+						"type": "string"
+					},
+					"quantity": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"unitPrice": {
+						"type": "number"
+					},
+					"subtotal": {
+						"type": "number"
+					},
+					"ticketCode": {
+						"type": "string"
+					},
+					"checkedInAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"id",
+					"ticketTypeId",
+					"quantity",
+					"unitPrice",
+					"subtotal",
+					"ticketCode",
+					"checkedInAt"
+				],
+				"additionalProperties": false
+			},
+			"Sale": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"reference": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"PENDING",
+							"CONFIRMED",
+							"ABANDONED",
+							"CANCELLED",
+							"REFUNDED"
+						]
+					},
+					"channel": {
+						"type": "string"
+					},
+					"subtotal": {
+						"type": "number"
+					},
+					"discountAmount": {
+						"type": "number"
+					},
+					"serviceFee": {
+						"type": "number"
+					},
+					"iva": {
+						"type": "number"
+					},
+					"total": {
+						"type": "number"
+					},
+					"currency": {
+						"type": "string"
+					},
+					"buyerName": {
+						"type": "string"
+					},
+					"buyerEmail": {
+						"type": "string"
+					},
+					"buyerPhone": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"organizationId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"confirmedAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"createdAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"reference",
+					"status",
+					"channel",
+					"subtotal",
+					"discountAmount",
+					"serviceFee",
+					"iva",
+					"total",
+					"currency",
+					"buyerName",
+					"buyerEmail",
+					"buyerPhone",
+					"organizationId",
+					"confirmedAt",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"SaleDetail": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"reference": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": [
+							"PENDING",
+							"CONFIRMED",
+							"ABANDONED",
+							"CANCELLED",
+							"REFUNDED"
+						]
+					},
+					"channel": {
+						"type": "string"
+					},
+					"subtotal": {
+						"type": "number"
+					},
+					"discountAmount": {
+						"type": "number"
+					},
+					"serviceFee": {
+						"type": "number"
+					},
+					"iva": {
+						"type": "number"
+					},
+					"total": {
+						"type": "number"
+					},
+					"currency": {
+						"type": "string"
+					},
+					"buyerName": {
+						"type": "string"
+					},
+					"buyerEmail": {
+						"type": "string"
+					},
+					"buyerPhone": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"organizationId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"confirmedAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"items": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/SaleItem"
+						}
+					}
+				},
+				"required": [
+					"id",
+					"reference",
+					"status",
+					"channel",
+					"subtotal",
+					"discountAmount",
+					"serviceFee",
+					"iva",
+					"total",
+					"currency",
+					"buyerName",
+					"buyerEmail",
+					"buyerPhone",
+					"organizationId",
+					"confirmedAt",
+					"createdAt",
+					"items"
+				],
+				"additionalProperties": false
+			},
+			"MembershipPlan": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"organizationId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"price": {
+						"type": "number"
+					},
+					"currency": {
+						"type": "string"
+					},
+					"billingCycle": {
+						"type": "string",
+						"enum": ["MONTHLY", "QUARTERLY", "ANNUAL", "LIFETIME"]
+					},
+					"benefits": {
+						"type": "object",
+						"properties": {
+							"presale": {
+								"type": "boolean"
+							},
+							"freeTicket": {
+								"type": "boolean"
+							},
+							"discount": {
+								"type": "boolean"
+							},
+							"exclusiveContent": {
+								"type": "boolean"
+							},
+							"merch": {
+								"type": "boolean"
+							}
+						},
+						"required": [
+							"presale",
+							"freeTicket",
+							"discount",
+							"exclusiveContent",
+							"merch"
+						],
+						"additionalProperties": false
+					},
+					"isActive": {
+						"type": "boolean"
+					},
+					"sortOrder": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"createdAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"organizationId",
+					"name",
+					"description",
+					"price",
+					"currency",
+					"billingCycle",
+					"benefits",
+					"isActive",
+					"sortOrder",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"MembershipPlanCreate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1
+					},
+					"description": {
+						"type": "string"
+					},
+					"price": {
+						"type": "number",
+						"minimum": 0
+					},
+					"currency": {
+						"default": "COP",
+						"type": "string"
+					},
+					"billingCycle": {
+						"type": "string",
+						"enum": ["MONTHLY", "QUARTERLY", "ANNUAL", "LIFETIME"]
+					},
+					"benefitPresale": {
+						"default": false,
+						"type": "boolean"
+					},
+					"benefitFreeTicket": {
+						"default": false,
+						"type": "boolean"
+					},
+					"benefitDiscount": {
+						"default": false,
+						"type": "boolean"
+					},
+					"benefitExclusiveContent": {
+						"default": false,
+						"type": "boolean"
+					},
+					"benefitMerch": {
+						"default": false,
+						"type": "boolean"
+					},
+					"isActive": {
+						"default": true,
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"name",
+					"price",
+					"currency",
+					"billingCycle",
+					"benefitPresale",
+					"benefitFreeTicket",
+					"benefitDiscount",
+					"benefitExclusiveContent",
+					"benefitMerch",
+					"isActive"
+				],
+				"additionalProperties": false
+			},
+			"Venue": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"address": {
+						"type": "string"
+					},
+					"city": {
+						"type": "string"
+					},
+					"country": {
+						"type": "string"
+					},
+					"latitude": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"longitude": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"capacity": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"googlePlaceId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"portalVisible": {
+						"type": "boolean"
+					},
+					"organizationId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"createdAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"slug",
+					"address",
+					"city",
+					"country",
+					"latitude",
+					"longitude",
+					"capacity",
+					"googlePlaceId",
+					"portalVisible",
+					"organizationId",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"VenueCreate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1
+					},
+					"address": {
+						"type": "string",
+						"minLength": 1
+					},
+					"city": {
+						"type": "string",
+						"minLength": 1
+					},
+					"country": {
+						"default": "CO",
+						"type": "string"
+					},
+					"capacity": {
+						"type": "integer",
+						"exclusiveMinimum": 0,
+						"maximum": 9007199254740991
+					},
+					"latitude": {
+						"type": "number",
+						"minimum": -90,
+						"maximum": 90
+					},
+					"longitude": {
+						"type": "number",
+						"minimum": -180,
+						"maximum": 180
+					}
+				},
+				"required": ["name", "address", "city", "country"],
+				"additionalProperties": false
+			},
+			"StaffUser": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"email": {
+						"type": "string"
+					},
+					"role": {
+						"type": "string",
+						"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
+					},
+					"organizationId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"createdAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"email",
+					"role",
+					"organizationId",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"StaffCreate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1
+					},
+					"email": {
+						"type": "string",
+						"format": "email",
+						"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+					}
+				},
+				"required": ["name", "email"],
+				"additionalProperties": false
+			},
+			"RoleUpdate": {
+				"type": "object",
+				"properties": {
+					"role": {
+						"type": "string",
+						"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
+					}
+				},
+				"required": ["role"],
+				"additionalProperties": false
+			},
+			"ReportSummary": {
+				"type": "object",
+				"properties": {
+					"period": {
+						"type": "string"
+					},
+					"currency": {
+						"type": "string"
+					},
+					"revenue": {
+						"type": "number"
+					},
+					"ticketsSold": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"salesCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"activeMemberships": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"period",
+					"currency",
+					"revenue",
+					"ticketsSold",
+					"salesCount",
+					"activeMemberships"
+				],
+				"additionalProperties": false
+			},
+			"MatchStatus": {
+				"type": "string",
+				"enum": [
+					"OK",
+					"MISSING_INVOICE",
+					"MISSING_CUFE",
+					"AMOUNT_MISMATCH",
+					"MISSING_PAYMENT"
+				]
+			},
+			"InventoryRow": {
+				"type": "object",
+				"properties": {
+					"eventId": {
+						"type": "string"
+					},
+					"eventName": {
+						"type": "string"
+					},
+					"eventStatus": {
+						"type": "string",
+						"enum": ["DRAFT", "PUBLISHED", "SOLD_OUT", "CANCELLED", "COMPLETED"]
+					},
+					"eventDateId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"startsAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"ticketTypeId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"ticketTypeName": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"capacity": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"sold": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"reserved": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"available": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"eventId",
+					"eventName",
+					"eventStatus",
+					"eventDateId",
+					"startsAt",
+					"ticketTypeId",
+					"ticketTypeName",
+					"capacity",
+					"sold",
+					"reserved",
+					"available"
+				],
+				"additionalProperties": false
+			},
+			"ReconciliationRow": {
+				"type": "object",
+				"properties": {
+					"sale_reference": {
+						"type": "string"
+					},
+					"sale_status": {
+						"type": "string",
+						"enum": [
+							"PENDING",
+							"CONFIRMED",
+							"ABANDONED",
+							"CANCELLED",
+							"REFUNDED"
+						]
+					},
+					"sale_amount": {
+						"type": "number"
+					},
+					"mp_payment_ref": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"mp_provider": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"mp_amount": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"siigo_invoice_name": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"siigo_invoice_status": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"siigo_cufe": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"match_status": {
+						"$ref": "#/components/schemas/MatchStatus"
+					}
+				},
+				"required": [
+					"sale_reference",
+					"sale_status",
+					"sale_amount",
+					"mp_payment_ref",
+					"mp_provider",
+					"mp_amount",
+					"siigo_invoice_name",
+					"siigo_invoice_status",
+					"siigo_cufe",
+					"match_status"
+				],
+				"additionalProperties": false
+			},
+			"SaleCreate": {
+				"type": "object",
+				"properties": {
+					"buyer": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"minLength": 1
+							},
+							"email": {
+								"type": "string",
+								"format": "email",
+								"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+							},
+							"phone": {
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"required": ["name", "email"],
+						"additionalProperties": false
+					},
+					"items": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"ticketTypeId": {
+									"type": "string",
+									"minLength": 1
+								},
+								"quantity": {
+									"type": "integer",
+									"minimum": 1,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": ["ticketTypeId", "quantity"],
+							"additionalProperties": false
+						}
+					},
+					"channel": {
+						"default": "ADMIN",
+						"type": "string",
+						"enum": ["WEB", "MOBILE", "POS", "ADMIN"]
+					},
+					"comp": {
+						"default": false,
+						"type": "boolean"
+					},
+					"notes": {
+						"type": "string"
+					}
+				},
+				"required": ["buyer", "items", "channel", "comp"],
+				"additionalProperties": false
+			},
+			"ReportByEventRow": {
+				"type": "object",
+				"properties": {
+					"eventId": {
+						"type": "string"
+					},
+					"eventName": {
+						"type": "string"
+					},
+					"revenue": {
+						"type": "number"
+					},
+					"ticketsSold": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"salesCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"available": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"eventId",
+					"eventName",
+					"revenue",
+					"ticketsSold",
+					"salesCount",
+					"available"
+				],
+				"additionalProperties": false
+			},
+			"ReportTimeseriesRow": {
+				"type": "object",
+				"properties": {
+					"bucket": {
+						"type": "string"
+					},
+					"revenue": {
+						"type": "number"
+					},
+					"ticketsSold": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"salesCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": ["bucket", "revenue", "ticketsSold", "salesCount"],
+				"additionalProperties": false
+			},
+			"DiscountType": {
+				"type": "string",
+				"enum": ["PERCENT", "FIXED"]
+			},
+			"Discount": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string"
+					},
+					"type": {
+						"$ref": "#/components/schemas/DiscountType"
+					},
+					"value": {
+						"type": "number"
+					},
+					"eventId": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"active": {
+						"type": "boolean"
+					},
+					"maxUses": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"uses": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"startsAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"endsAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"createdAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"code",
+					"type",
+					"value",
+					"eventId",
+					"active",
+					"maxUses",
+					"uses",
+					"startsAt",
+					"endsAt",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"DiscountCreate": {
+				"type": "object",
+				"properties": {
+					"code": {
+						"type": "string",
+						"minLength": 1
+					},
+					"type": {
+						"$ref": "#/components/schemas/DiscountType"
+					},
+					"value": {
+						"type": "number",
+						"exclusiveMinimum": 0
+					},
+					"eventId": {
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"maxUses": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"startsAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"format": "date-time",
+								"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"endsAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"format": "date-time",
+								"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": ["code", "type", "value"],
+				"additionalProperties": false
+			},
+			"DiscountUpdate": {
+				"type": "object",
+				"properties": {
+					"active": {
+						"type": "boolean"
+					},
+					"value": {
+						"type": "number",
+						"exclusiveMinimum": 0
+					},
+					"maxUses": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"startsAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"format": "date-time",
+								"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"endsAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"format": "date-time",
+								"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": false
+			},
+			"Webhook": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"url": {
+						"type": "string"
+					},
+					"events": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"active": {
+						"type": "boolean"
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"updatedAt": {
+						"type": "string"
+					}
+				},
+				"required": ["id", "url", "events", "active", "createdAt", "updatedAt"],
+				"additionalProperties": false
+			},
+			"WebhookCreated": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"url": {
+						"type": "string"
+					},
+					"events": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"active": {
+						"type": "boolean"
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"updatedAt": {
+						"type": "string"
+					},
+					"signingSecret": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"url",
+					"events",
+					"active",
+					"createdAt",
+					"updatedAt",
+					"signingSecret"
+				],
+				"additionalProperties": false
+			},
+			"WebhookCreate": {
+				"type": "object",
+				"properties": {
+					"url": {
+						"type": "string",
+						"format": "uri"
+					},
+					"events": {
+						"minItems": 1,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"enum": ["sale.confirmed", "sale.refunded"]
+						},
+						"description": "Subconjunto de: sale.confirmed, sale.refunded"
+					},
+					"secret": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"required": ["url", "events"],
+				"additionalProperties": false
+			},
+			"Subscriber": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"customerName": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"customerEmail": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": ["PENDING", "ACTIVE", "EXPIRED", "CANCELLED", "PAUSED"]
+					},
+					"startedAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"currentPeriodEnd": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"id",
+					"customerName",
+					"customerEmail",
+					"status",
+					"startedAt",
+					"currentPeriodEnd"
+				],
+				"additionalProperties": false
+			},
+			"SubscriptionCancelResult": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": ["PENDING", "ACTIVE", "EXPIRED", "CANCELLED", "PAUSED"]
+					},
+					"cancelledAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": ["id", "status", "cancelledAt"],
+				"additionalProperties": false
+			},
+			"SaleTicket": {
+				"type": "object",
+				"properties": {
+					"ticketCode": {
+						"type": "string"
+					},
+					"ticketTypeId": {
+						"type": "string"
+					},
+					"ticketTypeName": {
+						"type": "string"
+					},
+					"quantity": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"seatLabel": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"checkedInAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"ticketCode",
+					"ticketTypeId",
+					"ticketTypeName",
+					"quantity",
+					"seatLabel",
+					"checkedInAt"
+				],
+				"additionalProperties": false
+			},
+			"CheckinResult": {
+				"type": "object",
+				"properties": {
+					"ticketCode": {
+						"type": "string"
+					},
+					"checkedInAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"checkedInBy": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"alreadyCheckedIn": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"ticketCode",
+					"checkedInAt",
+					"checkedInBy",
+					"alreadyCheckedIn"
+				],
+				"additionalProperties": false
+			},
+			"TicketAccess": {
+				"type": "object",
+				"properties": {
+					"ticketCode": {
+						"type": "string"
+					},
+					"valid": {
+						"type": "boolean"
+					},
+					"status": {
+						"type": "string",
+						"enum": ["VALID", "USED", "INVALID"]
+					},
+					"saleStatus": {
+						"type": "string",
+						"enum": [
+							"PENDING",
+							"CONFIRMED",
+							"ABANDONED",
+							"CANCELLED",
+							"REFUNDED"
+						]
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"eventName": {
+						"type": "string"
+					},
+					"eventDateId": {
+						"type": "string"
+					},
+					"startsAt": {
+						"type": "string"
+					},
+					"ticketTypeName": {
+						"type": "string"
+					},
+					"checkedInAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"ticketCode",
+					"valid",
+					"status",
+					"saleStatus",
+					"eventId",
+					"eventName",
+					"eventDateId",
+					"startsAt",
+					"ticketTypeName",
+					"checkedInAt"
+				],
+				"additionalProperties": false
+			},
+			"ResendTicket": {
+				"type": "object",
+				"properties": {
+					"ticketCode": {
+						"type": "string"
+					},
+					"sentTo": {
+						"type": "string"
+					},
+					"sentAt": {
+						"type": "string"
+					}
+				},
+				"required": ["ticketCode", "sentTo", "sentAt"],
+				"additionalProperties": false
+			}
+		},
+		"securitySchemes": {
+			"apiKey": {
+				"type": "apiKey",
+				"in": "header",
+				"name": "Authorization",
+				"description": "API key con prefijo `Bearer `. Alternativa: header `x-api-key` con la key cruda."
+			}
+		}
+	}
+}

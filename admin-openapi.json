@@ -1,0 +1,1783 @@
+{
+	"openapi": "3.1.0",
+	"info": {
+		"title": "FreeTicket Admin API",
+		"version": "1.0.0",
+		"description": "API REST de superadmin de FreeTicket (cross-tenant). Autenticación por sesión de plataforma (staff con rol SUPER_ADMIN) — NO usa API key de tenant. Aislada del contrato B2B /api/v1."
+	},
+	"servers": [{ "url": "https://admin.appfreeticket.com/api/admin" }],
+	"security": [{ "session": [] }],
+	"paths": {
+		"/me": {
+			"get": {
+				"operationId": "getMe",
+				"tags": ["me"],
+				"summary": "Identidad del superadmin autenticado",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminMe" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workspaces": {
+			"get": {
+				"operationId": "getWorkspaces",
+				"tags": ["workspaces"],
+				"summary": "Listar tenants (cross-tenant)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"description": "active(default)|suspended|deleted|all",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "q",
+						"in": "query",
+						"required": false,
+						"description": "Búsqueda por nombre o slug",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/AdminWorkspace" }
+										},
+										"page": { "$ref": "#/components/schemas/Page" }
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postWorkspaces",
+				"tags": ["workspaces"],
+				"summary": "Crear tenant",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/AdminWorkspaceCreate" }
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminWorkspace" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workspaces/{id}": {
+			"get": {
+				"operationId": "getWorkspacesId",
+				"tags": ["workspaces"],
+				"summary": "Detalle de un tenant",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminWorkspace" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchWorkspacesId",
+				"tags": ["workspaces"],
+				"summary": "Actualizar tenant",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/AdminWorkspaceUpdate" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminWorkspace" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workspaces/{id}/suspend": {
+			"post": {
+				"operationId": "postWorkspacesIdSuspend",
+				"tags": ["workspaces"],
+				"summary": "Suspender tenant (corta acceso B2B)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminWorkspace" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workspaces/{id}/restore": {
+			"post": {
+				"operationId": "postWorkspacesIdRestore",
+				"tags": ["workspaces"],
+				"summary": "Reactivar tenant suspendido",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminWorkspace" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/users": {
+			"get": {
+				"operationId": "getUsers",
+				"tags": ["users"],
+				"summary": "Listar usuarios cross-tenant",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "q",
+						"in": "query",
+						"required": false,
+						"description": "Búsqueda por nombre o email",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "role",
+						"in": "query",
+						"required": false,
+						"description": "SUPER_ADMIN|ADMIN|STAFF|VIEWER|MINCULTURA",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "workspaceId",
+						"in": "query",
+						"required": false,
+						"description": "Filtra por membresía a un workspace",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": { "$ref": "#/components/schemas/AdminUser" }
+										},
+										"page": { "$ref": "#/components/schemas/Page" }
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/users/{id}": {
+			"get": {
+				"operationId": "getUsersId",
+				"tags": ["users"],
+				"summary": "Detalle de usuario (incluye workspaces)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminUser" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchUsersId",
+				"tags": ["users"],
+				"summary": "Actualizar rol global / baneo",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/AdminUserUpdate" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminUser" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/impersonate": {
+			"post": {
+				"operationId": "postImpersonate",
+				"tags": ["impersonation"],
+				"summary": "Emitir token de impersonation acotado",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/AdminImpersonate" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminImpersonation"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/impersonate/stop": {
+			"post": {
+				"operationId": "postImpersonateStop",
+				"tags": ["impersonation"],
+				"summary": "Terminar impersonation",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": { "schema": { "type": "object" } }
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/platform-plans": {
+			"get": {
+				"operationId": "getPlatformPlans",
+				"tags": ["platform-plans"],
+				"summary": "Listar planes de plataforma",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminPlatformPlan"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postPlatformPlans",
+				"tags": ["platform-plans"],
+				"summary": "Crear plan de plataforma",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminPlatformPlanCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminPlatformPlan" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/platform-plans/{id}": {
+			"get": {
+				"operationId": "getPlatformPlansId",
+				"tags": ["platform-plans"],
+				"summary": "Detalle de plan (límites, pricing, features)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminPlatformPlan" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchPlatformPlansId",
+				"tags": ["platform-plans"],
+				"summary": "Editar límites/pricing/features de un plan",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminPlatformPlanUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminPlatformPlan" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/feature-flags": {
+			"get": {
+				"operationId": "getFeatureFlags",
+				"tags": ["feature-flags"],
+				"summary": "Listar feature flags",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "key",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "scope",
+						"in": "query",
+						"required": false,
+						"description": "global|plan|workspace",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "scopeId",
+						"in": "query",
+						"required": false,
+						"description": "plan.slug u organization.id",
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminFeatureFlag"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/feature-flags/{key}": {
+			"put": {
+				"operationId": "putFeatureFlagsKey",
+				"tags": ["feature-flags"],
+				"summary": "Setear un feature flag por scope",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "key",
+						"in": "path",
+						"required": true,
+						"schema": { "type": "string" }
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": { "$ref": "#/components/schemas/AdminFeatureFlagSet" }
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": { "$ref": "#/components/schemas/AdminFeatureFlag" }
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		},
+		"/audit-log": {
+			"get": {
+				"operationId": "getAuditLog",
+				"tags": ["audit-log"],
+				"summary": "Registro append-only de acciones de superadmin",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [{ "session": [] }],
+				"parameters": [
+					{
+						"name": "actorId",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "action",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "targetType",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "from",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "to",
+						"in": "query",
+						"required": false,
+						"description": "ISO 8601",
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": { "type": "string" }
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminAuditEntry"
+											}
+										},
+										"page": { "$ref": "#/components/schemas/Page" }
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": { "$ref": "#/components/schemas/Error" }
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	"components": {
+		"schemas": {
+			"Error": {
+				"type": "object",
+				"properties": {
+					"error": {
+						"type": "object",
+						"properties": {
+							"code": { "type": "string" },
+							"message": { "type": "string" },
+							"details": {}
+						},
+						"required": ["code", "message"],
+						"additionalProperties": false
+					}
+				},
+				"required": ["error"],
+				"additionalProperties": false
+			},
+			"AdminMe": {
+				"type": "object",
+				"properties": {
+					"userId": { "type": "string" },
+					"name": { "type": "string" },
+					"email": { "type": "string" },
+					"role": {
+						"type": "string",
+						"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
+					}
+				},
+				"required": ["userId", "name", "email", "role"],
+				"additionalProperties": false
+			},
+			"FeatureFlagScope": {
+				"type": "string",
+				"enum": ["global", "plan", "workspace"]
+			},
+			"Page": {
+				"type": "object",
+				"properties": {
+					"nextCursor": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+					"hasMore": { "type": "boolean" }
+				},
+				"required": ["nextCursor", "hasMore"],
+				"additionalProperties": false
+			},
+			"AdminWorkspace": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"name": { "type": "string" },
+					"slug": { "type": "string" },
+					"type": {
+						"type": "string",
+						"enum": ["ARTIST", "VENUE", "ORGANIZER"]
+					},
+					"country": { "type": "string" },
+					"isPublished": { "type": "boolean" },
+					"suspended": { "type": "boolean" },
+					"suspendedAt": {
+						"anyOf": [{ "type": "string" }, { "type": "null" }]
+					},
+					"deletedAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+					"createdAt": { "type": "string" }
+				},
+				"required": [
+					"id",
+					"name",
+					"slug",
+					"type",
+					"country",
+					"isPublished",
+					"suspended",
+					"suspendedAt",
+					"deletedAt",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"AdminWorkspaceCreate": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string", "minLength": 1 },
+					"slug": {
+						"type": "string",
+						"minLength": 1,
+						"pattern": "^[a-z0-9-]+$"
+					},
+					"type": {
+						"default": "ORGANIZER",
+						"type": "string",
+						"enum": ["ARTIST", "VENUE", "ORGANIZER"]
+					},
+					"country": { "default": "CO", "type": "string" },
+					"email": {
+						"type": "string",
+						"format": "email",
+						"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+					}
+				},
+				"required": ["name", "slug", "type", "country"],
+				"additionalProperties": false
+			},
+			"AdminWorkspaceUpdate": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string", "minLength": 1 },
+					"slug": {
+						"type": "string",
+						"minLength": 1,
+						"pattern": "^[a-z0-9-]+$"
+					},
+					"type": {
+						"type": "string",
+						"enum": ["ARTIST", "VENUE", "ORGANIZER"]
+					},
+					"isPublished": { "type": "boolean" }
+				},
+				"additionalProperties": false
+			},
+			"AdminUserWorkspace": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"name": { "type": "string" },
+					"slug": { "type": "string" },
+					"isOwner": { "type": "boolean" }
+				},
+				"required": ["id", "name", "slug", "isOwner"],
+				"additionalProperties": false
+			},
+			"AdminUser": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"name": { "type": "string" },
+					"email": { "type": "string" },
+					"role": {
+						"type": "string",
+						"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
+					},
+					"banned": { "type": "boolean" },
+					"bannedAt": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+					"homeOrganizationId": {
+						"anyOf": [{ "type": "string" }, { "type": "null" }]
+					},
+					"workspaces": {
+						"type": "array",
+						"items": { "$ref": "#/components/schemas/AdminUserWorkspace" }
+					},
+					"createdAt": { "type": "string" }
+				},
+				"required": [
+					"id",
+					"name",
+					"email",
+					"role",
+					"banned",
+					"bannedAt",
+					"homeOrganizationId",
+					"workspaces",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"AdminUserUpdate": {
+				"type": "object",
+				"properties": {
+					"role": {
+						"type": "string",
+						"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
+					},
+					"banned": { "type": "boolean" }
+				},
+				"additionalProperties": false
+			},
+			"AdminImpersonate": {
+				"type": "object",
+				"properties": {
+					"targetUserId": { "type": "string", "minLength": 1 },
+					"workspaceId": { "type": "string", "minLength": 1 }
+				},
+				"additionalProperties": false
+			},
+			"AdminImpersonation": {
+				"type": "object",
+				"properties": {
+					"token": { "type": "string" },
+					"expiresAt": { "type": "string" },
+					"actorUserId": { "type": "string" },
+					"targetUserId": { "type": "string" },
+					"targetOrgId": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+				},
+				"required": [
+					"token",
+					"expiresAt",
+					"actorUserId",
+					"targetUserId",
+					"targetOrgId"
+				],
+				"additionalProperties": false
+			},
+			"AdminPlatformPlan": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"name": { "type": "string" },
+					"slug": { "type": "string" },
+					"priceMonthly": { "type": "number" },
+					"priceYearly": { "type": "number" },
+					"priceBiannual": {
+						"anyOf": [{ "type": "number" }, { "type": "null" }]
+					},
+					"maxEvents": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{ "type": "null" }
+						]
+					},
+					"isActive": { "type": "boolean" },
+					"sortOrder": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"features": {
+						"type": "object",
+						"properties": {
+							"memberships": { "type": "boolean" },
+							"content": { "type": "boolean" },
+							"fanDatabase": { "type": "boolean" },
+							"directMessages": { "type": "boolean" },
+							"streaming": { "type": "boolean" },
+							"customLanding": { "type": "boolean" },
+							"dataExport": { "type": "boolean" },
+							"seatMaps": { "type": "boolean" },
+							"customDomain": { "type": "boolean" },
+							"analytics": { "type": "boolean" }
+						},
+						"required": [
+							"memberships",
+							"content",
+							"fanDatabase",
+							"directMessages",
+							"streaming",
+							"customLanding",
+							"dataExport",
+							"seatMaps",
+							"customDomain",
+							"analytics"
+						],
+						"additionalProperties": false
+					},
+					"createdAt": { "type": "string" }
+				},
+				"required": [
+					"id",
+					"name",
+					"slug",
+					"priceMonthly",
+					"priceYearly",
+					"priceBiannual",
+					"maxEvents",
+					"isActive",
+					"sortOrder",
+					"features",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"AdminPlatformPlanCreate": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string", "minLength": 1 },
+					"slug": {
+						"type": "string",
+						"minLength": 1,
+						"pattern": "^[a-z0-9-]+$"
+					},
+					"priceMonthly": { "default": 0, "type": "number", "minimum": 0 },
+					"priceYearly": { "default": 0, "type": "number", "minimum": 0 },
+					"priceBiannual": {
+						"anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }]
+					},
+					"isActive": { "default": true, "type": "boolean" },
+					"memberships": { "type": "boolean" },
+					"content": { "type": "boolean" },
+					"fanDatabase": { "type": "boolean" },
+					"directMessages": { "type": "boolean" },
+					"streaming": { "type": "boolean" },
+					"customLanding": { "type": "boolean" },
+					"dataExport": { "type": "boolean" },
+					"seatMaps": { "type": "boolean" },
+					"customDomain": { "type": "boolean" },
+					"analytics": { "type": "boolean" },
+					"maxEvents": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{ "type": "null" }
+						]
+					}
+				},
+				"required": ["name", "slug", "priceMonthly", "priceYearly", "isActive"],
+				"additionalProperties": false
+			},
+			"AdminPlatformPlanUpdate": {
+				"type": "object",
+				"properties": {
+					"name": { "type": "string", "minLength": 1 },
+					"priceMonthly": { "type": "number", "minimum": 0 },
+					"priceYearly": { "type": "number", "minimum": 0 },
+					"priceBiannual": {
+						"anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }]
+					},
+					"isActive": { "type": "boolean" },
+					"sortOrder": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"memberships": { "type": "boolean" },
+					"content": { "type": "boolean" },
+					"fanDatabase": { "type": "boolean" },
+					"directMessages": { "type": "boolean" },
+					"streaming": { "type": "boolean" },
+					"customLanding": { "type": "boolean" },
+					"dataExport": { "type": "boolean" },
+					"seatMaps": { "type": "boolean" },
+					"customDomain": { "type": "boolean" },
+					"analytics": { "type": "boolean" },
+					"maxEvents": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{ "type": "null" }
+						]
+					}
+				},
+				"additionalProperties": false
+			},
+			"AdminFeatureFlag": {
+				"type": "object",
+				"properties": {
+					"key": { "type": "string" },
+					"scope": { "$ref": "#/components/schemas/FeatureFlagScope" },
+					"scopeId": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+					"enabled": { "type": "boolean" },
+					"updatedBy": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+					"updatedAt": { "type": "string" }
+				},
+				"required": [
+					"key",
+					"scope",
+					"scopeId",
+					"enabled",
+					"updatedBy",
+					"updatedAt"
+				],
+				"additionalProperties": false
+			},
+			"AdminFeatureFlagSet": {
+				"type": "object",
+				"properties": {
+					"scope": { "$ref": "#/components/schemas/FeatureFlagScope" },
+					"scopeId": { "type": "string", "minLength": 1 },
+					"enabled": { "type": "boolean" }
+				},
+				"required": ["scope", "enabled"],
+				"additionalProperties": false
+			},
+			"AdminAuditEntry": {
+				"type": "object",
+				"properties": {
+					"id": { "type": "string" },
+					"actorUserId": { "type": "string" },
+					"action": { "type": "string" },
+					"targetType": { "type": "string" },
+					"targetId": { "type": "string" },
+					"before": { "anyOf": [{}, { "type": "null" }] },
+					"after": { "anyOf": [{}, { "type": "null" }] },
+					"ipAddress": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+					"createdAt": { "type": "string" }
+				},
+				"required": [
+					"id",
+					"actorUserId",
+					"action",
+					"targetType",
+					"targetId",
+					"before",
+					"after",
+					"ipAddress",
+					"createdAt"
+				],
+				"additionalProperties": false
+			}
+		},
+		"securitySchemes": {
+			"session": {
+				"type": "apiKey",
+				"in": "cookie",
+				"name": "better-auth.session_token",
+				"description": "Cookie de sesión de plataforma (better-auth staff). El portador debe tener rol SUPER_ADMIN. No se emite API key para este contrato."
+			}
+		}
+	}
+}
