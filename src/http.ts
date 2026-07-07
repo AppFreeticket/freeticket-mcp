@@ -35,16 +35,17 @@ const OAUTH_ISSUER = (process.env.FT_OAUTH_ISSUER ?? API_URL).replace(
 	"",
 );
 
-/** Credenciales del request. Devuelve null si falta el Bearer (→ 401 + OAuth). */
-function credsFromRequest(
-	headers: Record<string, string | undefined>,
-): Creds | null {
+/**
+ * Credenciales del request. Sin Bearer NO es error: sesión anónima con solo los
+ * tools públicos B2C (el comprador no tiene cuenta). Con Bearer se suman B2B y,
+ * con X-Admin-Session, admin_*.
+ */
+function credsFromRequest(headers: Record<string, string | undefined>): Creds {
 	const auth = headers.authorization ?? "";
 	const apiKey = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
-	if (!apiKey) return null;
 	return {
 		apiUrl: API_URL,
-		apiKey,
+		apiKey: apiKey || undefined,
 		workspaceId: headers["x-workspace-id"] || undefined,
 		adminSession: headers["x-admin-session"] || undefined,
 	};
@@ -102,20 +103,12 @@ const server = createServer(async (req, res) => {
 		return;
 	}
 
+	// Sin Bearer se sirve el set público B2C (anónimo). Con Bearer se suman los
+	// tools B2B/admin. El metadata OAuth (RFC 9728) queda para que un cliente que
+	// quiera las capas autenticadas descubra el authorization server.
 	const creds = credsFromRequest(
 		req.headers as Record<string, string | undefined>,
 	);
-	if (!creds) {
-		// RFC 9728 §5.1: apuntá al metadata para que el cliente arranque OAuth.
-		res.writeHead(401, {
-			"content-type": "application/json",
-			"www-authenticate": `Bearer resource_metadata="${url.protocol}//${req.headers.host}${metadataPath}"`,
-		});
-		res.end(
-			JSON.stringify({ error: "unauthorized", message: "Falta Bearer token." }),
-		);
-		return;
-	}
 
 	// Stateless: server + transport nuevos por request, cerrados al terminar.
 	const mcp = buildServer(creds);

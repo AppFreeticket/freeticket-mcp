@@ -77,6 +77,18 @@ Pendientes por hueco de contrato (el spec no declara `requestBody`; no se invent
 — ver [CONTRACT-GAPS.md](https://github.com/AppFreeticket/ai-native/blob/main/CONTRACT-GAPS.md)):
 `event_dates_create/update`, `ticket_types_update`, `plans_update`, `venues_update`.
 
+**Público B2C `/api/public`** (sin credenciales — el agente de un comprador):
+
+| Dominio | Tools |
+|---|---|
+| Descubrimiento | `public_events_list` · `public_events_get` · `public_events_availability` |
+| Checkout | `public_orders_create` (→ `checkoutUrl` de Mercado Pago) · `public_orders_get` |
+| Post-venta | `public_tickets_resend` |
+
+Los `public_*` se registran **siempre** (anónimos). El agente nunca toca el
+pago: `public_orders_create` devuelve el link de Mercado Pago para que el humano
+pague. Alcance del checkout: admisión general (no numerado / no members-only).
+
 **Superadmin `/api/admin`** (solo con `FT_ADMIN_SESSION`):
 
 | Dominio | Tools |

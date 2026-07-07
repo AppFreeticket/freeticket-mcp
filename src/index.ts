@@ -19,11 +19,13 @@ import { credsFromEnv } from "./api";
 import { buildServer } from "./server";
 
 const creds = credsFromEnv();
-if (!creds) {
+if (!creds.apiKey) {
+	// Sin credencial no es un error: quedan los tools públicos B2C. Para los
+	// tools B2B/admin, corré `ft login` (o exportá FT_API_KEY).
 	process.stderr.write(
-		"FreeTicket MCP: no hay credencial. Corre `ft login` (o exporta FT_API_KEY).\n",
+		"FreeTicket MCP: sin credencial — modo anónimo (solo tools públicos B2C). " +
+			"Corre `ft login` para los tools B2B.\n",
 	);
-	process.exit(1);
 }
 
 const server = buildServer(creds);

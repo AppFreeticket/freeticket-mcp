@@ -3,6 +3,25 @@
 All notable changes to `@freeticket/mcp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: semver.
 
+## [0.9.0] - 2026-07-07
+
+### Added
+- **B2C público (`/api/public`)**: 6 tools `public_*` anónimos (sin credenciales)
+  para el agente de un comprador — `public_events_list|get|availability`
+  (descubrimiento), `public_orders_create` (crea la orden y devuelve la
+  `checkoutUrl` de Mercado Pago; el agente nunca toca el pago) + `public_orders_get`
+  (estado + tickets al pagar), y `public_tickets_resend`. Cliente generado del
+  tercer contrato (`public-openapi.json` 0.3.0 → `src/public-client/`,
+  `sync-openapi:public`, `openapi-ts.public.config.ts`).
+- Capas por credencial en `buildServer`: los `public_*` se registran **siempre**;
+  B2B solo con `apiKey`; `admin_*` solo con `adminSession`. El server HTTP sirve
+  el set público de forma **anónima** (sin Bearer, 200) y suma las capas
+  autenticadas cuando llega el token.
+
+### Changed
+- `Creds.apiKey` ahora es opcional: sin credencial el server arranca en modo
+  anónimo (solo B2C) en vez de fallar. El entrypoint stdio ya no aborta sin key.
+
 ## [0.6.0] - 2026-07-07
 
 ### Added

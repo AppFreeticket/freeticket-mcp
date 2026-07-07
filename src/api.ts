@@ -10,7 +10,9 @@ import { type Client, createClient, createConfig } from "@hey-api/client-fetch";
  */
 export interface Creds {
 	apiUrl: string;
-	apiKey: string;
+	// Ausente = sesión anónima: solo los tools públicos B2C (public_*). Con key
+	// se suman los tools B2B; con adminSession, los admin_*.
+	apiKey?: string;
 	workspaceId?: string;
 	adminSession?: string;
 	adminApiUrl?: string;
@@ -39,18 +41,19 @@ export function normalizeApiUrl(raw: string): string {
 	return raw.replace(/\/$/, "").replace(/\/api\/v1$/, "");
 }
 
-/** Credenciales para el entrypoint stdio (local, un solo tenant). */
-export function credsFromEnv(): Creds | null {
+/**
+ * Credenciales para el entrypoint stdio (local). Siempre devuelve algo: sin
+ * FT_API_KEY el server arranca en modo anónimo (solo tools públicos B2C).
+ */
+export function credsFromEnv(): Creds {
 	const stored = cliConfig();
-	const apiKey = process.env.FT_API_KEY ?? stored.apiKey;
-	if (!apiKey) return null;
 	return {
 		apiUrl: normalizeApiUrl(
 			process.env.FT_API_URL ??
 				stored.apiUrl ??
 				"https://admin.appfreeticket.com",
 		),
-		apiKey,
+		apiKey: process.env.FT_API_KEY ?? stored.apiKey,
 		workspaceId: process.env.FT_WORKSPACE_ID ?? stored.workspaceId,
 		adminSession: process.env.FT_ADMIN_SESSION,
 		adminApiUrl: process.env.FT_ADMIN_API_URL,
@@ -68,6 +71,11 @@ export function makeB2bClient(c: Creds): Client {
 			},
 		}),
 	);
+}
+
+/** Client público B2C aislado (sin auth). Catálogo + checkout anónimo. */
+export function makePublicClient(apiUrl: string): Client {
+	return createClient(createConfig({ baseUrl: `${apiUrl}/api/public` }));
 }
 
 /** Client superadmin aislado (cookie de sesión SUPER_ADMIN). Nunca comparte auth. */

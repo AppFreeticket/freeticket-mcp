@@ -5,6 +5,7 @@ import { buildServer } from "../server";
 import { registerAdminTools } from "./admin";
 import { registerB2bTools } from "./b2b";
 import { registerB2bWriteTools } from "./b2b-writes";
+import { registerPublicTools } from "./public";
 
 // Client aislado de juguete: el registro no hace red, solo necesita el objeto.
 const stub = makeB2bClient({ apiUrl: "http://localhost", apiKey: "test" });
@@ -74,13 +75,45 @@ describe("tool registration", () => {
 		}
 	});
 
-	it("buildServer gates admin tools on adminSession", () => {
-		const base = { apiUrl: "http://localhost", apiKey: "k" };
-		const b2b = names(buildServer(base));
-		expect(b2b.some((n) => n.startsWith("admin_"))).toBe(false);
-		expect(b2b).toContain("events_create");
+	it("registers public B2C tools without collisions", () => {
+		const server = new McpServer({ name: "t", version: "0.0.0" });
+		registerPublicTools(server, stub);
+		const t = names(server);
+		expect(t.length).toBe(6);
+		expect(new Set(t).size).toBe(t.length);
+		for (const n of t) expect(n).toMatch(/^public_/);
+		for (const n of [
+			"public_events_list",
+			"public_events_availability",
+			"public_orders_create",
+			"public_orders_get",
+			"public_tickets_resend",
+		]) {
+			expect(t).toContain(n);
+		}
+	});
 
-		const withAdmin = names(buildServer({ ...base, adminSession: "sess" }));
-		expect(withAdmin.some((n) => n.startsWith("admin_"))).toBe(true);
+	it("buildServer layers tools by credential level", () => {
+		// Anónimo (sin apiKey): solo public_*.
+		const anon = names(buildServer({ apiUrl: "http://localhost" }));
+		expect(anon.every((n) => n.startsWith("public_"))).toBe(true);
+		expect(anon).toContain("public_events_list");
+
+		// Con apiKey: public + B2B, sin admin.
+		const b2b = names(buildServer({ apiUrl: "http://localhost", apiKey: "k" }));
+		expect(b2b).toContain("public_events_list");
+		expect(b2b).toContain("events_create");
+		expect(b2b.some((n) => n.startsWith("admin_"))).toBe(false);
+
+		// Con adminSession: las tres capas.
+		const full = names(
+			buildServer({
+				apiUrl: "http://localhost",
+				apiKey: "k",
+				adminSession: "s",
+			}),
+		);
+		expect(full.some((n) => n.startsWith("admin_"))).toBe(true);
+		expect(full.some((n) => n.startsWith("public_"))).toBe(true);
 	});
 });
