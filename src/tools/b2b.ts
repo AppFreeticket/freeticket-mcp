@@ -1,3 +1,4 @@
+import type { Client } from "@hey-api/client-fetch";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { run } from "../api";
@@ -41,30 +42,31 @@ const id = z.string().describe("Id del recurso");
  * Ola A: todos los reads del contrato B2B /api/v1 (un tool = un operationId).
  * Writes (create/update/delete/publish/checkin/refund…) = Ola B.
  */
-export function registerB2bTools(server: McpServer): void {
+export function registerB2bTools(server: McpServer, client: Client): void {
 	server.tool(
 		"whoami",
 		"Usuario y workspaces de la sesión configurada (GET /me).",
-		async () => run(getMe({})),
+		async () => run(getMe({ client })),
 	);
 
 	server.tool(
 		"events_list",
 		"Lista los eventos del workspace (GET /events).",
 		paging,
-		async (q) => run(getEvents({ query: q })),
+		async (q) => run(getEvents({ query: q, client })),
 	);
 	server.tool(
 		"events_get",
 		"Detalle de un evento (GET /events/{id}).",
 		{ id },
-		async ({ id }) => run(getEventsId({ path: { id } })),
+		async ({ id }) => run(getEventsId({ path: { id }, client })),
 	);
 	server.tool(
 		"event_dates_list",
 		"Fechas/funciones de un evento (GET /events/{id}/dates).",
 		{ eventId: z.string().describe("Id del evento") },
-		async ({ eventId }) => run(getEventsIdDates({ path: { id: eventId } })),
+		async ({ eventId }) =>
+			run(getEventsIdDates({ path: { id: eventId }, client })),
 	);
 
 	server.tool(
@@ -77,13 +79,13 @@ export function registerB2bTools(server: McpServer): void {
 				.describe("Filtrar por fecha de evento"),
 			...paging,
 		},
-		async (q) => run(getTicketTypes({ query: q })),
+		async (q) => run(getTicketTypes({ query: q, client })),
 	);
 	server.tool(
 		"ticket_types_get",
 		"Detalle de un tipo de ticket (GET /ticket-types/{id}).",
 		{ id },
-		async ({ id }) => run(getTicketTypesId({ path: { id } })),
+		async ({ id }) => run(getTicketTypesId({ path: { id }, client })),
 	);
 
 	server.tool(
@@ -103,45 +105,46 @@ export function registerB2bTools(server: McpServer): void {
 			to: z.string().optional().describe("Creadas hasta (ISO 8601)"),
 			...paging,
 		},
-		async (q) => run(getSales({ query: q })),
+		async (q) => run(getSales({ query: q, client })),
 	);
 	server.tool(
 		"sales_get",
 		"Detalle de una venta (GET /sales/{id}).",
 		{ id },
-		async ({ id }) => run(getSalesId({ path: { id } })),
+		async ({ id }) => run(getSalesId({ path: { id }, client })),
 	);
 	server.tool(
 		"sales_tickets",
 		"Tickets/asistentes individuales de una venta (GET /sales/{id}/tickets).",
 		{ id: z.string().describe("Id de la venta") },
-		async ({ id }) => run(getSalesIdTickets({ path: { id } })),
+		async ({ id }) => run(getSalesIdTickets({ path: { id }, client })),
 	);
 	server.tool(
 		"tickets_access",
 		"Estado de acceso de un ticket por su código QR — no admite, solo consulta (GET /tickets/{code}/access).",
 		{ code: z.string().describe("Código QR del ticket") },
 		async ({ code }) =>
-			run(getTicketsTicketCodeAccess({ path: { ticketCode: code } })),
+			run(getTicketsTicketCodeAccess({ path: { ticketCode: code }, client })),
 	);
 
 	server.tool(
 		"plans_list",
 		"Planes de membresía (GET /membership-plans).",
 		paging,
-		async (q) => run(getMembershipPlans({ query: q })),
+		async (q) => run(getMembershipPlans({ query: q, client })),
 	);
 	server.tool(
 		"plans_get",
 		"Detalle de un plan de membresía (GET /membership-plans/{id}).",
 		{ id },
-		async ({ id }) => run(getMembershipPlansId({ path: { id } })),
+		async ({ id }) => run(getMembershipPlansId({ path: { id }, client })),
 	);
 	server.tool(
 		"plans_subscribers",
 		"Suscriptores/miembros de un plan (GET /membership-plans/{id}/subscribers).",
 		{ id: z.string().describe("Id del plan") },
-		async ({ id }) => run(getMembershipPlansIdSubscribers({ path: { id } })),
+		async ({ id }) =>
+			run(getMembershipPlansIdSubscribers({ path: { id }, client })),
 	);
 
 	server.tool(
@@ -152,39 +155,39 @@ export function registerB2bTools(server: McpServer): void {
 			active: z.string().optional().describe("true | false"),
 			...paging,
 		},
-		async (q) => run(getDiscounts({ query: q })),
+		async (q) => run(getDiscounts({ query: q, client })),
 	);
 	server.tool(
 		"webhooks_list",
 		"Webhooks registrados (GET /webhooks).",
 		paging,
-		async (q) => run(getWebhooks({ query: q })),
+		async (q) => run(getWebhooks({ query: q, client })),
 	);
 
 	server.tool(
 		"venues_list",
 		"Venues del workspace (GET /venues).",
 		paging,
-		async (q) => run(getVenues({ query: q })),
+		async (q) => run(getVenues({ query: q, client })),
 	);
 	server.tool(
 		"venues_get",
 		"Detalle de un venue (GET /venues/{id}).",
 		{ id },
-		async ({ id }) => run(getVenuesId({ path: { id } })),
+		async ({ id }) => run(getVenuesId({ path: { id }, client })),
 	);
 	server.tool(
 		"staff_list",
 		"Staff del workspace (GET /staff).",
 		paging,
-		async (q) => run(getStaff({ query: q })),
+		async (q) => run(getStaff({ query: q, client })),
 	);
 
 	server.tool(
 		"reports_summary",
 		"KPIs del workspace (GET /reports/summary).",
 		{ period: z.enum(["7d", "30d", "90d", "1y"]).optional() },
-		async (q) => run(getReportsSummary({ query: q })),
+		async (q) => run(getReportsSummary({ query: q, client })),
 	);
 	server.tool(
 		"reports_by_event",
@@ -194,7 +197,7 @@ export function registerB2bTools(server: McpServer): void {
 			to: z.string().optional().describe("Hasta (ISO 8601)"),
 			status: z.string().optional().describe("Filtrar por estado de venta"),
 		},
-		async (q) => run(getReportsByEvent({ query: q })),
+		async (q) => run(getReportsByEvent({ query: q, client })),
 	);
 	server.tool(
 		"reports_timeseries",
@@ -205,7 +208,7 @@ export function registerB2bTools(server: McpServer): void {
 			to: z.string().optional(),
 			event: z.string().optional().describe("Filtrar por evento"),
 		},
-		async (q) => run(getReportsTimeseries({ query: q })),
+		async (q) => run(getReportsTimeseries({ query: q, client })),
 	);
 	server.tool(
 		"reports_inventory",
@@ -221,7 +224,7 @@ export function registerB2bTools(server: McpServer): void {
 				.describe("true | false — incluir borradores"),
 			groupBy: z.enum(["ticketType", "date", "event"]).optional(),
 		},
-		async (q) => run(getReportsInventory({ query: q })),
+		async (q) => run(getReportsInventory({ query: q, client })),
 	);
 	server.tool(
 		"reconciliation",
@@ -244,7 +247,7 @@ export function registerB2bTools(server: McpServer): void {
 			page: z.string().optional(),
 			page_size: z.string().optional(),
 		},
-		async (q) => run(getReportsReconciliation({ query: q })),
+		async (q) => run(getReportsReconciliation({ query: q, client })),
 	);
 
 	const exportFilters = {
@@ -258,18 +261,18 @@ export function registerB2bTools(server: McpServer): void {
 		"reports_export_buyers",
 		"Export de compradores — una fila por venta (GET /reports/exports/buyers).",
 		exportFilters,
-		async (q) => run(getReportsExportsBuyers({ query: q })),
+		async (q) => run(getReportsExportsBuyers({ query: q, client })),
 	);
 	server.tool(
 		"reports_export_attendees",
 		"Export de asistentes — una fila por ticket (GET /reports/exports/attendees).",
 		exportFilters,
-		async (q) => run(getReportsExportsAttendees({ query: q })),
+		async (q) => run(getReportsExportsAttendees({ query: q, client })),
 	);
 	server.tool(
 		"reports_export_subscribers",
 		"Export de suscriptores (GET /reports/exports/subscribers).",
-		async () => run(getReportsExportsSubscribers({})),
+		async () => run(getReportsExportsSubscribers({ client })),
 	);
 	server.tool(
 		"reports_export_reconciliation",
@@ -280,6 +283,6 @@ export function registerB2bTools(server: McpServer): void {
 			match_status: z.string().optional(),
 			provider: z.string().optional(),
 		},
-		async (q) => run(getReportsExportsReconciliation({ query: q })),
+		async (q) => run(getReportsExportsReconciliation({ query: q, client })),
 	);
 }

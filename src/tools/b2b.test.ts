@@ -1,7 +1,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it } from "vitest";
+import { makeB2bClient } from "../api";
+import { buildServer } from "../server";
 import { registerAdminTools } from "./admin";
 import { registerB2bTools } from "./b2b";
+import { registerB2bWriteTools } from "./b2b-writes";
+
+// Client aislado de juguete: el registro no hace red, solo necesita el objeto.
+const stub = makeB2bClient({ apiUrl: "http://localhost", apiKey: "test" });
 
 // El registro no debe tirar y no debe haber nombres duplicados entre capas.
 function names(server: McpServer): string[] {
@@ -15,22 +21,66 @@ function names(server: McpServer): string[] {
 describe("tool registration", () => {
 	it("registers B2B read tools without collisions", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
-		registerB2bTools(server);
+		registerB2bTools(server, stub);
 		const t = names(server);
 		expect(t.length).toBeGreaterThanOrEqual(24);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of ["whoami", "events_list", "sales_list", "reconciliation"]) {
 			expect(t).toContain(n);
 		}
-		// Ola A = solo reads: ningún tool de escritura todavía.
-		expect(t.join(",")).not.toMatch(
-			/create|update|delete|cancel|refund|checkin/,
-		);
+	});
+
+	it("registers B2B write tools without collisions", () => {
+		const server = new McpServer({ name: "t", version: "0.0.0" });
+		registerB2bWriteTools(server, stub);
+		const t = names(server);
+		// 24 writes: los 5 con hueco de contrato (body sin declarar) no se inventan.
+		expect(t.length).toBe(24);
+		expect(new Set(t).size).toBe(t.length);
+		for (const n of [
+			"events_create",
+			"events_publish",
+			"sales_create",
+			"tickets_checkin",
+			"discounts_create",
+		]) {
+			expect(t).toContain(n);
+		}
+	});
+
+	it("reads and writes share no tool names", () => {
+		const server = new McpServer({ name: "t", version: "0.0.0" });
+		registerB2bTools(server, stub);
+		registerB2bWriteTools(server, stub);
+		const t = names(server);
+		expect(new Set(t).size).toBe(t.length);
 	});
 
 	it("admin tools live under the admin_ prefix", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
-		registerAdminTools(server);
-		for (const n of names(server)) expect(n).toMatch(/^admin_/);
+		registerAdminTools(server, stub);
+		const t = names(server);
+		// 4 reads originales + 15 de la Ola C.
+		expect(t.length).toBe(19);
+		expect(new Set(t).size).toBe(t.length);
+		for (const n of t) expect(n).toMatch(/^admin_/);
+		for (const n of [
+			"admin_workspaces_suspend",
+			"admin_impersonate",
+			"admin_platform_plans_create",
+			"admin_feature_flags_set",
+		]) {
+			expect(t).toContain(n);
+		}
+	});
+
+	it("buildServer gates admin tools on adminSession", () => {
+		const base = { apiUrl: "http://localhost", apiKey: "k" };
+		const b2b = names(buildServer(base));
+		expect(b2b.some((n) => n.startsWith("admin_"))).toBe(false);
+		expect(b2b).toContain("events_create");
+
+		const withAdmin = names(buildServer({ ...base, adminSession: "sess" }));
+		expect(withAdmin.some((n) => n.startsWith("admin_"))).toBe(true);
 	});
 });

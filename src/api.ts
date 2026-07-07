@@ -1,13 +1,24 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { client as adminClient } from "./admin-client/client.gen";
-import { client } from "./client/client.gen";
+import { type Client, createClient, createConfig } from "@hey-api/client-fetch";
+
+/**
+ * Credenciales de una sesión. En stdio salen de env/config; en HTTP remoto salen
+ * del request (nunca del disco) — por eso los clients se construyen por sesión y
+ * no hay singleton global compartido entre tenants.
+ */
+export interface Creds {
+	apiUrl: string;
+	apiKey: string;
+	workspaceId?: string;
+	adminSession?: string;
+	adminApiUrl?: string;
+}
 
 /**
  * Config compartida con el CLI `ft`: env > ~/.freeticket/config.json > default.
- * Así `ft login` (device flow del browser) también autentica el MCP y nadie
- * tiene que pegar una API key a mano.
+ * Así `ft login` (device flow del browser) también autentica el MCP en stdio.
  */
 function cliConfig(): {
 	apiUrl?: string;
@@ -23,35 +34,50 @@ function cliConfig(): {
 	}
 }
 
-const stored = cliConfig();
+/** Normaliza la base: acepta FT_API_URL con o sin /api/v1 (versiones viejas). */
+export function normalizeApiUrl(raw: string): string {
+	return raw.replace(/\/$/, "").replace(/\/api\/v1$/, "");
+}
 
-// Acepta FT_API_URL con o sin /api/v1 (versiones viejas lo incluían).
-export const API_URL = (
-	process.env.FT_API_URL ??
-	stored.apiUrl ??
-	"https://admin.appfreeticket.com"
-)
-	.replace(/\/$/, "")
-	.replace(/\/api\/v1$/, "");
-export const API_KEY = process.env.FT_API_KEY ?? stored.apiKey;
-export const WORKSPACE_ID = process.env.FT_WORKSPACE_ID ?? stored.workspaceId;
-export const ADMIN_SESSION = process.env.FT_ADMIN_SESSION;
+/** Credenciales para el entrypoint stdio (local, un solo tenant). */
+export function credsFromEnv(): Creds | null {
+	const stored = cliConfig();
+	const apiKey = process.env.FT_API_KEY ?? stored.apiKey;
+	if (!apiKey) return null;
+	return {
+		apiUrl: normalizeApiUrl(
+			process.env.FT_API_URL ??
+				stored.apiUrl ??
+				"https://admin.appfreeticket.com",
+		),
+		apiKey,
+		workspaceId: process.env.FT_WORKSPACE_ID ?? stored.workspaceId,
+		adminSession: process.env.FT_ADMIN_SESSION,
+		adminApiUrl: process.env.FT_ADMIN_API_URL,
+	};
+}
 
-/** Configura los singletons generados. B2B y admin nunca comparten auth. */
-export function configureClients(): void {
-	client.setConfig({
-		baseUrl: `${API_URL}/api/v1`,
-		headers: {
-			Authorization: `Bearer ${API_KEY}`,
-			...(WORKSPACE_ID ? { "X-Workspace-Id": WORKSPACE_ID } : {}),
-		},
-	});
-	if (ADMIN_SESSION) {
-		adminClient.setConfig({
-			baseUrl: process.env.FT_ADMIN_API_URL ?? `${API_URL}/api/admin`,
-			headers: { Cookie: `better-auth.session_token=${ADMIN_SESSION}` },
-		});
-	}
+/** Client B2B aislado para una sesión (Bearer + workspace). */
+export function makeB2bClient(c: Creds): Client {
+	return createClient(
+		createConfig({
+			baseUrl: `${c.apiUrl}/api/v1`,
+			headers: {
+				Authorization: `Bearer ${c.apiKey}`,
+				...(c.workspaceId ? { "X-Workspace-Id": c.workspaceId } : {}),
+			},
+		}),
+	);
+}
+
+/** Client superadmin aislado (cookie de sesión SUPER_ADMIN). Nunca comparte auth. */
+export function makeAdminClient(c: Creds): Client {
+	return createClient(
+		createConfig({
+			baseUrl: c.adminApiUrl ?? `${c.apiUrl}/api/admin`,
+			headers: { Cookie: `better-auth.session_token=${c.adminSession}` },
+		}),
+	);
 }
 
 type SdkResult = { data?: unknown; error?: unknown };
