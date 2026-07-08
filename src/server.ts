@@ -10,7 +10,7 @@ import { registerB2bTools } from "./tools/b2b";
 import { registerB2bWriteTools } from "./tools/b2b-writes";
 import { registerPublicTools } from "./tools/public";
 
-export const VERSION = "0.9.0";
+export const VERSION = "0.10.0";
 
 /**
  * Construye un McpServer aislado para una sesión. Cada sesión trae sus propios

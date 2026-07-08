@@ -37,25 +37,58 @@ freeticket-mcp-http          # escucha en :3333 (PORT para cambiarlo)
 
 Es **stateless**: cada request trae sus credenciales y el server arma clientes
 aislados por sesión (nunca lee el disco), así un mismo proceso sirve a varios
-workspaces sin cruzar sesiones. Autenticación:
+workspaces sin cruzar sesiones. Endpoints:
 
-- `Authorization: Bearer <FT_API_KEY>` (obligatorio)
-- `X-Workspace-Id: <ws_...>` (opcional)
-- `X-Admin-Session: <cookie>` (opcional — habilita los tools `admin_*`)
+| Endpoint | Auth | Tools |
+|---|---|---|
+| `POST /mcp` | Bearer (token OAuth o API key cruda) | `public_*` + B2B (+ `admin_*` si la credencial lo trae) |
+| `POST /mcp/public` | ninguna | solo `public_*` (agentes compradores) |
+
+### Conectar en claude.ai (Add custom connector)
+
+El server trae un **authorization server OAuth 2.1 embebido** — es lo único que
+claude.ai sabe hablar (no puede mandar API keys ni headers custom). Pasos:
+
+1. claude.ai → Settings → Connectors → **Add custom connector**.
+2. Remote MCP server URL: `https://<tu-deploy>/mcp`. Client ID/Secret: vacíos
+   (usa dynamic client registration, RFC 7591).
+3. Al conectar se abre la página de consentimiento: pega tu **API key B2B**
+   (`ft login` o el panel), opcionalmente el workspace y la cookie de sesión
+   superadmin (habilita los `admin_*`).
+4. Las credenciales se sellan (AES-256-GCM, `MCP_TOKEN_SECRET`) dentro del token
+   emitido — el server no persiste nada: sin base de datos, multi-tenant seguro.
+
+Flujo estándar completo: discovery RFC 9728/8414 → `/register` → `/authorize`
+(PKCE S256) → `/token` (con refresh). `FT_OAUTH_ISSUER` delega todo a un AS
+externo (p. ej. cuando `free-admin` publique el suyo).
+
+### Auth directa (curl, clientes propios)
 
 ```bash
 curl -X POST http://localhost:3333/mcp \
-  -H 'authorization: Bearer ft_live_...' \
+  -H 'authorization: Bearer ft_live_...' \      # API key cruda
+  -H 'x-workspace-id: ws_...' \                 # opcional
+  -H 'x-admin-session: <cookie>' \              # opcional — habilita admin_*
   -H 'content-type: application/json' \
   -H 'accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-**claude.ai** exige OAuth para connectors con credenciales. El server ya publica
-la Protected Resource Metadata (RFC 9728) en
-`/.well-known/oauth-protected-resource` apuntando al authorization server de
-FreeTicket; ese AS es la pieza que falta en `free-admin` para cerrar el login
-por browser (ver roadmap del paraguas).
+### Deploy en Vercel
+
+El repo ya trae `vercel.json` + `api/server.ts` (misma lógica que el binario,
+como Vercel Function):
+
+```bash
+vercel                                        # preview
+vercel env add MCP_TOKEN_SECRET production    # openssl rand -hex 32
+vercel --prod
+```
+
+Env en Vercel: `MCP_TOKEN_SECRET` (**requerido** — sin él los tokens mueren en
+cada cold start), `FT_API_URL` (opcional, default producción), `MCP_PUBLIC_URL`
+(opcional — se deriva del Host). Connector URL resultante:
+`https://<proyecto>.vercel.app/mcp`.
 
 ## Tools
 

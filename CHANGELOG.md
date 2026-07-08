@@ -3,6 +3,31 @@
 All notable changes to `@freeticket/mcp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: semver.
 
+## [0.10.0] - 2026-07-08
+
+### Added
+- **Embedded OAuth 2.1 authorization server** (`src/oauth.ts`) so the remote
+  server works as a claude.ai **custom connector**: discovery (RFC 8414 +
+  RFC 9728), dynamic client registration (RFC 7591), `/authorize` with a consent
+  page (paste API key / workspace / superadmin session) + PKCE S256, and
+  `/token` with refresh grant. Tokens are **stateless**: credentials sealed with
+  AES-256-GCM under `MCP_TOKEN_SECRET` — no database, nothing persisted.
+  Credentials are validated against free-admin (`/api/v1/me`, `/api/admin/me`)
+  before minting a code. `FT_OAUTH_ISSUER` delegates to an external AS (e.g. a
+  future free-admin one) and turns the embedded AS off.
+- `POST /mcp/public`: anonymous endpoint serving only the B2C `public_*` tools
+  (buyer agents have no account).
+- **Vercel deploy config**: `api/server.ts` + `vercel.json` reuse the same
+  handler (`src/handler.ts`) as the standalone binary. Set `MCP_TOKEN_SECRET`
+  in the project env; connector URL is `https://<project>.vercel.app/mcp`.
+
+### Changed
+- `POST /mcp` now **requires** a Bearer (OAuth access token or raw API key) and
+  answers 401 + `WWW-Authenticate` otherwise — that challenge is what triggers
+  the OAuth flow in claude.ai. Anonymous B2C access moved to `/mcp/public`.
+- HTTP logic extracted from `src/http.ts` into `src/handler.ts` (shared with the
+  Vercel Function); `src/http.ts` is now just the `createServer` entrypoint.
+
 ## [0.9.0] - 2026-07-07
 
 ### Added
