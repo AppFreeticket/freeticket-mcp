@@ -31,6 +31,7 @@ import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { type Creds, normalizeApiUrl } from "./api";
+import { FAVICON_SVG } from "./brand";
 import {
 	ACCESS_PREFIX,
 	ACCESS_TTL,
@@ -352,6 +353,19 @@ export async function handleHttp(
 		// Health check.
 		if (req.method === "GET" && url.pathname === "/") {
 			return json(res, 200, { name: "freeticket-mcp", status: "ok" });
+		}
+
+		// Favicon — el de free-admin (misma marca en toda la superficie FreeTicket).
+		if (
+			req.method === "GET" &&
+			(url.pathname === "/favicon.svg" || url.pathname === "/favicon.ico")
+		) {
+			res.writeHead(200, {
+				"content-type": "image/svg+xml",
+				"cache-control": "public, max-age=86400",
+			});
+			res.end(FAVICON_SVG);
+			return;
 		}
 
 		// MCP anónimo: solo tools públicos B2C (agentes compradores, sin cuenta).

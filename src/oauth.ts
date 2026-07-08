@@ -120,6 +120,10 @@ const esc = (s: string) =>
 /**
  * Página de consentimiento: el usuario pega sus credenciales FreeTicket y
  * autoriza al cliente MCP. Copy en español neutro (audiencia LATAM).
+ *
+ * Diseño = tokens de free-admin (globals.css): amarillo #ffd500 sobre negro
+ * #070707, muted #717182, borde #e0e0e0, radios 0.75rem card / 0.5rem botón,
+ * dark mode con los mismos oklch del tema `.dark`.
  */
 export function consentPage(params: URLSearchParams, error?: string): string {
 	const hidden = [
@@ -136,31 +140,58 @@ export function consentPage(params: URLSearchParams, error?: string): string {
 		.join("\n      ");
 	return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FreeTicket MCP — Autorizar</title>
+<title>Conectar FreeTicket</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
-  body{font-family:system-ui,sans-serif;background:#111;color:#eee;display:grid;place-items:center;min-height:100vh;margin:0}
-  form{background:#1c1c1c;border:1px solid #333;border-radius:12px;padding:2rem;width:min(420px,90vw)}
-  h1{font-size:1.2rem;margin:0 0 .5rem}
-  p{color:#999;font-size:.85rem;margin:.25rem 0 1rem}
-  label{display:block;font-size:.8rem;color:#bbb;margin:.75rem 0 .25rem}
-  input[type=text],input[type=password]{width:100%;box-sizing:border-box;background:#111;border:1px solid #444;border-radius:8px;color:#eee;padding:.6rem}
-  button{margin-top:1.25rem;width:100%;padding:.7rem;border:0;border-radius:8px;background:#e8590c;color:#fff;font-weight:600;cursor:pointer}
-  .err{background:#3b1113;border:1px solid #a33;border-radius:8px;padding:.6rem;font-size:.85rem;color:#f99}
+  :root{
+    --background:#f5f5f5;--card:#ffffff;--foreground:#070707;
+    --muted-foreground:#717182;--border:#e0e0e0;--input-background:#f7f7f7;
+    --primary:#ffd500;--primary-foreground:#070707;
+    --destructive:#d4183d;--radius-card:.75rem;--radius-button:.5rem;
+  }
+  @media (prefers-color-scheme: dark){:root{
+    --background:oklch(.145 0 0);--card:oklch(.2 0 0);--foreground:oklch(.985 0 0);
+    --muted-foreground:oklch(.708 0 0);--border:oklch(.269 0 0);
+    --input-background:oklch(.17 0 0);--destructive:oklch(.637 .237 25.331);
+  }}
+  *{box-sizing:border-box}
+  body{font-family:Inter,system-ui,-apple-system,sans-serif;background:var(--background);
+    color:var(--foreground);display:grid;place-items:center;min-height:100vh;margin:0;padding:1.5rem}
+  form{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-card);
+    padding:2rem;width:min(420px,100%);box-shadow:0 1px 3px rgb(0 0 0 / .06)}
+  .logo{width:44px;height:44px;border-radius:.6rem;display:block;margin-bottom:1rem}
+  h1{font-size:1.25rem;font-weight:600;letter-spacing:-.01em;margin:0 0 .35rem}
+  p{color:var(--muted-foreground);font-size:.85rem;line-height:1.45;margin:.25rem 0 1rem}
+  label{display:block;font-size:.8rem;font-weight:500;margin:.85rem 0 .3rem}
+  label small{color:var(--muted-foreground);font-weight:400}
+  code{font-family:ui-monospace,monospace;font-size:.75rem}
+  input[type=text],input[type=password]{width:100%;background:var(--input-background);
+    border:1px solid var(--border);border-radius:var(--radius-button);color:var(--foreground);
+    padding:.6rem .7rem;font-size:.9rem;outline:none}
+  input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgb(255 213 0 / .3)}
+  button{margin-top:1.4rem;width:100%;padding:.7rem;border:0;border-radius:var(--radius-button);
+    background:var(--primary);color:var(--primary-foreground);font:inherit;font-weight:600;
+    font-size:.95rem;cursor:pointer}
+  button:hover{filter:brightness(.95)}
+  .err{border:1px solid var(--destructive);color:var(--destructive);
+    border-radius:var(--radius-button);padding:.6rem .7rem;font-size:.85rem;margin-bottom:.5rem}
+  .foot{margin:1rem 0 0;font-size:.78rem}
 </style></head><body>
   <form method="post" action="/authorize">
+    <img class="logo" src="/favicon.svg" alt="FreeTicket">
     <h1>Conectar FreeTicket</h1>
     <p>Un cliente MCP pide acceso a tu cuenta. Pega tus credenciales; se sellan
     dentro del token y este servidor no las almacena.</p>
     ${error ? `<div class="err">${esc(error)}</div>` : ""}
-    <label>API key B2B (opcional — genera una con <code>ft login</code> o en el panel)</label>
+    <label>API key B2B <small>(opcional — genera una con <code>ft login</code> o en el panel)</small></label>
     <input type="password" name="api_key" autocomplete="off">
-    <label>Workspace ID (opcional)</label>
+    <label>Workspace ID <small>(opcional)</small></label>
     <input type="text" name="workspace_id" autocomplete="off">
-    <label>Sesión superadmin (opcional — cookie <code>better-auth.session_token</code>)</label>
+    <label>Sesión superadmin <small>(opcional — cookie <code>better-auth.session_token</code>)</small></label>
     <input type="password" name="admin_session" autocomplete="off">
     ${hidden}
     <button type="submit">Autorizar</button>
-    <p>Sin credenciales solo se habilitan los tools públicos B2C.</p>
+    <p class="foot">Sin credenciales solo se habilitan los tools públicos B2C.</p>
   </form>
 </body></html>`;
 }
