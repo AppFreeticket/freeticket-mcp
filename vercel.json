@@ -1,7 +1,7 @@
 {
 	"$schema": "https://openapi.vercel.sh/vercel.json",
 	"framework": null,
-	"buildCommand": "mkdir -p public && printf 'User-agent: *\\nAllow: /\\n' > public/robots.txt",
+	"buildCommand": "pnpm build && mkdir -p public && printf 'User-agent: *\\nAllow: /\\n' > public/robots.txt",
 	"rewrites": [{ "source": "/(.*)", "destination": "/api/server" }],
 	"functions": {
 		"api/server.ts": {

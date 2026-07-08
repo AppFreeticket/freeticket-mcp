@@ -1,8 +1,14 @@
 /**
  * Vercel Function: todo el tráfico (vercel.json lo reescribe acá) pasa por el
- * mismo handler que el server standalone. Requiere env MCP_TOKEN_SECRET en el
- * proyecto de Vercel; MCP_PUBLIC_URL es opcional (se deriva del Host).
+ * mismo handler que el server standalone. Importa el bundle de tsup (dist/) y
+ * no src/ directamente: el runtime ESM de Vercel no bundlea ni resuelve
+ * imports relativos sin extensión. `dist/handler.js` lo genera el
+ * buildCommand antes de empaquetar la función.
+ *
+ * Env requerida en Vercel: MCP_TOKEN_SECRET. Opcionales: FT_API_URL,
+ * MCP_PUBLIC_URL (se deriva del Host).
  */
-import { handleHttp } from "../src/handler";
+// @ts-ignore -- bundle JS generado en build, sin declaraciones de tipos
+import { handleHttp } from "../dist/handler.js";
 
 export default handleHttp;
