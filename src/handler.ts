@@ -39,7 +39,10 @@ import {
 	CODE_PREFIX,
 	CODE_TTL,
 	consentPage,
+	type DeviceStart,
 	open,
+	PENDING_PREFIX,
+	PENDING_TTL,
 	pkceMatches,
 	REFRESH_PREFIX,
 	REFRESH_TTL,
@@ -144,6 +147,52 @@ async function validateCreds(creds: {
 			return "La sesión superadmin no es válida (falló GET /api/admin/me).";
 	}
 	return null;
+}
+
+/** Sella un authorization code atado al PKCE challenge y al redirect. */
+function mintCode(
+	creds: { apiKey?: string; workspaceId?: string; adminSession?: string },
+	challenge: string,
+	redirectUri: string,
+): string {
+	return seal(
+		{
+			k: creds.apiKey ?? "",
+			w: creds.workspaceId ?? "",
+			a: creds.adminSession ?? "",
+			ch: challenge,
+			ru: redirectUri,
+			exp: Date.now() / 1000 + CODE_TTL,
+		},
+		TOKEN_SECRET,
+		CODE_PREFIX,
+	);
+}
+
+function redirectWithCode(
+	redirectUri: string,
+	code: string,
+	state: string | null,
+): string {
+	const target = new URL(redirectUri);
+	target.searchParams.set("code", code);
+	if (state) target.searchParams.set("state", state);
+	return target.toString();
+}
+
+/**
+ * Arranca el device flow (RFC 8628) contra free-admin — el mismo backend que
+ * `ft login`. Si falla (backend viejo, red), el consent cae al form manual.
+ */
+async function startDeviceFlow(): Promise<DeviceStart | undefined> {
+	const r = await fetch(`${API_URL}/api/v1/auth/device/code`, {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: "{}",
+	}).catch(() => null);
+	if (!r?.ok) return undefined;
+	const d = (await r.json()) as DeviceStart;
+	return d.device_code && d.verification_uri_complete ? d : undefined;
 }
 
 function validRedirect(uri: string): boolean {
@@ -264,7 +313,97 @@ export async function handleHttp(
 					error: "invalid_request",
 					error_description: "PKCE requerido",
 				});
-			return html(res, consentPage(url.searchParams));
+			// Camino principal: login con la sesión de free-admin (device flow).
+			const device = await startDeviceFlow();
+			return html(res, consentPage(url.searchParams, { device }));
+		}
+
+		// Polling del device flow desde la página de consentimiento. Stateless:
+		// el device_code vive en el browser; acá solo se canjea contra free-admin
+		// y se acuña el authorization code sellado.
+		if (
+			req.method === "POST" &&
+			url.pathname === "/device-token" &&
+			!EXTERNAL_ISSUER
+		) {
+			const body = (asJson(await readBody(req)) ?? {}) as {
+				device_code?: string;
+				pending?: string;
+				workspace_id?: string;
+				redirect_uri?: string;
+				code_challenge?: string;
+				state?: string;
+			};
+			const redirectUri = body.redirect_uri ?? "";
+			const challenge = body.code_challenge ?? "";
+			if (!validRedirect(redirectUri) || !challenge)
+				return json(res, 400, { error: "invalid_request" });
+			const state = body.state || null;
+
+			// Segunda fase: el usuario eligió workspace para una key ya canjeada.
+			if (body.pending) {
+				const p = open(body.pending, TOKEN_SECRET, PENDING_PREFIX);
+				if (!p)
+					return json(res, 400, {
+						error: "El código expiró. Recarga la página.",
+					});
+				const code = mintCode(
+					{ apiKey: p.k, workspaceId: body.workspace_id },
+					challenge,
+					redirectUri,
+				);
+				return json(res, 200, {
+					redirect: redirectWithCode(redirectUri, code, state),
+				});
+			}
+
+			if (!body.device_code)
+				return json(res, 400, { error: "invalid_request" });
+			const r = await fetch(`${API_URL}/api/v1/auth/device/token`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					device_code: body.device_code,
+					grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+				}),
+			}).catch(() => null);
+			if (!r) return json(res, 200, { pending: true });
+			if (!r.ok) {
+				const err = ((await r.json().catch(() => ({}))) as { error?: string })
+					.error;
+				if (err === "authorization_pending")
+					return json(res, 200, { pending: true });
+				if (err === "slow_down")
+					return json(res, 200, { pending: true, slow: true });
+				return json(res, 200, {
+					error:
+						"El código expiró o fue rechazado. Recarga la página para reintentar.",
+				});
+			}
+			const grant = (await r.json()) as {
+				access_token: string;
+				workspaces: { id: string; name: string }[];
+			};
+			// Un solo workspace (el caso típico): directo de vuelta al cliente MCP.
+			if (grant.workspaces.length <= 1) {
+				const code = mintCode(
+					{ apiKey: grant.access_token, workspaceId: grant.workspaces[0]?.id },
+					challenge,
+					redirectUri,
+				);
+				return json(res, 200, {
+					redirect: redirectWithCode(redirectUri, code, state),
+				});
+			}
+			// Varios: la página muestra el picker; la key viaja sellada (ftp_).
+			return json(res, 200, {
+				workspaces: grant.workspaces.map((w) => ({ id: w.id, name: w.name })),
+				pending: seal(
+					{ k: grant.access_token, exp: Date.now() / 1000 + PENDING_TTL },
+					TOKEN_SECRET,
+					PENDING_PREFIX,
+				),
+			});
 		}
 
 		// Submit del consentimiento → authorization code sellado.
@@ -284,24 +423,13 @@ export async function handleHttp(
 				adminSession: form.get("admin_session")?.trim() ?? "",
 			};
 			const error = await validateCreds(creds);
-			if (error) return html(res, consentPage(form, error));
-			const code = seal(
-				{
-					k: creds.apiKey,
-					w: creds.workspaceId,
-					a: creds.adminSession,
-					ch: challenge,
-					ru: redirectUri,
-					exp: Date.now() / 1000 + CODE_TTL,
-				},
-				TOKEN_SECRET,
-				CODE_PREFIX,
-			);
-			const target = new URL(redirectUri);
-			target.searchParams.set("code", code);
-			const state = form.get("state");
-			if (state) target.searchParams.set("state", state);
-			res.writeHead(302, { location: target.toString() }).end();
+			if (error) return html(res, consentPage(form, { error }));
+			const code = mintCode(creds, challenge, redirectUri);
+			res
+				.writeHead(302, {
+					location: redirectWithCode(redirectUri, code, form.get("state")),
+				})
+				.end();
 			return;
 		}
 

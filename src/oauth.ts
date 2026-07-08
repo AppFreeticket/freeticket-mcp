@@ -41,9 +41,21 @@ export interface Sealed {
 export const ACCESS_PREFIX = "ftmcp_";
 export const REFRESH_PREFIX = "ftr_";
 export const CODE_PREFIX = "ftc_";
+/** API key ya acuñada por device flow, esperando elección de workspace. */
+export const PENDING_PREFIX = "ftp_";
 export const ACCESS_TTL = 30 * 24 * 3600;
 export const REFRESH_TTL = 90 * 24 * 3600;
 export const CODE_TTL = 300;
+export const PENDING_TTL = 600;
+
+/** Respuesta de POST /auth/device/code de free-admin (contrato B2B). */
+export interface DeviceStart {
+	device_code: string;
+	user_code: string;
+	verification_uri_complete: string;
+	interval: number;
+	expires_in: number;
+}
 
 const keyFrom = (secret: string) =>
 	createHash("sha256").update(secret).digest();
@@ -118,14 +130,21 @@ const esc = (s: string) =>
 	s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 /**
- * Página de consentimiento: el usuario pega sus credenciales FreeTicket y
- * autoriza al cliente MCP. Copy en español neutro (audiencia LATAM).
+ * Página de consentimiento. Camino principal: **login con la sesión de
+ * free-admin** vía device flow (RFC 8628, mismo backend que `ft login`) — un
+ * botón, cero keys. La página hace polling a /device-token y redirige sola al
+ * cliente MCP. El form de credenciales manuales queda como "Opciones
+ * avanzadas" (CI, superadmin). Copy en español neutro (audiencia LATAM).
  *
  * Diseño = tokens de free-admin (globals.css): amarillo #ffd500 sobre negro
  * #070707, muted #717182, borde #e0e0e0, radios 0.75rem card / 0.5rem botón,
  * dark mode con los mismos oklch del tema `.dark`.
  */
-export function consentPage(params: URLSearchParams, error?: string): string {
+export function consentPage(
+	params: URLSearchParams,
+	opts: { device?: DeviceStart; error?: string } = {},
+): string {
+	const { device, error } = opts;
 	const hidden = [
 		"client_id",
 		"redirect_uri",
@@ -138,6 +157,77 @@ export function consentPage(params: URLSearchParams, error?: string): string {
 				`<input type="hidden" name="${k}" value="${esc(params.get(k) ?? "")}">`,
 		)
 		.join("\n      ");
+	const manualForm = `
+  <form method="post" action="/authorize">
+    ${device ? "" : `<p>Pega tus credenciales; se sellan dentro del token y este servidor no las almacena.</p>`}
+    ${!device && error ? `<div class="err">${esc(error)}</div>` : ""}
+    <label>API key B2B <small>(genera una con <code>ft login</code> o en el panel)</small></label>
+    <input type="password" name="api_key" autocomplete="off">
+    <label>Workspace ID <small>(opcional)</small></label>
+    <input type="text" name="workspace_id" autocomplete="off">
+    <label>Sesión superadmin <small>(opcional — cookie <code>better-auth.session_token</code>, habilita los tools admin)</small></label>
+    <input type="password" name="admin_session" autocomplete="off">
+    ${hidden}
+    <button type="submit" class="secondary">Autorizar con credenciales</button>
+  </form>`;
+	const deviceSection = device
+		? `
+    <p>Se abrirá FreeTicket para que inicies sesión con tu cuenta de siempre y
+    apruebes la conexión. Verifica que el código coincida:</p>
+    <div class="code">${esc(device.user_code)}</div>
+    <a class="btn" id="go" href="${esc(device.verification_uri_complete)}" target="_blank" rel="noopener">Continuar con FreeTicket</a>
+    <p class="status" id="status">Esperando aprobación…</p>
+    <div id="picker"></div>
+    <details><summary>Opciones avanzadas</summary>${manualForm}</details>
+    <script>
+    (() => {
+      const cfg = ${JSON.stringify({
+				dc: device.device_code,
+				iv: device.interval,
+				exp: device.expires_in,
+				ru: params.get("redirect_uri") ?? "",
+				ch: params.get("code_challenge") ?? "",
+				st: params.get("state") ?? "",
+			})};
+      const status = document.getElementById("status");
+      const picker = document.getElementById("picker");
+      const deadline = Date.now() + cfg.exp * 1000;
+      let iv = cfg.iv;
+      const post = (body) =>
+        fetch("/device-token", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ redirect_uri: cfg.ru, code_challenge: cfg.ch, state: cfg.st, ...body }),
+        }).then((r) => r.json());
+      const finish = (j) => {
+        if (j.redirect) { status.textContent = "Conectado. Volviendo…"; location.href = j.redirect; return true; }
+        if (j.error) { status.textContent = j.error; status.classList.add("bad"); return true; }
+        return false;
+      };
+      const choose = (j) => {
+        status.textContent = "Elige el espacio de trabajo a conectar:";
+        picker.innerHTML = "";
+        for (const w of j.workspaces) {
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "ws"; b.textContent = w.name;
+          b.onclick = () => post({ pending: j.pending, workspace_id: w.id }).then(finish);
+          picker.appendChild(b);
+        }
+      };
+      const poll = async () => {
+        if (Date.now() > deadline) { status.textContent = "El código expiró. Recarga la página para reintentar."; status.classList.add("bad"); return; }
+        try {
+          const j = await post({ device_code: cfg.dc });
+          if (finish(j)) return;
+          if (j.workspaces) return choose(j);
+          if (j.slow) iv += 5;
+        } catch {}
+        setTimeout(poll, iv * 1000);
+      };
+      setTimeout(poll, iv * 1000);
+    })();
+    </script>`
+		: "";
 	return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Conectar FreeTicket</title>
@@ -157,7 +247,7 @@ export function consentPage(params: URLSearchParams, error?: string): string {
   *{box-sizing:border-box}
   body{font-family:Inter,system-ui,-apple-system,sans-serif;background:var(--background);
     color:var(--foreground);display:grid;place-items:center;min-height:100vh;margin:0;padding:1.5rem}
-  form{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-card);
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-card);
     padding:2rem;width:min(420px,100%);box-shadow:0 1px 3px rgb(0 0 0 / .06)}
   .logo{width:44px;height:44px;border-radius:.6rem;display:block;margin-bottom:1rem}
   h1{font-size:1.25rem;font-weight:600;letter-spacing:-.01em;margin:0 0 .35rem}
@@ -169,29 +259,29 @@ export function consentPage(params: URLSearchParams, error?: string): string {
     border:1px solid var(--border);border-radius:var(--radius-button);color:var(--foreground);
     padding:.6rem .7rem;font-size:.9rem;outline:none}
   input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgb(255 213 0 / .3)}
-  button{margin-top:1.4rem;width:100%;padding:.7rem;border:0;border-radius:var(--radius-button);
+  button,.btn{margin-top:1.4rem;width:100%;padding:.7rem;border:0;border-radius:var(--radius-button);
     background:var(--primary);color:var(--primary-foreground);font:inherit;font-weight:600;
-    font-size:.95rem;cursor:pointer}
-  button:hover{filter:brightness(.95)}
+    font-size:.95rem;cursor:pointer;display:block;text-align:center;text-decoration:none}
+  button:hover,.btn:hover{filter:brightness(.95)}
+  button.secondary{background:var(--input-background);color:var(--foreground);border:1px solid var(--border)}
+  button.ws{margin-top:.5rem}
   .err{border:1px solid var(--destructive);color:var(--destructive);
     border-radius:var(--radius-button);padding:.6rem .7rem;font-size:.85rem;margin-bottom:.5rem}
+  .code{font-family:ui-monospace,monospace;font-size:1.3rem;font-weight:600;letter-spacing:.15em;
+    text-align:center;background:var(--input-background);border:1px dashed var(--border);
+    border-radius:var(--radius-button);padding:.55rem;margin:.75rem 0 0}
+  .status{text-align:center;margin-top:1rem}
+  .status.bad{color:var(--destructive)}
+  details{margin-top:1.5rem;border-top:1px solid var(--border);padding-top:.9rem}
+  summary{font-size:.8rem;color:var(--muted-foreground);cursor:pointer}
   .foot{margin:1rem 0 0;font-size:.78rem}
 </style></head><body>
-  <form method="post" action="/authorize">
+  <div class="card">
     <img class="logo" src="/favicon.svg" alt="FreeTicket">
     <h1>Conectar FreeTicket</h1>
-    <p>Un cliente MCP pide acceso a tu cuenta. Pega tus credenciales; se sellan
-    dentro del token y este servidor no las almacena.</p>
-    ${error ? `<div class="err">${esc(error)}</div>` : ""}
-    <label>API key B2B <small>(opcional — genera una con <code>ft login</code> o en el panel)</small></label>
-    <input type="password" name="api_key" autocomplete="off">
-    <label>Workspace ID <small>(opcional)</small></label>
-    <input type="text" name="workspace_id" autocomplete="off">
-    <label>Sesión superadmin <small>(opcional — cookie <code>better-auth.session_token</code>)</small></label>
-    <input type="password" name="admin_session" autocomplete="off">
-    ${hidden}
-    <button type="submit">Autorizar</button>
-    <p class="foot">Sin credenciales solo se habilitan los tools públicos B2C.</p>
-  </form>
+    ${device && error ? `<div class="err">${esc(error)}</div>` : ""}
+    ${device ? deviceSection : manualForm}
+    <p class="foot">La conexión usa tus permisos de FreeTicket y puedes revocarla cerrando sesión en el panel.</p>
+  </div>
 </body></html>`;
 }

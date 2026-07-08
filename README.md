@@ -52,9 +52,11 @@ claude.ai sabe hablar (no puede mandar API keys ni headers custom). Pasos:
 1. claude.ai → Settings → Connectors → **Add custom connector**.
 2. Remote MCP server URL: `https://<tu-deploy>/mcp`. Client ID/Secret: vacíos
    (usa dynamic client registration, RFC 7591).
-3. Al conectar se abre la página de consentimiento: pega tu **API key B2B**
-   (`ft login` o el panel), opcionalmente el workspace y la cookie de sesión
-   superadmin (habilita los `admin_*`).
+3. Al conectar se abre el consentimiento: botón **"Continuar con FreeTicket"** →
+   inicias sesión en free-admin con tu cuenta de siempre y apruebas (device flow
+   RFC 8628, el mismo backend que `ft login`). Sin keys que pegar; si tienes
+   varios workspaces, eliges cuál conectar. Bajo "Opciones avanzadas" queda el
+   form manual (API key para CI, cookie superadmin para los `admin_*`).
 4. Las credenciales se sellan (AES-256-GCM, `MCP_TOKEN_SECRET`) dentro del token
    emitido — el server no persiste nada: sin base de datos, multi-tenant seguro.
 

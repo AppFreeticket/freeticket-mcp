@@ -3,6 +3,24 @@
 All notable changes to `@freeticket/mcp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: semver.
 
+## [0.11.0] - 2026-07-08
+
+### Added
+- **Login with the free-admin session** as the primary consent path: `/authorize`
+  now starts the RFC 8628 device flow against free-admin (same backend as
+  `ft login`). The user clicks "Continuar con FreeTicket", approves with their
+  normal session at `/device`, and the consent page polls `/device-token` and
+  redirects back to the MCP client automatically — no API keys to paste.
+  Multi-workspace accounts get a picker (the minted key travels sealed,
+  `ftp_` prefix, never exposed to the browser flow unencrypted).
+- `POST /device-token`: stateless polling endpoint that redeems the device code
+  against free-admin and mints the sealed authorization code.
+
+### Changed
+- The manual credentials form (API key / workspace / superadmin session) moved
+  under "Opciones avanzadas"; it is also the automatic fallback when the device
+  flow cannot start.
+
 ## [0.10.0] - 2026-07-08
 
 ### Added
