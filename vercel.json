@@ -1,7 +1,7 @@
 {
 	"$schema": "https://openapi.vercel.sh/vercel.json",
 	"framework": null,
-	"buildCommand": "echo 'skip build: solo funciones api/'",
+	"buildCommand": "mkdir -p public",
 	"rewrites": [{ "source": "/(.*)", "destination": "/api/server" }],
 	"functions": {
 		"api/server.ts": {
