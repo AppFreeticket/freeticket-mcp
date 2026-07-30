@@ -8,7 +8,8 @@ import { registerB2bWriteTools } from "./b2b-writes";
 import { registerPublicTools } from "./public";
 
 // Client aislado de juguete: el registro no hace red, solo necesita el objeto.
-const stub = makeB2bClient({ apiUrl: "http://localhost", apiKey: "test" });
+const stubCreds = { apiUrl: "http://localhost", apiKey: "test" };
+const stub = makeB2bClient(stubCreds);
 
 // El registro no debe tirar y no debe haber nombres duplicados entre capas.
 function names(server: McpServer): string[] {
@@ -22,7 +23,7 @@ function names(server: McpServer): string[] {
 describe("tool registration", () => {
 	it("registers B2B read tools without collisions", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
-		registerB2bTools(server, stub);
+		registerB2bTools(server, stub, stubCreds);
 		const t = names(server);
 		expect(t.length).toBeGreaterThanOrEqual(24);
 		expect(new Set(t).size).toBe(t.length);
@@ -51,7 +52,7 @@ describe("tool registration", () => {
 
 	it("reads and writes share no tool names", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
-		registerB2bTools(server, stub);
+		registerB2bTools(server, stub, stubCreds);
 		registerB2bWriteTools(server, stub);
 		const t = names(server);
 		expect(new Set(t).size).toBe(t.length);

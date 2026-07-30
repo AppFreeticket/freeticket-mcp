@@ -1,7 +1,7 @@
 import type { Client } from "@hey-api/client-fetch";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { run } from "../api";
+import { type Creds, run } from "../api";
 import {
 	getDiscounts,
 	getEvents,
@@ -31,6 +31,7 @@ import {
 	getVenuesId,
 	getWebhooks,
 } from "../client/sdk.gen";
+import { makeWorkspaceResolver, runWorkspaceList } from "../workspaces";
 
 const paging = {
 	limit: z.string().optional().describe("Resultados por página (1-100)"),
@@ -39,10 +40,38 @@ const paging = {
 const id = z.string().describe("Id del recurso");
 
 /**
- * Ola A: todos los reads del contrato B2B /api/v1 (un tool = un operationId).
- * Writes (create/update/delete/publish/checkin/refund…) = Ola B.
+ * Modo global (brecha #3): opcional en los tools de lectura con listado.
+ * Ausente = comportamiento actual (solo el workspace activo de la sesión).
+ * "all" o una lista de ids agrega varios workspaces — cada fila queda
+ * etiquetada con workspaceId/workspaceName. El conjunto de ids válidos sale
+ * siempre de GET /me, nunca de lo que pida el cliente sin validar.
  */
-export function registerB2bTools(server: McpServer, client: Client): void {
+const workspaceParam = z
+	.union([z.literal("all"), z.array(z.string())])
+	.optional()
+	.describe(
+		'Modo global: "all" agrega todos los workspaces accesibles de la sesión, ' +
+			"o una lista de ids agrega solo esos. Ausente = solo el workspace activo " +
+			"(comportamiento actual). Cada fila del resultado queda etiquetada con " +
+			"workspaceId/workspaceName.",
+	);
+
+/**
+ * Ola A: todos los reads del contrato B2B /api/v1 (un tool = un operationId).
+ * Writes (create/update/delete/publish/checkin/refund…) = Ola B, sin modo
+ * global: siguen siendo de un solo workspace, explícito.
+ */
+export function registerB2bTools(
+	server: McpServer,
+	client: Client,
+	creds: Creds,
+): void {
+	const ctx = {
+		client,
+		creds,
+		resolveWorkspaces: makeWorkspaceResolver(client),
+	};
+
 	server.tool(
 		"whoami",
 		"Usuario y workspaces de la sesión configurada (GET /me).",
@@ -51,9 +80,12 @@ export function registerB2bTools(server: McpServer, client: Client): void {
 
 	server.tool(
 		"events_list",
-		"Lista los eventos del workspace (GET /events).",
-		paging,
-		async (q) => run(getEvents({ query: q, client })),
+		"Lista los eventos del workspace (GET /events). `workspace` activa el modo global.",
+		{ ...paging, workspace: workspaceParam },
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getEvents({ query: q, client: c }),
+			),
 	);
 	server.tool(
 		"events_get",
@@ -71,15 +103,19 @@ export function registerB2bTools(server: McpServer, client: Client): void {
 
 	server.tool(
 		"ticket_types_list",
-		"Tipos de ticket (GET /ticket-types).",
+		"Tipos de ticket (GET /ticket-types). `workspace` activa el modo global.",
 		{
 			eventDateId: z
 				.string()
 				.optional()
 				.describe("Filtrar por fecha de evento"),
 			...paging,
+			workspace: workspaceParam,
 		},
-		async (q) => run(getTicketTypes({ query: q, client })),
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getTicketTypes({ query: q, client: c }),
+			),
 	);
 	server.tool(
 		"ticket_types_get",
@@ -90,7 +126,7 @@ export function registerB2bTools(server: McpServer, client: Client): void {
 
 	server.tool(
 		"sales_list",
-		"Lista ventas con filtros (GET /sales).",
+		"Lista ventas con filtros (GET /sales). `workspace` activa el modo global.",
 		{
 			status: z.string().optional().describe("Filtrar por estado"),
 			channel: z.string().optional().describe("Canal de venta"),
@@ -104,8 +140,12 @@ export function registerB2bTools(server: McpServer, client: Client): void {
 			from: z.string().optional().describe("Creadas desde (ISO 8601)"),
 			to: z.string().optional().describe("Creadas hasta (ISO 8601)"),
 			...paging,
+			workspace: workspaceParam,
 		},
-		async (q) => run(getSales({ query: q, client })),
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getSales({ query: q, client: c }),
+			),
 	);
 	server.tool(
 		"sales_get",
@@ -129,9 +169,12 @@ export function registerB2bTools(server: McpServer, client: Client): void {
 
 	server.tool(
 		"plans_list",
-		"Planes de membresía (GET /membership-plans).",
-		paging,
-		async (q) => run(getMembershipPlans({ query: q, client })),
+		"Planes de membresía (GET /membership-plans). `workspace` activa el modo global.",
+		{ ...paging, workspace: workspaceParam },
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getMembershipPlans({ query: q, client: c }),
+			),
 	);
 	server.tool(
 		"plans_get",
@@ -149,26 +192,36 @@ export function registerB2bTools(server: McpServer, client: Client): void {
 
 	server.tool(
 		"discounts_list",
-		"Cupones/descuentos del workspace (GET /discounts).",
+		"Cupones/descuentos del workspace (GET /discounts). `workspace` activa el modo global.",
 		{
 			event: z.string().optional().describe("Filtrar por evento"),
 			active: z.string().optional().describe("true | false"),
 			...paging,
+			workspace: workspaceParam,
 		},
-		async (q) => run(getDiscounts({ query: q, client })),
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getDiscounts({ query: q, client: c }),
+			),
 	);
 	server.tool(
 		"webhooks_list",
-		"Webhooks registrados (GET /webhooks).",
-		paging,
-		async (q) => run(getWebhooks({ query: q, client })),
+		"Webhooks registrados (GET /webhooks). `workspace` activa el modo global.",
+		{ ...paging, workspace: workspaceParam },
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getWebhooks({ query: q, client: c }),
+			),
 	);
 
 	server.tool(
 		"venues_list",
-		"Venues del workspace (GET /venues).",
-		paging,
-		async (q) => run(getVenues({ query: q, client })),
+		"Venues del workspace (GET /venues). `workspace` activa el modo global.",
+		{ ...paging, workspace: workspaceParam },
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getVenues({ query: q, client: c }),
+			),
 	);
 	server.tool(
 		"venues_get",
@@ -178,9 +231,12 @@ export function registerB2bTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"staff_list",
-		"Staff del workspace (GET /staff).",
-		paging,
-		async (q) => run(getStaff({ query: q, client })),
+		"Staff del workspace (GET /staff). `workspace` activa el modo global.",
+		{ ...paging, workspace: workspaceParam },
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getStaff({ query: q, client: c }),
+			),
 	);
 
 	server.tool(
