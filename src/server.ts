@@ -30,7 +30,7 @@ export function buildServer(creds: Creds): McpServer {
 
 	if (creds.apiKey) {
 		const client = makeB2bClient(creds);
-		registerB2bTools(server, client);
+		registerB2bTools(server, client, creds);
 		registerB2bWriteTools(server, client);
 	}
 	if (creds.adminSession) {
