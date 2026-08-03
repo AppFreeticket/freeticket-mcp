@@ -179,6 +179,30 @@ export type AdminAuditEntry = {
 	createdAt: string;
 };
 
+export type AdminToken = {
+	id: string;
+	name: string;
+	tokenPrefix: string;
+	lastUsedAt: string | null;
+	expiresAt: string | null;
+	revokedAt: string | null;
+	createdAt: string;
+};
+
+export type AdminTokenCreated = {
+	id: string;
+	name: string;
+	token: string;
+	createdAt: string;
+	expiresAt: string | null;
+	lastUsedAt: string | null;
+};
+
+export type AdminTokenCreate = {
+	name: string;
+	expiresAt?: string;
+};
+
 export type GetMeData = {
 	body?: never;
 	path?: never;
@@ -1019,6 +1043,127 @@ export type GetAuditLogResponses = {
 
 export type GetAuditLogResponse =
 	GetAuditLogResponses[keyof GetAuditLogResponses];
+
+export type GetTokensData = {
+	body?: never;
+	path?: never;
+	query?: never;
+	url: "/tokens";
+};
+
+export type GetTokensErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetTokensError = GetTokensErrors[keyof GetTokensErrors];
+
+export type GetTokensResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<AdminToken>;
+	};
+};
+
+export type GetTokensResponse = GetTokensResponses[keyof GetTokensResponses];
+
+export type PostTokensData = {
+	body: AdminTokenCreate;
+	path?: never;
+	query?: never;
+	url: "/tokens";
+};
+
+export type PostTokensErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PostTokensError = PostTokensErrors[keyof PostTokensErrors];
+
+export type PostTokensResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: AdminTokenCreated;
+	};
+};
+
+export type PostTokensResponse = PostTokensResponses[keyof PostTokensResponses];
+
+export type DeleteTokensIdData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/tokens/{id}";
+};
+
+export type DeleteTokensIdErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type DeleteTokensIdError =
+	DeleteTokensIdErrors[keyof DeleteTokensIdErrors];
+
+export type DeleteTokensIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminToken;
+	};
+};
+
+export type DeleteTokensIdResponse =
+	DeleteTokensIdResponses[keyof DeleteTokensIdResponses];
 
 export type ClientOptions = {
 	baseUrl: "https://admin.appfreeticket.com/api/admin" | (string & {});

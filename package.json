@@ -1,64 +1,64 @@
 {
-  "name": "@freeticket/mcp",
-  "version": "0.11.0",
-  "description": "Official FreeTicket MCP server — exposes the B2B domain (events, sales, tickets, memberships, venues, staff, reports) as tools for any MCP client.",
-  "keywords": [
-    "freeticket",
-    "mcp",
-    "model-context-protocol",
-    "ticketing",
-    "events",
-    "ai-agents"
-  ],
-  "homepage": "https://github.com/AppFreeticket/freeticket-mcp#readme",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/AppFreeticket/freeticket-mcp.git"
-  },
-  "bugs": {
-    "url": "https://github.com/AppFreeticket/freeticket-mcp/issues"
-  },
-  "author": "FreeTicket",
-  "type": "module",
-  "bin": {
-    "freeticket-mcp": "dist/index.js",
-    "freeticket-mcp-http": "dist/http.js"
-  },
-  "files": [
-    "dist"
-  ],
-  "engines": {
-    "node": ">=20"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "scripts": {
-    "build": "tsup src/index.ts src/http.ts src/handler.ts --format esm --clean",
-    "dev": "tsx src/index.ts",
-    "dev:http": "tsx src/http.ts",
-    "generate": "openapi-ts && openapi-ts -f openapi-ts.admin.config.ts && openapi-ts -f openapi-ts.public.config.ts",
-    "sync-openapi": "tsx scripts/sync-openapi.ts",
-    "sync-openapi:admin": "FT_OPENAPI_URL=${FT_ADMIN_OPENAPI_URL:-https://admin.appfreeticket.com/api/admin/openapi.json} FT_OPENAPI_OUT=admin-openapi.json tsx scripts/sync-openapi.ts",
-    "sync-openapi:public": "FT_OPENAPI_URL=${FT_PUBLIC_OPENAPI_URL:-https://admin.appfreeticket.com/api/public/openapi.json} FT_OPENAPI_OUT=public-openapi.json tsx scripts/sync-openapi.ts",
-    "test": "vitest run",
-    "lint": "biome check .",
-    "typecheck": "tsc --noEmit",
-    "prepublishOnly": "pnpm build"
-  },
-  "dependencies": {
-    "@hey-api/client-fetch": "^0.10.0",
-    "@modelcontextprotocol/sdk": "^1.12.0",
-    "zod": "^3.24.0"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.2.0",
-    "@hey-api/openapi-ts": "^0.64.0",
-    "@types/node": "^22.10.0",
-    "tsup": "^8.4.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.0",
-    "vitest": "^4.1.9"
-  }
+	"name": "@freeticket/mcp",
+	"version": "0.12.0",
+	"description": "Official FreeTicket MCP server — exposes the B2B domain (events, sales, tickets, memberships, venues, staff, reports) as tools for any MCP client.",
+	"keywords": [
+		"freeticket",
+		"mcp",
+		"model-context-protocol",
+		"ticketing",
+		"events",
+		"ai-agents"
+	],
+	"homepage": "https://github.com/AppFreeticket/freeticket-mcp#readme",
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/AppFreeticket/freeticket-mcp.git"
+	},
+	"bugs": {
+		"url": "https://github.com/AppFreeticket/freeticket-mcp/issues"
+	},
+	"author": "FreeTicket",
+	"type": "module",
+	"bin": {
+		"freeticket-mcp": "dist/index.js",
+		"freeticket-mcp-http": "dist/http.js"
+	},
+	"files": [
+		"dist"
+	],
+	"engines": {
+		"node": ">=20"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"build": "tsup src/index.ts src/http.ts src/handler.ts --format esm --clean",
+		"dev": "tsx src/index.ts",
+		"dev:http": "tsx src/http.ts",
+		"generate": "openapi-ts && openapi-ts -f openapi-ts.admin.config.ts && openapi-ts -f openapi-ts.public.config.ts",
+		"sync-openapi": "tsx scripts/sync-openapi.ts",
+		"sync-openapi:admin": "FT_OPENAPI_URL=${FT_ADMIN_OPENAPI_URL:-https://admin.appfreeticket.com/api/admin/openapi.json} FT_OPENAPI_OUT=admin-openapi.json tsx scripts/sync-openapi.ts",
+		"sync-openapi:public": "FT_OPENAPI_URL=${FT_PUBLIC_OPENAPI_URL:-https://admin.appfreeticket.com/api/public/openapi.json} FT_OPENAPI_OUT=public-openapi.json tsx scripts/sync-openapi.ts",
+		"test": "vitest run",
+		"lint": "biome check .",
+		"typecheck": "tsc --noEmit",
+		"prepublishOnly": "pnpm build"
+	},
+	"dependencies": {
+		"@hey-api/client-fetch": "^0.10.0",
+		"@modelcontextprotocol/sdk": "^1.12.0",
+		"zod": "^3.24.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.2.0",
+		"@hey-api/openapi-ts": "^0.64.0",
+		"@types/node": "^22.10.0",
+		"tsup": "^8.4.0",
+		"tsx": "^4.19.0",
+		"typescript": "^5.7.0",
+		"vitest": "^4.1.9"
+	}
 }

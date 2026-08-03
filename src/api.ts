@@ -90,9 +90,17 @@ export function makeAdminClient(c: Creds): Client {
 
 type SdkResult = { data?: unknown; error?: unknown };
 
-/** Resultado MCP desde una llamada del SDK generado: data o error del envelope. */
+/**
+ * Resultado MCP desde una llamada del SDK generado: data o error del envelope.
+ *
+ * Va siempre con `structuredContent` además del texto: es lo que consume el
+ * view de MCP Apps (src/ui.ts) para dibujar tabla/KPIs. Se envuelve en `{ data }`
+ * porque la spec exige que structuredContent sea un objeto, y un listado
+ * devuelve un array. El texto queda igual para los hosts sin extensión de UI.
+ */
 export async function run(p: Promise<SdkResult>): Promise<{
 	content: { type: "text"; text: string }[];
+	structuredContent?: { data: unknown };
 	isError?: boolean;
 }> {
 	const r = await p;
@@ -104,5 +112,13 @@ export async function run(p: Promise<SdkResult>): Promise<{
 	}
 	return {
 		content: [{ type: "text", text: JSON.stringify(r.data, null, 2) }],
+		structuredContent: { data: unwrapEnvelope(r.data) },
 	};
+}
+
+/** `{ data, page }` → `data`. El view quiere las filas, no el sobre. */
+function unwrapEnvelope(d: unknown): unknown {
+	if (d && typeof d === "object" && "data" in d)
+		return (d as { data: unknown }).data;
+	return d;
 }

@@ -7,6 +7,9 @@ import type {
 } from "@hey-api/client-fetch";
 import { client as _heyApiClient } from "./client.gen";
 import type {
+	DeleteApiKeysIdData,
+	DeleteApiKeysIdError,
+	DeleteApiKeysIdResponse,
 	DeleteDiscountsIdData,
 	DeleteDiscountsIdError,
 	DeleteDiscountsIdResponse,
@@ -28,6 +31,15 @@ import type {
 	DeleteWebhooksIdData,
 	DeleteWebhooksIdError,
 	DeleteWebhooksIdResponse,
+	GetApiKeysData,
+	GetApiKeysError,
+	GetApiKeysResponse,
+	GetCustomerMeData,
+	GetCustomerMeError,
+	GetCustomerMeResponse,
+	GetCustomerTicketsData,
+	GetCustomerTicketsError,
+	GetCustomerTicketsResponse,
 	GetDiscountsData,
 	GetDiscountsError,
 	GetDiscountsResponse,
@@ -67,6 +79,9 @@ import type {
 	GetReportsExportsSubscribersData,
 	GetReportsExportsSubscribersError,
 	GetReportsExportsSubscribersResponse,
+	GetReportsFinancialsData,
+	GetReportsFinancialsError,
+	GetReportsFinancialsResponse,
 	GetReportsInventoryData,
 	GetReportsInventoryError,
 	GetReportsInventoryResponse,
@@ -88,6 +103,9 @@ import type {
 	GetSalesIdTicketsError,
 	GetSalesIdTicketsResponse,
 	GetSalesResponse,
+	GetSettlementsData,
+	GetSettlementsError,
+	GetSettlementsResponse,
 	GetStaffData,
 	GetStaffError,
 	GetStaffResponse,
@@ -130,6 +148,11 @@ import type {
 	PatchVenuesIdData,
 	PatchVenuesIdError,
 	PatchVenuesIdResponse,
+	PostApiCustomerAuthEnterpriseExchangeData,
+	PostApiCustomerAuthEnterpriseExchangeResponse,
+	PostApiKeysData,
+	PostApiKeysError,
+	PostApiKeysResponse,
 	PostAuthDeviceCodeData,
 	PostAuthDeviceCodeError,
 	PostAuthDeviceCodeResponse,
@@ -285,7 +308,7 @@ export const getEvents = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear evento (fase 2)
+ * Crear evento
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const postEvents = <ThrowOnError extends boolean = false>(
@@ -312,7 +335,7 @@ export const postEvents = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar (soft) evento (fase 2)
+ * Eliminar (soft) evento
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const deleteEventsId = <ThrowOnError extends boolean = false>(
@@ -358,7 +381,7 @@ export const getEventsId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar evento (fase 2)
+ * Actualizar evento
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const patchEventsId = <ThrowOnError extends boolean = false>(
@@ -385,7 +408,7 @@ export const patchEventsId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Publicar evento (fase 2)
+ * Publicar evento
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const postEventsIdPublish = <ThrowOnError extends boolean = false>(
@@ -431,7 +454,7 @@ export const getEventsIdDates = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Agregar fecha a un evento (fase 2)
+ * Agregar fecha a un evento
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const postEventsIdDates = <ThrowOnError extends boolean = false>(
@@ -450,11 +473,15 @@ export const postEventsIdDates = <ThrowOnError extends boolean = false>(
 		],
 		url: "/events/{id}/dates",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
 /**
- * Eliminar fecha (fase 2)
+ * Eliminar fecha
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const deleteEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
@@ -477,7 +504,7 @@ export const deleteEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar fecha (fase 2)
+ * Actualizar fecha
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const patchEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
@@ -496,6 +523,10 @@ export const patchEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
 		],
 		url: "/events/{id}/dates/{dateId}",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
@@ -523,7 +554,7 @@ export const getTicketTypes = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear tipo de ticket (fase 2)
+ * Crear tipo de ticket
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const postTicketTypes = <ThrowOnError extends boolean = false>(
@@ -550,7 +581,7 @@ export const postTicketTypes = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar (soft) tipo de ticket (fase 2)
+ * Eliminar (soft) tipo de ticket
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const deleteTicketTypesId = <ThrowOnError extends boolean = false>(
@@ -596,7 +627,7 @@ export const getTicketTypesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar tipo de ticket (fase 2)
+ * Actualizar tipo de ticket
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const patchTicketTypesId = <ThrowOnError extends boolean = false>(
@@ -615,6 +646,10 @@ export const patchTicketTypesId = <ThrowOnError extends boolean = false>(
 		],
 		url: "/ticket-types/{id}",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
@@ -692,7 +727,7 @@ export const getSalesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Cancelar una venta (fase 2)
+ * Cancelar una venta
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const postSalesIdCancel = <ThrowOnError extends boolean = false>(
@@ -715,8 +750,8 @@ export const postSalesIdCancel = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Reembolsar una venta (fase 2)
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Marcar una venta como REEMBOLSADA (NO ejecuta el reembolso en MercadoPago)
+ * Marca la venta como REFUNDED y libera las sillas numeradas asociadas. IMPORTANTE: este endpoint NO dispara el reembolso real en el proveedor de pago (MercadoPago); el dinero NO se devuelve al comprador automáticamente. Un 200 aquí confirma únicamente el cambio de estado contable, no el movimiento de fondos. El reembolso en MercadoPago debe gestionarse por separado (panel de MercadoPago o su API).
  */
 export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
 	options: Options<PostSalesIdRefundData, ThrowOnError>,
@@ -761,7 +796,7 @@ export const getMembershipPlans = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear plan de membresía (fase 2)
+ * Crear plan de membresía
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const postMembershipPlans = <ThrowOnError extends boolean = false>(
@@ -788,7 +823,7 @@ export const postMembershipPlans = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar (soft) plan (fase 2)
+ * Eliminar (soft) plan
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const deleteMembershipPlansId = <ThrowOnError extends boolean = false>(
@@ -834,7 +869,7 @@ export const getMembershipPlansId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar plan (fase 2)
+ * Actualizar plan
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const patchMembershipPlansId = <ThrowOnError extends boolean = false>(
@@ -853,6 +888,10 @@ export const patchMembershipPlansId = <ThrowOnError extends boolean = false>(
 		],
 		url: "/membership-plans/{id}",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
@@ -880,7 +919,7 @@ export const getVenues = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear venue (fase 2)
+ * Crear venue
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const postVenues = <ThrowOnError extends boolean = false>(
@@ -907,7 +946,7 @@ export const postVenues = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar (soft) venue (fase 2)
+ * Eliminar (soft) venue
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const deleteVenuesId = <ThrowOnError extends boolean = false>(
@@ -953,7 +992,7 @@ export const getVenuesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar venue (fase 2)
+ * Actualizar venue
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const patchVenuesId = <ThrowOnError extends boolean = false>(
@@ -972,6 +1011,10 @@ export const patchVenuesId = <ThrowOnError extends boolean = false>(
 		],
 		url: "/venues/{id}",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
@@ -999,7 +1042,7 @@ export const getStaff = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear usuario staff (fase 2)
+ * Crear usuario staff en el workspace
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const postStaff = <ThrowOnError extends boolean = false>(
@@ -1026,7 +1069,7 @@ export const postStaff = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Cambiar rol de un usuario staff (fase 2)
+ * Cambiar rol de un usuario staff
  * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
  */
 export const patchStaffIdRole = <ThrowOnError extends boolean = false>(
@@ -1261,6 +1304,52 @@ export const getReportsTimeseries = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/reports/timeseries",
+		...options,
+	});
+};
+
+/**
+ * Estado financiero por función: bruto, costos y neto a liquidar
+ * Una fila por función (event_date) con el desglose financiero de sus ventas confirmadas — bruto cobrado, cargo de plataforma + IVA, valor facial, comisión real de la pasarela, 4x1000 y neto a liquidar — más el estado de la liquidación asociada. Mismos números que /dashboard/liquidaciones.
+ */
+export const getReportsFinancials = <ThrowOnError extends boolean = false>(
+	options?: Options<GetReportsFinancialsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetReportsFinancialsResponse,
+		GetReportsFinancialsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+		],
+		url: "/reports/financials",
+		...options,
+	});
+};
+
+/**
+ * Liquidaciones del workspace (pagos al organizador)
+ * Lista las liquidaciones visibles para la organización (SENT, AWAITING_PAYMENT, PAID) con su id estándar, monto, evento/función y comprobantes. Los archivos (PDF y comprobantes) se descargan desde el panel, no por esta API.
+ */
+export const getSettlements = <ThrowOnError extends boolean = false>(
+	options?: Options<GetSettlementsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetSettlementsResponse,
+		GetSettlementsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements",
 		...options,
 	});
 };
@@ -1556,6 +1645,154 @@ export const getTicketsTicketCodeAccess = <
 		],
 		url: "/tickets/{ticketCode}/access",
 		...options,
+	});
+};
+
+/**
+ * Listar mis API keys
+ * Lista las API keys del usuario autenticado (nunca el hash ni el secreto en claro).
+ */
+export const getApiKeys = <ThrowOnError extends boolean = false>(
+	options?: Options<GetApiKeysData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetApiKeysResponse,
+		GetApiKeysError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+		],
+		url: "/api-keys",
+		...options,
+	});
+};
+
+/**
+ * Mintear una API key (devuelve el plano una única vez)
+ * Crea una API key de servicio para el usuario autenticado. scope="read" (default) solo permite GET/HEAD; scope="write" habilita mutaciones según el rol del usuario. El secreto en claro solo aparece en esta respuesta.
+ */
+export const postApiKeys = <ThrowOnError extends boolean = false>(
+	options: Options<PostApiKeysData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostApiKeysResponse,
+		PostApiKeysError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+		],
+		url: "/api-keys",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Revocar una de mis API keys
+ * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ */
+export const deleteApiKeysId = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteApiKeysIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteApiKeysIdResponse,
+		DeleteApiKeysIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+		],
+		url: "/api-keys/{id}",
+		...options,
+	});
+};
+
+/**
+ * Identidad del comprador autenticado (SSO headless)
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session` con el session_token obtenido en el canje del SSO headless.
+ */
+export const getCustomerMe = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerMeData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerMeResponse,
+		GetCustomerMeError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/me",
+		...options,
+	});
+};
+
+/**
+ * Entradas del comprador en el alcance de la key (SSO headless)
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Devuelve solo ventas CONFIRMED, matcheadas por cuenta del comprador o correo de compra, de eventos que el workspace pineado a la key puede leer: los propios Y aquellos donde figura como artista vinculado.
+ */
+export const getCustomerTickets = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerTicketsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerTicketsResponse,
+		GetCustomerTicketsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/tickets",
+		...options,
+	});
+};
+
+/**
+ * Canjear el one-time token del SSO headless por un session token
+ * Server-to-server: exige una API key de servicio enterprise (Bearer o x-api-key). Canjea el one-time token entregado por /api/customer-auth/enterprise-return (single-use, TTL 60s) por el session token del comprador. Body plano, sin envoltura { data }.
+ */
+export const postApiCustomerAuthEnterpriseExchange = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostApiCustomerAuthEnterpriseExchangeData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostApiCustomerAuthEnterpriseExchangeResponse,
+		unknown,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+		],
+		url: "/api/customer-auth/enterprise-exchange",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 

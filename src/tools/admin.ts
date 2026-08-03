@@ -7,6 +7,7 @@ import {
 	getMe,
 	getPlatformPlans,
 	getPlatformPlansId,
+	getTokens,
 	getUsers,
 	getUsersId,
 	getWorkspaces,
@@ -23,6 +24,7 @@ import {
 	putFeatureFlagsKey,
 } from "../admin-client/sdk.gen";
 import { run } from "../api";
+import { UI_META } from "../ui";
 
 const destructive = { destructiveHint: true, idempotentHint: false } as const;
 const mutating = { destructiveHint: false, idempotentHint: false } as const;
@@ -62,6 +64,19 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			cursor: z.string().optional(),
 		},
 		async (q) => run(getUsers({ query: q, client })),
+	);
+
+	server.registerTool(
+		"admin_tokens",
+		{
+			description:
+				"Service tokens (PAT) de plataforma: qué credenciales headless existen " +
+				"y cuándo se usaron (GET /api/admin/tokens). Nunca devuelve el secreto. " +
+				"Acuñar y revocar se hace con el CLI (`ft admin tokens`), no desde acá.",
+			inputSchema: {},
+			_meta: UI_META,
+		},
+		async () => run(getTokens({ client })),
 	);
 
 	server.tool(
