@@ -131,6 +131,7 @@ export async function runAcrossWorkspaces<T>(
 /** Mismo shape de respuesta que `run()` (api.ts), pero para un fan-out ya resuelto. */
 function fanOutContent<T>(result: WorkspaceFanOutResult<T>): {
 	content: { type: "text"; text: string }[];
+	structuredContent?: { data: unknown };
 	isError?: boolean;
 } {
 	return {
@@ -144,6 +145,9 @@ function fanOutContent<T>(result: WorkspaceFanOutResult<T>): {
 				),
 			},
 		],
+		// Las filas agregadas alimentan el view de MCP Apps igual que un listado
+		// de un solo workspace; los errores parciales viven solo en el texto.
+		structuredContent: { data: result.rows },
 		isError: result.rows.length === 0 && result.errors.length > 0,
 	};
 }
@@ -165,7 +169,11 @@ export async function runWorkspaceList<T>(
 	ctx: WorkspaceListContext,
 	workspace: string | string[] | undefined,
 	fn: ListFn<T>,
-): Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }> {
+): Promise<{
+	content: { type: "text"; text: string }[];
+	structuredContent?: { data: unknown };
+	isError?: boolean;
+}> {
 	const targets = await resolveWorkspaceTargets(
 		ctx.resolveWorkspaces,
 		workspace,

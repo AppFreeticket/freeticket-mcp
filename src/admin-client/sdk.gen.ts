@@ -7,6 +7,9 @@ import type {
 } from "@hey-api/client-fetch";
 import { client as _heyApiClient } from "./client.gen";
 import type {
+	DeleteTokensIdData,
+	DeleteTokensIdError,
+	DeleteTokensIdResponse,
 	GetAuditLogData,
 	GetAuditLogError,
 	GetAuditLogResponse,
@@ -22,6 +25,9 @@ import type {
 	GetPlatformPlansIdError,
 	GetPlatformPlansIdResponse,
 	GetPlatformPlansResponse,
+	GetTokensData,
+	GetTokensError,
+	GetTokensResponse,
 	GetUsersData,
 	GetUsersError,
 	GetUsersIdData,
@@ -52,6 +58,9 @@ import type {
 	PostPlatformPlansData,
 	PostPlatformPlansError,
 	PostPlatformPlansResponse,
+	PostTokensData,
+	PostTokensError,
+	PostTokensResponse,
 	PostWorkspacesData,
 	PostWorkspacesError,
 	PostWorkspacesIdRestoreData,
@@ -563,6 +572,82 @@ export const getAuditLog = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/audit-log",
+		...options,
+	});
+};
+
+/**
+ * Listar service tokens (PAT) de plataforma
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const getTokens = <ThrowOnError extends boolean = false>(
+	options?: Options<GetTokensData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetTokensResponse,
+		GetTokensError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/tokens",
+		...options,
+	});
+};
+
+/**
+ * Emitir un service token (PAT) — devuelve el secreto una sola vez
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const postTokens = <ThrowOnError extends boolean = false>(
+	options: Options<PostTokensData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostTokensResponse,
+		PostTokensError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/tokens",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Revocar un service token (PAT)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const deleteTokensId = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteTokensIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteTokensIdResponse,
+		DeleteTokensIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/tokens/{id}",
 		...options,
 	});
 };

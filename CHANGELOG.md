@@ -3,6 +3,30 @@
 All notable changes to `@freeticket/mcp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: semver.
 
+## [0.12.0] - 2026-08-03
+
+### Added
+- **MCP Apps (`io.modelcontextprotocol/ui`, spec 2026-01-26)**: el server publica
+  el recurso `ui://freeticket/view.html` (mimeType `text/html;profile=mcp-app`) y
+  17 tools de lectura lo declaran en `_meta.ui.resourceUri`. Un único view
+  autocontenido renderiza **tabla** para listados y **tiles de KPI** para
+  objetos, con formato de moneda, pills de estado y adopción del tema del host.
+  Los resultados ahora viajan también en `structuredContent` (`{ data }`), que
+  es lo que consume el view. Hosts sin la extensión ignoran `_meta` y siguen
+  viendo el texto.
+- `settlements_list` (GET /settlements) y `reports_financials`
+  (GET /reports/financials): las liquidaciones al organizador y el desglose
+  financiero por función — los números autoritativos del panel de Liquidaciones.
+- `api_keys_list` (GET /api-keys) y `admin_tokens` (GET /api/admin/tokens):
+  auditoría de credenciales. Acuñar y revocar sigue siendo del CLI a propósito.
+- Ola B completa: `event_dates_create`, `event_dates_update`,
+  `ticket_types_update`, `plans_update`, `venues_update`. El contrato 1.5.0 ya
+  declara su `requestBody`, así que los schemas salen del spec.
+
+### Changed
+- Contratos sincronizados: B2B `1.5.0`, admin `1.1.0`, público `0.3.0`.
+- `plans_create` incluye `sortOrder` (pasó a requerido en el contrato).
+
 ## [0.11.0] - 2026-07-08
 
 ### Added

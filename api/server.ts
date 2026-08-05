@@ -8,7 +8,7 @@
  * Env requerida en Vercel: MCP_TOKEN_SECRET. Opcionales: FT_API_URL,
  * MCP_PUBLIC_URL (se deriva del Host).
  */
-// @ts-ignore -- bundle JS generado en build, sin declaraciones de tipos
+// @ts-expect-error -- bundle JS generado en build, sin declaraciones de tipos
 import { handleHttp } from "../dist/handler.js";
 
 export default handleHttp;

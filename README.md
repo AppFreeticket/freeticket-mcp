@@ -100,17 +100,21 @@ cada cold start), `FT_API_URL` (opcional, default producción), `MCP_PUBLIC_URL`
 | Dominio | Reads | Writes |
 |---|---|---|
 | Sesión | `whoami` | — |
-| Eventos | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_delete` · `event_dates_delete` |
-| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_delete` · `tickets_checkin` · `tickets_resend` |
+| Eventos | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
+| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_resend` |
 | Ventas | `sales_list` · `sales_get` · `sales_tickets` | `sales_create` · `sales_cancel` · `sales_refund` |
-| Membresías | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_delete` · `subscriptions_cancel` |
-| Comercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_delete` · `venues_create` · `venues_delete` · `staff_create` · `staff_update_role` |
-| Reportes | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reconciliation` | — |
+| Membresías | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
+| Comercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` |
+| Reportes | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reports_financials` · `reconciliation` | — |
+| Liquidaciones | `settlements_list` | — |
+| Credenciales | `api_keys_list` | — |
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
 
-Pendientes por hueco de contrato (el spec no declara `requestBody`; no se inventan
-— ver [CONTRACT-GAPS.md](https://github.com/AppFreeticket/ai-native/blob/main/CONTRACT-GAPS.md)):
-`event_dates_create/update`, `ticket_types_update`, `plans_update`, `venues_update`.
+Acuñar y revocar credenciales (`ft api-keys`, `ft admin tokens`) queda fuera del
+MCP a propósito: un agente lista credenciales para auditarlas, no las emite.
+El PDF de comprobante de una liquidación se baja del panel — el contrato expone
+`hasDocument` y los nombres de archivo, no una URL de descarga (ver
+[CONTRACT-GAPS.md](https://github.com/AppFreeticket/ai-native/blob/main/CONTRACT-GAPS.md)).
 
 **Público B2C `/api/public`** (sin credenciales — el agente de un comprador):
 
@@ -128,11 +132,36 @@ pague. Alcance del checkout: admisión general (no numerado / no members-only).
 
 | Dominio | Tools |
 |---|---|
-| Sesión / auditoría | `admin_whoami` · `admin_audit_log` |
+| Sesión / auditoría | `admin_whoami` · `admin_audit_log` · `admin_tokens` |
 | Workspaces | `admin_workspaces` · `admin_workspaces_get` · `admin_workspaces_create` · `admin_workspaces_update` · `admin_workspaces_suspend` · `admin_workspaces_restore` |
 | Users | `admin_users` · `admin_users_get` · `admin_users_update` · `admin_impersonate` · `admin_impersonate_stop` |
 | Platform plans | `admin_platform_plans_list` · `admin_platform_plans_get` · `admin_platform_plans_create` · `admin_platform_plans_update` |
 | Feature flags | `admin_feature_flags_list` · `admin_feature_flags_set` |
+
+## UI en el host (MCP Apps)
+
+El server implementa la extensión **`io.modelcontextprotocol/ui`** ([MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps),
+spec `2026-01-26`), así que los listados y reportes no llegan como un muro de
+JSON: el host los dibuja.
+
+- Recurso: `ui://freeticket/view.html`, mimeType `text/html;profile=mcp-app`.
+- Los tools con vista lo apuntan por `_meta.ui.resourceUri`; el resultado viaja
+  también en `structuredContent` para que el view lo lea.
+- Un único view decide el render por la forma del payload: **array → tabla**
+  (con formato de moneda, pills de estado y scroll horizontal),
+  **objeto → tiles de KPI**.
+- El HTML es autocontenido: sin scripts externos, sin fetch, sin fuentes
+  remotas. Adopta las variables CSS del host (`hostContext.styles.variables`) y
+  reporta su alto con `ui/notifications/size-changed`, así queda integrado al
+  tema del chat en vez de imponer el suyo.
+- Hosts sin la extensión (o clientes de terminal) ignoran `_meta` y ven el mismo
+  texto de siempre: nada se rompe.
+
+Con vista: `events_list` · `ticket_types_list` · `sales_list` · `plans_list` ·
+`discounts_list` · `webhooks_list` · `venues_list` · `staff_list` ·
+`reports_summary` · `reports_by_event` · `reports_timeseries` ·
+`reports_inventory` · `reconciliation` · `settlements_list` ·
+`reports_financials` · `api_keys_list` · `admin_tokens`.
 
 ## Desarrollo
 

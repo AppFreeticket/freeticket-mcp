@@ -9,8 +9,9 @@ import { registerAdminTools } from "./tools/admin";
 import { registerB2bTools } from "./tools/b2b";
 import { registerB2bWriteTools } from "./tools/b2b-writes";
 import { registerPublicTools } from "./tools/public";
+import { registerUi } from "./ui";
 
-export const VERSION = "0.11.0";
+export const VERSION = "0.12.0";
 
 /**
  * Construye un McpServer aislado para una sesión. Cada sesión trae sus propios
@@ -24,6 +25,10 @@ export const VERSION = "0.11.0";
  */
 export function buildServer(creds: Creds): McpServer {
 	const server = new McpServer({ name: "freeticket", version: VERSION });
+
+	// View de MCP Apps. Se registra siempre: los tools que lo usan lo apuntan por
+	// `_meta.ui.resourceUri` y un host sin la extensión simplemente no lo pide.
+	registerUi(server);
 
 	// B2C público: sin credenciales, siempre disponible.
 	registerPublicTools(server, makePublicClient(creds.apiUrl));

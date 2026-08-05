@@ -27,7 +27,15 @@ describe("tool registration", () => {
 		const t = names(server);
 		expect(t.length).toBeGreaterThanOrEqual(24);
 		expect(new Set(t).size).toBe(t.length);
-		for (const n of ["whoami", "events_list", "sales_list", "reconciliation"]) {
+		for (const n of [
+			"whoami",
+			"events_list",
+			"sales_list",
+			"reconciliation",
+			"settlements_list",
+			"reports_financials",
+			"api_keys_list",
+		]) {
 			expect(t).toContain(n);
 		}
 	});
@@ -36,8 +44,9 @@ describe("tool registration", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
 		registerB2bWriteTools(server, stub);
 		const t = names(server);
-		// 24 writes: los 5 con hueco de contrato (body sin declarar) no se inventan.
-		expect(t.length).toBe(24);
+		// 29 writes: los 5 updates que faltaban entraron con el contrato 1.5.0,
+		// que ya declara su requestBody (event_dates_*, ticket_types/plans/venues).
+		expect(t.length).toBe(29);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -45,6 +54,11 @@ describe("tool registration", () => {
 			"sales_create",
 			"tickets_checkin",
 			"discounts_create",
+			"event_dates_create",
+			"event_dates_update",
+			"ticket_types_update",
+			"plans_update",
+			"venues_update",
 		]) {
 			expect(t).toContain(n);
 		}
@@ -62,8 +76,8 @@ describe("tool registration", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
 		registerAdminTools(server, stub);
 		const t = names(server);
-		// 4 reads originales + 15 de la Ola C.
-		expect(t.length).toBe(19);
+		// 4 reads originales + 15 de la Ola C + admin_tokens (admin 1.1.0).
+		expect(t.length).toBe(20);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of t) expect(n).toMatch(/^admin_/);
 		for (const n of [

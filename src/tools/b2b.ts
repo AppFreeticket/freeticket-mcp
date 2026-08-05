@@ -3,6 +3,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { type Creds, run } from "../api";
 import {
+	getApiKeys,
 	getDiscounts,
 	getEvents,
 	getEventsId,
@@ -16,6 +17,7 @@ import {
 	getReportsExportsBuyers,
 	getReportsExportsReconciliation,
 	getReportsExportsSubscribers,
+	getReportsFinancials,
 	getReportsInventory,
 	getReportsReconciliation,
 	getReportsSummary,
@@ -23,6 +25,7 @@ import {
 	getSales,
 	getSalesId,
 	getSalesIdTickets,
+	getSettlements,
 	getStaff,
 	getTicketsTicketCodeAccess,
 	getTicketTypes,
@@ -31,6 +34,7 @@ import {
 	getVenuesId,
 	getWebhooks,
 } from "../client/sdk.gen";
+import { UI_META } from "../ui";
 import { makeWorkspaceResolver, runWorkspaceList } from "../workspaces";
 
 const paging = {
@@ -57,9 +61,29 @@ const workspaceParam = z
 	);
 
 /**
+ * Atajo para un read con vista de MCP Apps: mismo tool, más `_meta.ui`
+ * apuntando al view. `server.tool()` no acepta `_meta`, por eso estos pasan
+ * por `registerTool`.
+ */
+function uiTool(
+	server: McpServer,
+	name: string,
+	description: string,
+	inputSchema: Record<string, z.ZodTypeAny>,
+	// biome-ignore lint/suspicious/noExplicitAny: firma del SDK, varía por tool.
+	cb: (args: any) => Promise<any>,
+): void {
+	server.registerTool(name, { description, inputSchema, _meta: UI_META }, cb);
+}
+
+/**
  * Ola A: todos los reads del contrato B2B /api/v1 (un tool = un operationId).
  * Writes (create/update/delete/publish/checkin/refund…) = Ola B, sin modo
  * global: siguen siendo de un solo workspace, explícito.
+ *
+ * Los listados y reportes se registran con `uiTool`: además del JSON traen el
+ * view de MCP Apps (src/ui.ts), que el host renderiza como tabla o KPIs. Un
+ * host sin la extensión ignora `_meta` y ve el mismo texto de siempre.
  */
 export function registerB2bTools(
 	server: McpServer,
@@ -78,7 +102,8 @@ export function registerB2bTools(
 		async () => run(getMe({ client })),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"events_list",
 		"Lista los eventos del workspace (GET /events). `workspace` activa el modo global.",
 		{ ...paging, workspace: workspaceParam },
@@ -101,7 +126,8 @@ export function registerB2bTools(
 			run(getEventsIdDates({ path: { id: eventId }, client })),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"ticket_types_list",
 		"Tipos de ticket (GET /ticket-types). `workspace` activa el modo global.",
 		{
@@ -124,7 +150,8 @@ export function registerB2bTools(
 		async ({ id }) => run(getTicketTypesId({ path: { id }, client })),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"sales_list",
 		"Lista ventas con filtros (GET /sales). `workspace` activa el modo global.",
 		{
@@ -167,7 +194,8 @@ export function registerB2bTools(
 			run(getTicketsTicketCodeAccess({ path: { ticketCode: code }, client })),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"plans_list",
 		"Planes de membresía (GET /membership-plans). `workspace` activa el modo global.",
 		{ ...paging, workspace: workspaceParam },
@@ -190,7 +218,8 @@ export function registerB2bTools(
 			run(getMembershipPlansIdSubscribers({ path: { id }, client })),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"discounts_list",
 		"Cupones/descuentos del workspace (GET /discounts). `workspace` activa el modo global.",
 		{
@@ -204,7 +233,8 @@ export function registerB2bTools(
 				getDiscounts({ query: q, client: c }),
 			),
 	);
-	server.tool(
+	uiTool(
+		server,
 		"webhooks_list",
 		"Webhooks registrados (GET /webhooks). `workspace` activa el modo global.",
 		{ ...paging, workspace: workspaceParam },
@@ -214,7 +244,8 @@ export function registerB2bTools(
 			),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"venues_list",
 		"Venues del workspace (GET /venues). `workspace` activa el modo global.",
 		{ ...paging, workspace: workspaceParam },
@@ -229,7 +260,8 @@ export function registerB2bTools(
 		{ id },
 		async ({ id }) => run(getVenuesId({ path: { id }, client })),
 	);
-	server.tool(
+	uiTool(
+		server,
 		"staff_list",
 		"Staff del workspace (GET /staff). `workspace` activa el modo global.",
 		{ ...paging, workspace: workspaceParam },
@@ -239,13 +271,15 @@ export function registerB2bTools(
 			),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"reports_summary",
 		"KPIs del workspace (GET /reports/summary).",
 		{ period: z.enum(["7d", "30d", "90d", "1y"]).optional() },
 		async (q) => run(getReportsSummary({ query: q, client })),
 	);
-	server.tool(
+	uiTool(
+		server,
 		"reports_by_event",
 		"Revenue / tickets vendidos / disponibilidad por evento (GET /reports/by-event).",
 		{
@@ -255,7 +289,8 @@ export function registerB2bTools(
 		},
 		async (q) => run(getReportsByEvent({ query: q, client })),
 	);
-	server.tool(
+	uiTool(
+		server,
 		"reports_timeseries",
 		"Serie temporal de revenue/tickets (GET /reports/timeseries).",
 		{
@@ -266,7 +301,8 @@ export function registerB2bTools(
 		},
 		async (q) => run(getReportsTimeseries({ query: q, client })),
 	);
-	server.tool(
+	uiTool(
+		server,
 		"reports_inventory",
 		"Capacidad / vendido / reservado / disponible por evento·fecha·tipo (GET /reports/inventory).",
 		{
@@ -282,7 +318,8 @@ export function registerB2bTools(
 		},
 		async (q) => run(getReportsInventory({ query: q, client })),
 	);
-	server.tool(
+	uiTool(
+		server,
 		"reconciliation",
 		"Conciliación financiera para el CFO: cruza cada venta con su transacción de " +
 			"Mercado Pago y su factura de Siigo, marcando descuadres (GET /reports/reconciliation). " +
@@ -313,6 +350,51 @@ export function registerB2bTools(
 		to: z.string().optional(),
 		status: z.string().optional(),
 	};
+	uiTool(
+		server,
+		"settlements_list",
+		"Liquidaciones del workspace — lo que FreeTicket le paga al organizador, " +
+			"con monto, estado y evento/función (GET /settlements). El PDF de " +
+			"comprobante se descarga del panel, no por la API: acá viaja hasDocument " +
+			"y el nombre de los archivos.",
+		{
+			event: z.string().optional().describe("Filtrar por evento"),
+			status: z
+				.enum(["SENT", "AWAITING_PAYMENT", "PAID"])
+				.optional()
+				.describe("Estado de la liquidación"),
+			...paging,
+		},
+		async (q) => run(getSettlements({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"reports_financials",
+		"Estado financiero por función: bruto, cargo de plataforma, valor facial, " +
+			"comisión de pasarela, 4x1000 y neto a liquidar, más el estado de la " +
+			"liquidación asociada (GET /reports/financials). Son los números " +
+			"autoritativos del panel de Liquidaciones — no hay que recalcularlos " +
+			"cruzando /sales con Mercado Pago.",
+		{
+			event: z.string().optional().describe("Filtrar por evento"),
+			past: z
+				.enum(["true", "false"])
+				.optional()
+				.describe("true = solo funciones ya ocurridas (liquidables)"),
+		},
+		async (q) => run(getReportsFinancials({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"api_keys_list",
+		"API keys de servicio del usuario — para auditar qué credenciales existen " +
+			"y cuándo se usaron (GET /api-keys). Nunca devuelve el secreto. " +
+			"Acuñar y revocar keys se hace con el CLI (`ft api-keys`), no desde acá: " +
+			"un agente no debería poder mintear credenciales.",
+		{ ...paging },
+		async (q) => run(getApiKeys({ query: q, client })),
+	);
+
 	server.tool(
 		"reports_export_buyers",
 		"Export de compradores — una fila por venta (GET /reports/exports/buyers).",

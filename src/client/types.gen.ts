@@ -62,6 +62,23 @@ export type DeviceTokenError = {
 		| "invalid_request";
 };
 
+export type Venue = {
+	id: string;
+	name: string;
+	slug: string;
+	address: string;
+	city: string;
+	country: string;
+	latitude: number | null;
+	longitude: number | null;
+	capacity: number | null;
+	googlePlaceId: string | null;
+	portalVisible: boolean;
+	organizationId: string | null;
+	seatsioChartKey: string | null;
+	createdAt: string;
+};
+
 export type Event = {
 	id: string;
 	name: string;
@@ -69,10 +86,39 @@ export type Event = {
 	description: string | null;
 	status: "DRAFT" | "PUBLISHED" | "SOLD_OUT" | "CANCELLED" | "COMPLETED";
 	coverImageUrl: string | null;
+	bannerImageUrl: string | null;
+	squareImageUrl: string | null;
+	storyImageUrl: string | null;
 	organizationId: string;
 	venueId: string | null;
+	venue: Venue | null;
+	externalTicketUrl: string | null;
+	access: "owner" | "artist";
 	createdAt: string;
 	updatedAt: string;
+};
+
+export type TicketType = {
+	id: string;
+	eventDateId: string;
+	name: string;
+	description: string | null;
+	price: number;
+	currency: string;
+	capacity: number;
+	sold: number;
+	available: number;
+	soldOut: boolean;
+	maxPerOrder: number;
+	saleStartsAt: string | null;
+	saleEndsAt: string | null;
+	isVisible: boolean;
+	organizerAbsorbsFee: boolean;
+	buyerServiceFee: number;
+	iva: number;
+	buyerTotal: number;
+	seatsioCategoryKey: string | null;
+	createdAt: string;
 };
 
 export type EventDate = {
@@ -84,6 +130,9 @@ export type EventDate = {
 	doorsOpenAt: string | null;
 	timezone: string;
 	venueId: string | null;
+	venue: Venue | null;
+	ticketTypes: Array<TicketType>;
+	seatsioEventKey: string | null;
 	status: "DRAFT" | "PUBLISHED" | "SOLD_OUT" | "CANCELLED" | "COMPLETED";
 	streamType: string;
 	createdAt: string;
@@ -108,20 +157,22 @@ export type EventUpdate = {
 	coverImageUrl?: string | null;
 };
 
-export type TicketType = {
-	id: string;
-	eventDateId: string;
-	name: string;
-	description: string | null;
-	price: number;
-	currency: string;
-	capacity: number;
-	maxPerOrder: number;
-	saleStartsAt: string | null;
-	saleEndsAt: string | null;
-	isVisible: boolean;
-	organizerAbsorbsFee: boolean;
-	createdAt: string;
+export type EventDateCreate = {
+	label?: string | null;
+	startsAt: string;
+	endsAt?: string | null;
+	doorsOpenAt?: string | null;
+	timezone: string;
+	venueId?: string | null;
+};
+
+export type EventDateUpdate = {
+	label?: string | null;
+	startsAt?: string;
+	endsAt?: string | null;
+	doorsOpenAt?: string | null;
+	timezone?: string;
+	venueId?: string | null;
 };
 
 export type TicketTypeCreate = {
@@ -134,6 +185,17 @@ export type TicketTypeCreate = {
 	maxPerOrder: number;
 	isVisible: boolean;
 	organizerAbsorbsFee: boolean;
+};
+
+export type TicketTypeUpdate = {
+	name?: string;
+	description?: string | null;
+	price?: number;
+	currency?: string;
+	capacity?: number;
+	maxPerOrder?: number;
+	isVisible?: boolean;
+	organizerAbsorbsFee?: boolean;
 };
 
 export type SaleItem = {
@@ -161,6 +223,8 @@ export type Sale = {
 	buyerEmail: string;
 	buyerPhone: string | null;
 	organizationId: string | null;
+	paymentProvider: string | null;
+	paymentRef: string | null;
 	confirmedAt: string | null;
 	createdAt: string;
 };
@@ -180,6 +244,8 @@ export type SaleDetail = {
 	buyerEmail: string;
 	buyerPhone: string | null;
 	organizationId: string | null;
+	paymentProvider: string | null;
+	paymentRef: string | null;
 	confirmedAt: string | null;
 	createdAt: string;
 	items: Array<SaleItem>;
@@ -217,22 +283,22 @@ export type MembershipPlanCreate = {
 	benefitExclusiveContent: boolean;
 	benefitMerch: boolean;
 	isActive: boolean;
+	sortOrder: number;
 };
 
-export type Venue = {
-	id: string;
-	name: string;
-	slug: string;
-	address: string;
-	city: string;
-	country: string;
-	latitude: number | null;
-	longitude: number | null;
-	capacity: number | null;
-	googlePlaceId: string | null;
-	portalVisible: boolean;
-	organizationId: string | null;
-	createdAt: string;
+export type MembershipPlanUpdate = {
+	name?: string;
+	description?: string | null;
+	price?: number;
+	currency?: string;
+	billingCycle?: "MONTHLY" | "QUARTERLY" | "ANNUAL" | "LIFETIME";
+	benefitPresale?: boolean;
+	benefitFreeTicket?: boolean;
+	benefitDiscount?: boolean;
+	benefitExclusiveContent?: boolean;
+	benefitMerch?: boolean;
+	isActive?: boolean;
+	sortOrder?: number;
 };
 
 export type VenueCreate = {
@@ -243,6 +309,17 @@ export type VenueCreate = {
 	capacity?: number;
 	latitude?: number;
 	longitude?: number;
+};
+
+export type VenueUpdate = {
+	name?: string;
+	address?: string;
+	city?: string;
+	country?: string;
+	capacity?: number | null;
+	latitude?: number | null;
+	longitude?: number | null;
+	portalVisible?: boolean;
 };
 
 export type StaffUser = {
@@ -335,6 +412,57 @@ export type ReportTimeseriesRow = {
 	revenue: number;
 	ticketsSold: number;
 	salesCount: number;
+};
+
+export type ReportFinancialsRow = {
+	eventId: string;
+	eventName: string;
+	eventDateId: string;
+	startsAt: string;
+	past: boolean;
+	unitsSold: number;
+	gross: number;
+	platformFee: number;
+	facial: number;
+	paymentFee: number;
+	gmf: number;
+	net: number;
+	currency: string;
+	settlementStatus: ("SENT" | "AWAITING_PAYMENT" | "PAID") | null;
+	settlementId: string | null;
+	settlementAmount: number | null;
+};
+
+export type Settlement = {
+	id: string;
+	reference: string;
+	label: string;
+	status: "SENT" | "AWAITING_PAYMENT" | "PAID";
+	amount: number;
+	grossAmount: number | null;
+	unitsSold: number | null;
+	currency: string;
+	notes: string | null;
+	rejectionReason: string | null;
+	event: {
+		id: string;
+		name: string;
+	} | null;
+	eventDate: {
+		id: string;
+		startsAt: string;
+	} | null;
+	hasDocument: boolean;
+	paymentProofs: Array<{
+		fileName: string;
+	}>;
+	allocations: Array<{
+		bankAccountId: string;
+		percentage: number;
+	}>;
+	requestedAt: string | null;
+	paidAt: string | null;
+	createdAt: string;
 };
 
 export type DiscountType = "PERCENT" | "FIXED";
@@ -441,6 +569,104 @@ export type TicketAccess = {
 	startsAt: string;
 	ticketTypeName: string;
 	checkedInAt: string | null;
+};
+
+export type ApiKeyScope = "read" | "write";
+
+export type ApiKey = {
+	id: string;
+	name: string;
+	scope: ApiKeyScope;
+	keyPrefix: string;
+	lastUsedAt: string | null;
+	expiresAt: string | null;
+	revokedAt: string | null;
+	createdAt: string;
+};
+
+export type ApiKeyCreated = {
+	id: string;
+	name: string;
+	scope: ApiKeyScope;
+	keyPrefix: string;
+	lastUsedAt: string | null;
+	expiresAt: string | null;
+	revokedAt: string | null;
+	createdAt: string;
+	key: string;
+};
+
+export type ApiKeyCreate = {
+	name: string;
+	scope: ApiKeyScope;
+	expiresAt?: string;
+};
+
+export type CustomerMe = {
+	id: string;
+	email: string;
+	name: string;
+	emailVerified: boolean;
+};
+
+export type CustomerTicketItem = {
+	ticketTypeName: string;
+	quantity: number;
+	/**
+	 * Código opaco del ticket. El QR debe codificar la URL del validador (`https://admin.appfreeticket.com/dashboard/tickets/validar?code=<ticketCode>`).
+	 */
+	ticketCode: string;
+	/**
+	 * Silla exacta en eventos numerados (seats.io), o null.
+	 */
+	seatLabel: string | null;
+};
+
+export type CustomerSale = {
+	id: string;
+	reference: string;
+	status: string;
+	event: {
+		name: string;
+		slug: string;
+	};
+	eventDate: {
+		/**
+		 * Instante del evento en ISO 8601 UTC.
+		 */
+		startsAt: string;
+		/**
+		 * Zona horaria IANA del evento.
+		 */
+		timezone: string;
+	};
+	items: Array<CustomerTicketItem>;
+	total: number;
+	currency: string;
+};
+
+export type EnterpriseExchangeRequest = {
+	/**
+	 * One-time token recibido en el callback de la landing (formato `{slug}.{token}`, se reenvía tal cual).
+	 */
+	token: string;
+};
+
+export type EnterpriseExchangeResponse = {
+	/**
+	 * Token de sesión del comprador. Usable como header `X-Customer-Session` en /api/v1/customer*.
+	 */
+	session_token: string;
+	/**
+	 * Expiración de la sesión (ISO 8601, sliding de 7 días).
+	 */
+	expires_at: string;
+	customer: {
+		id: string;
+		email: string;
+		name: string;
+		email_verified: boolean;
+	};
 };
 
 export type ResendTicket = {
@@ -554,6 +780,10 @@ export type GetEventsData = {
 		 * id del último resultado de la página previa
 		 */
 		cursor?: string;
+		/**
+		 * Búsqueda por nombre/descripción, insensible a mayúsculas y acentos
+		 */
+		q?: string;
 	};
 	url: "/events";
 };
@@ -844,7 +1074,7 @@ export type GetEventsIdDatesResponse =
 	GetEventsIdDatesResponses[keyof GetEventsIdDatesResponses];
 
 export type PostEventsIdDatesData = {
-	body?: never;
+	body: EventDateCreate;
 	path: {
 		id: string;
 	};
@@ -931,7 +1161,7 @@ export type DeleteEventsIdDatesDateIdResponse =
 	DeleteEventsIdDatesDateIdResponses[keyof DeleteEventsIdDatesDateIdResponses];
 
 export type PatchEventsIdDatesDateIdData = {
-	body?: never;
+	body: EventDateUpdate;
 	path: {
 		id: string;
 		dateId: string;
@@ -1151,7 +1381,7 @@ export type GetTicketTypesIdResponse =
 	GetTicketTypesIdResponses[keyof GetTicketTypesIdResponses];
 
 export type PatchTicketTypesIdData = {
-	body?: never;
+	body: TicketTypeUpdate;
 	path: {
 		id: string;
 	};
@@ -1607,7 +1837,7 @@ export type GetMembershipPlansIdResponse =
 	GetMembershipPlansIdResponses[keyof GetMembershipPlansIdResponses];
 
 export type PatchMembershipPlansIdData = {
-	body?: never;
+	body: MembershipPlanUpdate;
 	path: {
 		id: string;
 	};
@@ -1817,7 +2047,7 @@ export type GetVenuesIdResponse =
 	GetVenuesIdResponses[keyof GetVenuesIdResponses];
 
 export type PatchVenuesIdData = {
-	body?: never;
+	body: VenueUpdate;
 	path: {
 		id: string;
 	};
@@ -2496,6 +2726,115 @@ export type GetReportsTimeseriesResponses = {
 export type GetReportsTimeseriesResponse =
 	GetReportsTimeseriesResponses[keyof GetReportsTimeseriesResponses];
 
+export type GetReportsFinancialsData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Filtra por id de evento
+		 */
+		event?: string;
+		/**
+		 * true = solo funciones ya ocurridas (liquidables); false = futuras
+		 */
+		past?: string;
+	};
+	url: "/reports/financials";
+};
+
+export type GetReportsFinancialsErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetReportsFinancialsError =
+	GetReportsFinancialsErrors[keyof GetReportsFinancialsErrors];
+
+export type GetReportsFinancialsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ReportFinancialsRow>;
+	};
+};
+
+export type GetReportsFinancialsResponse =
+	GetReportsFinancialsResponses[keyof GetReportsFinancialsResponses];
+
+export type GetSettlementsData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Filtra por id de evento
+		 */
+		event?: string;
+		/**
+		 * SENT|AWAITING_PAYMENT|PAID
+		 */
+		status?: string;
+		/**
+		 * 1..100 (default 20)
+		 */
+		limit?: string;
+		/**
+		 * Id de la última fila de la página previa
+		 */
+		cursor?: string;
+	};
+	url: "/settlements";
+};
+
+export type GetSettlementsErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetSettlementsError =
+	GetSettlementsErrors[keyof GetSettlementsErrors];
+
+export type GetSettlementsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<Settlement>;
+		page: Page;
+	};
+};
+
+export type GetSettlementsResponse =
+	GetSettlementsResponses[keyof GetSettlementsResponses];
+
 export type GetDiscountsData = {
 	body?: never;
 	path?: never;
@@ -3024,6 +3363,249 @@ export type GetTicketsTicketCodeAccessResponses = {
 export type GetTicketsTicketCodeAccessResponse =
 	GetTicketsTicketCodeAccessResponses[keyof GetTicketsTicketCodeAccessResponses];
 
+export type GetApiKeysData = {
+	body?: never;
+	path?: never;
+	query?: {
+		limit?: string;
+		cursor?: string;
+	};
+	url: "/api-keys";
+};
+
+export type GetApiKeysErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetApiKeysError = GetApiKeysErrors[keyof GetApiKeysErrors];
+
+export type GetApiKeysResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ApiKey>;
+		page: Page;
+	};
+};
+
+export type GetApiKeysResponse = GetApiKeysResponses[keyof GetApiKeysResponses];
+
+export type PostApiKeysData = {
+	body: ApiKeyCreate;
+	path?: never;
+	query?: never;
+	url: "/api-keys";
+};
+
+export type PostApiKeysErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PostApiKeysError = PostApiKeysErrors[keyof PostApiKeysErrors];
+
+export type PostApiKeysResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: ApiKeyCreated;
+	};
+};
+
+export type PostApiKeysResponse =
+	PostApiKeysResponses[keyof PostApiKeysResponses];
+
+export type DeleteApiKeysIdData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/api-keys/{id}";
+};
+
+export type DeleteApiKeysIdErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type DeleteApiKeysIdError =
+	DeleteApiKeysIdErrors[keyof DeleteApiKeysIdErrors];
+
+export type DeleteApiKeysIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		[key: string]: unknown;
+	};
+};
+
+export type DeleteApiKeysIdResponse =
+	DeleteApiKeysIdResponses[keyof DeleteApiKeysIdResponses];
+
+export type GetCustomerMeData = {
+	body?: never;
+	path?: never;
+	query?: never;
+	url: "/customer/me";
+};
+
+export type GetCustomerMeErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetCustomerMeError = GetCustomerMeErrors[keyof GetCustomerMeErrors];
+
+export type GetCustomerMeResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerMe;
+	};
+};
+
+export type GetCustomerMeResponse =
+	GetCustomerMeResponses[keyof GetCustomerMeResponses];
+
+export type GetCustomerTicketsData = {
+	body?: never;
+	path?: never;
+	query?: {
+		limit?: string;
+		cursor?: string;
+	};
+	url: "/customer/tickets";
+};
+
+export type GetCustomerTicketsErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetCustomerTicketsError =
+	GetCustomerTicketsErrors[keyof GetCustomerTicketsErrors];
+
+export type GetCustomerTicketsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<CustomerSale>;
+		page: Page;
+	};
+};
+
+export type GetCustomerTicketsResponse =
+	GetCustomerTicketsResponses[keyof GetCustomerTicketsResponses];
+
+export type PostApiCustomerAuthEnterpriseExchangeData = {
+	body: EnterpriseExchangeRequest;
+	path?: never;
+	query?: never;
+	url: "/api/customer-auth/enterprise-exchange";
+};
+
+export type PostApiCustomerAuthEnterpriseExchangeErrors = {
+	/**
+	 * API key inválida/ausente, o token inválido/expirado.
+	 */
+	401: unknown;
+	/**
+	 * La API key no pertenece a un user de servicio enterprise, o el token fue minteado para otro workspace.
+	 */
+	403: unknown;
+	/**
+	 * Cuerpo inválido.
+	 */
+	422: unknown;
+};
+
+export type PostApiCustomerAuthEnterpriseExchangeResponses = {
+	/**
+	 * Sesión del comprador canjeada.
+	 */
+	200: EnterpriseExchangeResponse;
+};
+
+export type PostApiCustomerAuthEnterpriseExchangeResponse =
+	PostApiCustomerAuthEnterpriseExchangeResponses[keyof PostApiCustomerAuthEnterpriseExchangeResponses];
+
 export type PostTicketsTicketCodeResendData = {
 	body?: never;
 	path: {
@@ -3068,5 +3650,8 @@ export type PostTicketsTicketCodeResendResponse =
 	PostTicketsTicketCodeResendResponses[keyof PostTicketsTicketCodeResendResponses];
 
 export type ClientOptions = {
-	baseUrl: "http://localhost:3000/api/v1" | (string & {});
+	baseUrl:
+		| "http://localhost:3000/api/v1"
+		| `${string}://${string}`
+		| (string & {});
 };

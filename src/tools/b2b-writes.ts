@@ -12,9 +12,14 @@ import {
 	deleteWebhooksId,
 	patchDiscountsId,
 	patchEventsId,
+	patchEventsIdDatesDateId,
+	patchMembershipPlansId,
 	patchStaffIdRole,
+	patchTicketTypesId,
+	patchVenuesId,
 	postDiscounts,
 	postEvents,
+	postEventsIdDates,
 	postEventsIdPublish,
 	postMembershipPlans,
 	postSales,
@@ -39,9 +44,9 @@ const CONFIRM = " ⚠️ Irreversible: confirmá con el humano antes de ejecutar
 /**
  * Ola B: writes del contrato B2B /api/v1 (un tool = un operationId).
  *
- * Fuera de esta ola por hueco de contrato (el spec no declara requestBody, no se
- * inventa — ver CONTRACT-GAPS.md): event_dates_create/update, ticket_types_update,
- * plans_update, venues_update. Se piden en free-admin vía endpoint-requester.
+ * Completa desde el contrato 1.5.0: los updates que faltaban (event_dates_*,
+ * ticket_types_update, plans_update, venues_update) ya declaran requestBody en
+ * el spec, así que sus schemas salen del contrato y no de la imaginación.
  */
 export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	// ── Eventos ──────────────────────────────────────────────────────────────
@@ -95,6 +100,54 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		async ({ id }) => run(deleteEventsId({ path: { id }, client })),
 	);
 	server.tool(
+		"event_dates_create",
+		"Agrega una fecha/función a un evento (POST /events/{id}/dates).",
+		{
+			eventId: z.string().describe("Id del evento"),
+			startsAt: z.string().describe("Inicio (ISO 8601)"),
+			timezone: z
+				.string()
+				.default("America/Bogota")
+				.describe("Ej: America/Bogota"),
+			label: z.string().max(200).nullish().describe("Etiqueta de la función"),
+			endsAt: z.string().nullish().describe("Fin (ISO 8601)"),
+			doorsOpenAt: z
+				.string()
+				.nullish()
+				.describe("Apertura de puertas (ISO 8601)"),
+			venueId: z.string().nullish().describe("Venue de esta función"),
+		},
+		mutating,
+		async ({ eventId, ...body }) =>
+			run(postEventsIdDates({ path: { id: eventId }, body, client })),
+	);
+	server.tool(
+		"event_dates_update",
+		"Actualiza una fecha/función (PATCH /events/{id}/dates/{dateId}).",
+		{
+			eventId: z.string().describe("Id del evento"),
+			dateId: z.string().describe("Id de la fecha"),
+			startsAt: z.string().optional().describe("Inicio (ISO 8601)"),
+			endsAt: z.string().nullish().describe("Fin (ISO 8601)"),
+			doorsOpenAt: z
+				.string()
+				.nullish()
+				.describe("Apertura de puertas (ISO 8601)"),
+			timezone: z.string().optional(),
+			label: z.string().max(200).nullish(),
+			venueId: z.string().nullish(),
+		},
+		mutating,
+		async ({ eventId, dateId, ...body }) =>
+			run(
+				patchEventsIdDatesDateId({
+					path: { id: eventId, dateId },
+					body,
+					client,
+				}),
+			),
+	);
+	server.tool(
 		"event_dates_delete",
 		`Elimina una fecha/función de un evento (DELETE /events/{id}/dates/{dateId}).${CONFIRM}`,
 		{
@@ -125,6 +178,24 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		},
 		mutating,
 		async (body) => run(postTicketTypes({ body, client })),
+	);
+	server.tool(
+		"ticket_types_update",
+		"Actualiza un tipo de ticket — precio, stock, visibilidad (PATCH /ticket-types/{id}).",
+		{
+			id: z.string().describe("Id del tipo de ticket"),
+			name: z.string().optional(),
+			description: z.string().nullish(),
+			price: z.number().min(0).optional(),
+			currency: z.string().optional(),
+			capacity: z.number().int().positive().optional().describe("Stock total"),
+			maxPerOrder: z.number().int().positive().optional(),
+			isVisible: z.boolean().optional(),
+			organizerAbsorbsFee: z.boolean().optional(),
+		},
+		mutating,
+		async ({ id, ...body }) =>
+			run(patchTicketTypesId({ path: { id }, body, client })),
 	);
 	server.tool(
 		"ticket_types_delete",
@@ -206,9 +277,39 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			benefitExclusiveContent: z.boolean(),
 			benefitMerch: z.boolean(),
 			isActive: z.boolean(),
+			sortOrder: z
+				.number()
+				.int()
+				.min(0)
+				.default(0)
+				.describe("Orden en el listado de planes"),
 		},
 		mutating,
 		async (body) => run(postMembershipPlans({ body, client })),
+	);
+	server.tool(
+		"plans_update",
+		"Actualiza un plan de membresía (PATCH /membership-plans/{id}).",
+		{
+			id: z.string().describe("Id del plan"),
+			name: z.string().optional(),
+			description: z.string().nullish(),
+			price: z.number().min(0).optional(),
+			currency: z.string().optional(),
+			billingCycle: z
+				.enum(["MONTHLY", "QUARTERLY", "ANNUAL", "LIFETIME"])
+				.optional(),
+			benefitPresale: z.boolean().optional(),
+			benefitFreeTicket: z.boolean().optional(),
+			benefitDiscount: z.boolean().optional(),
+			benefitExclusiveContent: z.boolean().optional(),
+			benefitMerch: z.boolean().optional(),
+			isActive: z.boolean().optional(),
+			sortOrder: z.number().int().min(0).optional(),
+		},
+		mutating,
+		async ({ id, ...body }) =>
+			run(patchMembershipPlansId({ path: { id }, body, client })),
 	);
 	server.tool(
 		"plans_delete",
@@ -240,6 +341,24 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		},
 		mutating,
 		async (body) => run(postVenues({ body, client })),
+	);
+	server.tool(
+		"venues_update",
+		"Actualiza un venue (PATCH /venues/{id}).",
+		{
+			id: z.string().describe("Id del venue"),
+			name: z.string().optional(),
+			address: z.string().optional(),
+			city: z.string().optional(),
+			country: z.string().length(2).optional().describe("ISO 3166-1 alpha-2"),
+			capacity: z.number().int().positive().nullish(),
+			latitude: z.number().min(-90).max(90).nullish(),
+			longitude: z.number().min(-180).max(180).nullish(),
+			portalVisible: z.boolean().optional(),
+		},
+		mutating,
+		async ({ id, ...body }) =>
+			run(patchVenuesId({ path: { id }, body, client })),
 	);
 	server.tool(
 		"venues_delete",
