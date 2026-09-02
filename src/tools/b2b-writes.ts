@@ -10,6 +10,7 @@ import {
 	deleteTicketTypesId,
 	deleteVenuesId,
 	deleteWebhooksId,
+	patchCustomerProfile,
 	patchDiscountsId,
 	patchEventsId,
 	patchEventsIdDatesDateId,
@@ -17,6 +18,11 @@ import {
 	patchStaffIdRole,
 	patchTicketTypesId,
 	patchVenuesId,
+	postContentPlaybackToken,
+	postCustomerLogout,
+	postCustomerSubscriptions,
+	postCustomerSubscriptionsCancel,
+	postCustomerTicketsIdCancel,
 	postDiscounts,
 	postEvents,
 	postEventsIdDates,
@@ -233,16 +239,35 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	server.tool(
 		"sales_cancel",
 		`Cancela una venta (POST /sales/{id}/cancel).${CONFIRM}`,
-		{ id: z.string().describe("Id de la venta") },
+		{
+			id: z.string().describe("Id de la venta"),
+			acknowledge_open_payment: z
+				.boolean()
+				.optional()
+				.describe(
+					"Confirma cancelar aunque el pago siga abierto en la pasarela " +
+						"(la API lo exige para no dejar un cobro huérfano).",
+				),
+		},
 		destructive,
-		async ({ id }) => run(postSalesIdCancel({ path: { id }, client })),
+		async ({ id, ...body }) =>
+			run(postSalesIdCancel({ path: { id }, body, client })),
 	);
 	server.tool(
 		"sales_refund",
 		`Reembolsa una venta (POST /sales/{id}/refund).${CONFIRM}`,
-		{ id: z.string().describe("Id de la venta") },
+		{
+			id: z.string().describe("Id de la venta"),
+			acknowledge_manual: z
+				.boolean()
+				.optional()
+				.describe(
+					"Confirma que la plata se devuelve a mano por fuera de la pasarela.",
+				),
+		},
 		destructive,
-		async ({ id }) => run(postSalesIdRefund({ path: { id }, client })),
+		async ({ id, ...body }) =>
+			run(postSalesIdRefund({ path: { id }, body, client })),
 	);
 	server.tool(
 		"tickets_checkin",
@@ -443,5 +468,116 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		{ id: z.string().describe("Id del webhook") },
 		destructive,
 		async ({ id }) => run(deleteWebhooksId({ path: { id }, client })),
+	);
+
+	// ── Área de socios y contenido (contrato 1.7.0) ──────────────────────────
+	// Hablan en nombre del comprador: API key enterprise + su session token
+	// (X-Customer-Session). Con estos, el agente cierra el circuito del área de
+	// socios: alta y baja de membresía, perfil y cancelación de la propia compra.
+	const customerSession = z
+		.string()
+		.describe("Session token del comprador (header X-Customer-Session)");
+
+	server.tool(
+		"customer_ticket_cancel",
+		`Cancela la propia compra del comprador, solo si todavía no fue pagada (POST /customer/tickets/{id}/cancel).${CONFIRM}`,
+		{ id: z.string().describe("Id de la entrada"), customerSession },
+		destructive,
+		async ({ id, customerSession }) =>
+			run(
+				postCustomerTicketsIdCancel({
+					path: { id },
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_subscribe",
+		"Inicia el alta de una membresía y devuelve la URL de pago — el agente " +
+			"nunca toca el cobro (POST /customer/subscriptions).",
+		{
+			planId: z.string().describe("Id de un plan de membresía activo"),
+			customerSession,
+		},
+		mutating,
+		async ({ customerSession, ...body }) =>
+			run(
+				postCustomerSubscriptions({
+					body,
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_subscription_cancel",
+		`Cancela la membresía del propio comprador (POST /customer/subscriptions/cancel).${CONFIRM}`,
+		{ customerSession },
+		destructive,
+		async ({ customerSession }) =>
+			run(
+				postCustomerSubscriptionsCancel({
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_profile_update",
+		"Edita el perfil del comprador: nombre y teléfono (PATCH /customer/profile). " +
+			"phone en null o vacío borra el teléfono.",
+		{
+			name: z.string().min(1).max(120).optional(),
+			phone: z.string().max(30).nullish(),
+			customerSession,
+		},
+		mutating,
+		async ({ customerSession, ...body }) =>
+			run(
+				patchCustomerProfile({
+					body,
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_logout",
+		"Cierra la sesión de comprador del SSO headless (POST /customer/logout).",
+		{ customerSession },
+		mutating,
+		async ({ customerSession }) =>
+			run(
+				postCustomerLogout({
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"content_playback_token",
+		"Token firmado para reproducir un video (1 h) o una transmisión (30 min) " +
+			"(POST /content/playback-token). El contenido `memberOnly` exige además " +
+			"el session token de un comprador con membresía vigente.",
+		{
+			kind: z.enum(["video", "live"]).describe("Tipo de contenido"),
+			id: z.string().describe("Id del video o de la transmisión"),
+			customerSession: z
+				.string()
+				.optional()
+				.describe("Session token del comprador — obligatorio si es memberOnly"),
+		},
+		mutating,
+		async ({ customerSession, ...body }) =>
+			run(
+				postContentPlaybackToken({
+					body,
+					...(customerSession
+						? { headers: { "X-Customer-Session": customerSession } }
+						: {}),
+					client,
+				}),
+			),
 	);
 }

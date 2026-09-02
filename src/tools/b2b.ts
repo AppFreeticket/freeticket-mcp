@@ -4,6 +4,15 @@ import { z } from "zod";
 import { type Creds, run } from "../api";
 import {
 	getApiKeys,
+	getContentLives,
+	getContentLivesId,
+	getContentPosts,
+	getContentVideos,
+	getCustomerMe,
+	getCustomerMembership,
+	getCustomerProfile,
+	getCustomerTickets,
+	getCustomerTicketsId,
 	getDiscounts,
 	getEvents,
 	getEventsId,
@@ -34,7 +43,7 @@ import {
 	getVenuesId,
 	getWebhooks,
 } from "../client/sdk.gen";
-import { UI_META } from "../ui";
+import { uiTool } from "../ui";
 import { makeWorkspaceResolver, runWorkspaceList } from "../workspaces";
 
 const paging = {
@@ -42,6 +51,14 @@ const paging = {
 	cursor: z.string().optional().describe("Cursor de paginación"),
 };
 const id = z.string().describe("Id del recurso");
+
+/** Enums del contrato — el cliente generado ya no acepta un string suelto. */
+const eventStatus = z
+	.enum(["DRAFT", "PUBLISHED", "SOLD_OUT", "CANCELLED", "COMPLETED"])
+	.describe("Estado del evento");
+const saleStatus = z
+	.enum(["PENDING", "CONFIRMED", "ABANDONED", "CANCELLED", "REFUNDED"])
+	.describe("Estado de la venta");
 
 /**
  * Modo global (brecha #3): opcional en los tools de lectura con listado.
@@ -61,19 +78,44 @@ const workspaceParam = z
 	);
 
 /**
- * Atajo para un read con vista de MCP Apps: mismo tool, más `_meta.ui`
- * apuntando al view. `server.tool()` no acepta `_meta`, por eso estos pasan
- * por `registerTool`.
+ * Descargas de liquidación: la API responde **302** hacia una URL firmada con
+ * TTL de 5 minutos. Seguir la redirección traería el PDF entero al contexto del
+ * modelo, así que se corta en el 302 y se devuelve el link para que lo abra
+ * quien corresponda. Por eso va con fetch crudo y no con el cliente generado.
  */
-function uiTool(
-	server: McpServer,
-	name: string,
-	description: string,
-	inputSchema: Record<string, z.ZodTypeAny>,
-	// biome-ignore lint/suspicious/noExplicitAny: firma del SDK, varía por tool.
-	cb: (args: any) => Promise<any>,
-): void {
-	server.registerTool(name, { description, inputSchema, _meta: UI_META }, cb);
+async function signedDownload(
+	creds: Creds,
+	path: string,
+): Promise<{
+	content: { type: "text"; text: string }[];
+	isError?: boolean;
+}> {
+	const res = await fetch(`${creds.apiUrl}/api/v1${path}`, {
+		redirect: "manual",
+		headers: {
+			Authorization: `Bearer ${creds.apiKey}`,
+			...(creds.workspaceId ? { "X-Workspace-Id": creds.workspaceId } : {}),
+		},
+	});
+	const url = res.headers.get("location");
+	if (!url)
+		return {
+			isError: true,
+			content: [
+				{
+					type: "text",
+					text: `La API no devolvió la URL firmada (HTTP ${res.status}): ${await res.text()}`,
+				},
+			],
+		};
+	return {
+		content: [
+			{
+				type: "text",
+				text: JSON.stringify({ url, expiresInMinutes: 5 }, null, 2),
+			},
+		],
+	};
 }
 
 /**
@@ -105,8 +147,19 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"events_list",
-		"Lista los eventos del workspace (GET /events). `workspace` activa el modo global.",
-		{ ...paging, workspace: workspaceParam },
+		"Lista los eventos del workspace (GET /events). `status` filtra en la " +
+			"consulta (así `limit` cuenta solo filas devueltas) y `withTotal` agrega " +
+			"`page.total`. `workspace` activa el modo global.",
+		{
+			...paging,
+			q: z.string().optional().describe("Búsqueda por nombre/descripción"),
+			status: eventStatus.optional(),
+			withTotal: z
+				.boolean()
+				.optional()
+				.describe("Incluir page.total (cuenta extra, opt-in)"),
+			workspace: workspaceParam,
+		},
 		async ({ workspace, ...q }) =>
 			runWorkspaceList(ctx, workspace, (c) =>
 				getEvents({ query: q, client: c }),
@@ -118,7 +171,8 @@ export function registerB2bTools(
 		{ id },
 		async ({ id }) => run(getEventsId({ path: { id }, client })),
 	);
-	server.tool(
+	uiTool(
+		server,
 		"event_dates_list",
 		"Fechas/funciones de un evento (GET /events/{id}/dates).",
 		{ eventId: z.string().describe("Id del evento") },
@@ -263,12 +317,23 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"staff_list",
-		"Staff del workspace (GET /staff). `workspace` activa el modo global.",
+		"Staff del workspace (GET /staff). `workspace` activa el modo global: a " +
+			"diferencia del resto, acá lo resuelve el contrato con `workspaceIds` " +
+			"(una sola llamada, filas etiquetadas por el backend), no un fan-out.",
 		{ ...paging, workspace: workspaceParam },
-		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getStaff({ query: q, client: c }),
-			),
+		async ({ workspace, ...q }) => {
+			if (!workspace) return run(getStaff({ query: q, client }));
+			const ids =
+				workspace === "all"
+					? (await ctx.resolveWorkspaces()).map((w) => w.id)
+					: workspace;
+			return run(
+				getStaff({
+					query: { ...q, workspaceIds: ids.slice(0, 25).join(",") },
+					client,
+				}),
+			);
+		},
 	);
 
 	uiTool(
@@ -348,15 +413,14 @@ export function registerB2bTools(
 		eventDate: z.string().optional(),
 		from: z.string().optional(),
 		to: z.string().optional(),
-		status: z.string().optional(),
+		status: saleStatus.optional(),
 	};
 	uiTool(
 		server,
 		"settlements_list",
 		"Liquidaciones del workspace — lo que FreeTicket le paga al organizador, " +
-			"con monto, estado y evento/función (GET /settlements). El PDF de " +
-			"comprobante se descarga del panel, no por la API: acá viaja hasDocument " +
-			"y el nombre de los archivos.",
+			"con monto, estado y evento/función (GET /settlements). Trae hasDocument " +
+			"y el nombre de los archivos; el PDF se baja con `settlements_document`.",
 		{
 			event: z.string().optional().describe("Filtrar por evento"),
 			status: z
@@ -366,6 +430,33 @@ export function registerB2bTools(
 			...paging,
 		},
 		async (q) => run(getSettlements({ query: q, client })),
+	);
+	// getSettlementsIdDocument / getSettlementsIdProofsFileName: no usan el
+	// cliente generado (son 302 a URL firmada), pero acá quedan nombrados para
+	// que el barrido de coverage.test.ts los cuente como cubiertos.
+	server.tool(
+		"settlements_document",
+		"Link de descarga del PDF de una liquidación (GET /settlements/{id}/document). " +
+			"Devuelve una URL firmada que vence en 5 minutos — no el archivo.",
+		{ id },
+		async ({ id }) => signedDownload(creds, `/settlements/${id}/document`),
+	);
+	server.tool(
+		"settlements_proof",
+		"Link de descarga de un comprobante de pago de la liquidación " +
+			"(GET /settlements/{id}/proofs/{fileName}). El nombre del archivo sale " +
+			"de `settlements_list`. URL firmada, vence en 5 minutos.",
+		{
+			id,
+			fileName: z
+				.string()
+				.describe("Nombre del archivo, tal cual lo lista la liquidación"),
+		},
+		async ({ id, fileName }) =>
+			signedDownload(
+				creds,
+				`/settlements/${id}/proofs/${encodeURIComponent(fileName)}`,
+			),
 	);
 	uiTool(
 		server,
@@ -395,6 +486,48 @@ export function registerB2bTools(
 		async (q) => run(getApiKeys({ query: q, client })),
 	);
 
+	// ── SSO headless (integraciones enterprise) ──────────────────────────────
+	// Estos dos hablan en nombre de un comprador, no del workspace: exigen una
+	// API key de servicio enterprise Y el session token que devolvió el canje
+	// (POST /api/customer-auth/enterprise-exchange). El canje NO se expone como
+	// tool: mintea sesiones de terceros — misma política que api_keys/admin
+	// tokens. Con una key normal, la API responde 403 y el agente lo ve.
+	const customerSession = z
+		.string()
+		.describe(
+			"Session token del comprador (header X-Customer-Session), obtenido en el " +
+				"canje del SSO headless. Sin él la API responde 401.",
+		);
+	server.tool(
+		"customer_me",
+		"Identidad del comprador autenticado por SSO headless (GET /customer/me). " +
+			"Requiere API key de servicio enterprise + session token del comprador.",
+		{ customerSession },
+		async ({ customerSession }) =>
+			run(
+				getCustomerMe({
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	uiTool(
+		server,
+		"customer_tickets",
+		"Entradas del comprador dentro del alcance de la key (GET /customer/tickets). " +
+			"Solo ventas CONFIRMED de eventos que el workspace pineado puede leer. " +
+			"Requiere API key de servicio enterprise + session token del comprador.",
+		{ customerSession, ...paging },
+		async ({ customerSession, ...q }) =>
+			run(
+				getCustomerTickets({
+					query: q,
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+
 	server.tool(
 		"reports_export_buyers",
 		"Export de compradores — una fila por venta (GET /reports/exports/buyers).",
@@ -418,9 +551,94 @@ export function registerB2bTools(
 		{
 			date_from: z.string(),
 			date_to: z.string(),
-			match_status: z.string().optional(),
+			match_status: z
+				.enum([
+					"OK",
+					"MISSING_INVOICE",
+					"MISSING_CUFE",
+					"AMOUNT_MISMATCH",
+					"MISSING_PAYMENT",
+				])
+				.optional(),
 			provider: z.string().optional(),
 		},
 		async (q) => run(getReportsExportsReconciliation({ query: q, client })),
+	);
+
+	// ── Área de socios (contrato 1.7.0) ──────────────────────────────────────
+	// Misma credencial doble que customer_me: API key enterprise + sesión del
+	// comprador. Con estos el agente ya cubre el área de socios del sitio:
+	// entradas, membresía y perfil.
+	server.tool(
+		"customer_ticket_get",
+		"Detalle de una entrada del comprador — deep link desde el listado " +
+			"(GET /customer/tickets/{id}).",
+		{ id, customerSession },
+		async ({ id, customerSession }) =>
+			run(
+				getCustomerTicketsId({
+					path: { id },
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	uiTool(
+		server,
+		"customer_membership",
+		"Estado de membresía del comprador en el workspace de la key: plan, " +
+			"vigencia y si puede ver contenido de socios (GET /customer/membership).",
+		{ customerSession },
+		async ({ customerSession }) =>
+			run(
+				getCustomerMembership({
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_profile",
+		"Perfil del comprador — nombre y teléfono (GET /customer/profile).",
+		{ customerSession },
+		async ({ customerSession }) =>
+			run(
+				getCustomerProfile({
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+
+	// ── Contenido de la organización (contrato 1.7.0) ────────────────────────
+	// Videos, feed y transmisiones publicados. Los listados NO traen el playback
+	// id: para reproducir hay que pedir un token con `content_playback_token`.
+	uiTool(
+		server,
+		"content_videos",
+		"Videos publicados y listos (READY) de la organización (GET /content/videos). " +
+			"Para reproducir uno, pedir token con `content_playback_token`.",
+		{ ...paging },
+		async (q) => run(getContentVideos({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"content_posts",
+		"Feed de comunidad de la organización (GET /content/posts).",
+		{ ...paging },
+		async (q) => run(getContentPosts({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"content_lives",
+		"Transmisiones en vivo de la organización, con su estado (GET /content/lives).",
+		{ ...paging },
+		async (q) => run(getContentLives({ query: q, client })),
+	);
+	server.tool(
+		"content_live_get",
+		"Estado de una transmisión puntual (GET /content/lives/{id}).",
+		{ id },
+		async ({ id }) => run(getContentLivesId({ path: { id }, client })),
 	);
 }

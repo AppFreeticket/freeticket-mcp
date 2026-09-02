@@ -1,8 +1,13 @@
 import type { Client } from "@hey-api/client-fetch";
 import { describe, expect, it, vi } from "vitest";
+import type { WorkspaceAccess } from "./client/types.gen";
 import { resolveWorkspaceTargets, runAcrossWorkspaces } from "./workspaces";
 
-const ws = (id: string, name: string) => ({ id, name, slug: id });
+const ws = (
+	id: string,
+	name: string,
+	sections: string[] | null = null,
+): WorkspaceAccess => ({ id, name, slug: id, role: "ADMIN", sections });
 
 /** El X-Workspace-Id del client identifica contra qué workspace se llamó. */
 function workspaceIdOf(client: Client): string | null {
@@ -23,6 +28,15 @@ describe("resolveWorkspaceTargets", () => {
 		expect(await resolveWorkspaceTargets(resolveWorkspaces, "all")).toEqual(
 			accessible,
 		);
+	});
+
+	it("descarta los workspaces con el acceso vencido o revocado", async () => {
+		const withRevoked = () =>
+			Promise.resolve([...accessible, ws("d", "D", [])]);
+		expect(await resolveWorkspaceTargets(withRevoked, "all")).toEqual(
+			accessible,
+		);
+		expect(await resolveWorkspaceTargets(withRevoked, ["d"])).toEqual([]);
 	});
 
 	it("descarta ids que no están entre los accesibles de la sesión", async () => {
