@@ -19,12 +19,13 @@ import {
 	postImpersonateStop,
 	postPlatformPlans,
 	postWorkspaces,
+	postWorkspacesIdPlan,
 	postWorkspacesIdRestore,
 	postWorkspacesIdSuspend,
 	putFeatureFlagsKey,
 } from "../admin-client/sdk.gen";
 import { run } from "../api";
-import { UI_META } from "../ui";
+import { UI_META, uiTool } from "../ui";
 
 const destructive = { destructiveHint: true, idempotentHint: false } as const;
 const mutating = { destructiveHint: false, idempotentHint: false } as const;
@@ -42,7 +43,8 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		async () => run(getMe({ client })),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"admin_workspaces",
 		"Lista tenants/workspaces cross-tenant (GET /api/admin/workspaces).",
 		{
@@ -54,7 +56,8 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		async (q) => run(getWorkspaces({ query: q, client })),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"admin_users",
 		"Lista usuarios globales cross-tenant (GET /api/admin/users).",
 		{
@@ -79,7 +82,8 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		async () => run(getTokens({ client })),
 	);
 
-	server.tool(
+	uiTool(
+		server,
 		"admin_audit_log",
 		"Registro de auditoría del superadmin (GET /api/admin/audit-log).",
 		{
@@ -121,10 +125,46 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			slug: z.string().optional(),
 			type: z.enum(["ARTIST", "VENUE", "ORGANIZER"]).optional(),
 			isPublished: z.boolean().optional(),
+			webTemplate: z
+				.string()
+				.min(1)
+				.max(80)
+				.nullish()
+				.describe(
+					"Template del sitio público del tenant. null lo vuelve al default.",
+				),
+			customDomain: z
+				.string()
+				.max(253)
+				.nullish()
+				.describe(
+					"Dominio propio del tenant (sin protocolo). null lo desvincula.",
+				),
+			customDomainVerifiedAt: z
+				.string()
+				.datetime()
+				.nullish()
+				.describe("Marca la verificación del dominio. null la revierte."),
 		},
 		mutating,
 		async ({ id, ...body }) =>
 			run(patchWorkspacesId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"admin_workspaces_assign_plan",
+		"Asigna un plan de plataforma a mano — venta asistida, sin pasar por el " +
+			`autoservicio de Stripe (POST /api/admin/workspaces/{id}/plan).${CONFIRM} ` +
+			"Si el tenant tenía suscripción de Stripe, se cancela allá primero; si " +
+			"esa cancelación falla, la API aborta con 409 sin tocar nada.",
+		{
+			id: z.string().describe("Id del workspace"),
+			planSlug: z
+				.enum(["spark", "star", "icon", "legend"])
+				.describe("Tier a activar (`legend` es enterprise)"),
+		},
+		destructive,
+		async ({ id, ...body }) =>
+			run(postWorkspacesIdPlan({ path: { id }, body, client })),
 	);
 	server.tool(
 		"admin_workspaces_suspend",
@@ -180,9 +220,11 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	);
 
 	// ── Platform plans y feature flags ───────────────────────────────────────
-	server.tool(
+	uiTool(
+		server,
 		"admin_platform_plans_list",
 		"Lista los planes de plataforma (GET /api/admin/platform-plans).",
+		{},
 		async () => run(getPlatformPlans({ client })),
 	);
 	server.tool(
@@ -243,7 +285,8 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		async ({ id, ...body }) =>
 			run(patchPlatformPlansId({ path: { id }, body, client })),
 	);
-	server.tool(
+	uiTool(
+		server,
 		"admin_feature_flags_list",
 		"Lista feature flags, opcionalmente por key (GET /api/admin/feature-flags).",
 		{ key: z.string().optional().describe("Filtrar por key") },

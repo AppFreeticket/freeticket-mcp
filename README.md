@@ -106,15 +106,23 @@ cada cold start), `FT_API_URL` (opcional, default producción), `MCP_PUBLIC_URL`
 | Membresías | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
 | Comercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` |
 | Reportes | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reports_financials` · `reconciliation` | — |
-| Liquidaciones | `settlements_list` | — |
+| Liquidaciones | `settlements_list` · `settlements_document` · `settlements_proof` | — |
 | Credenciales | `api_keys_list` | — |
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
+| Área de socios (SSO headless) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` |
+| Contenido | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` |
 
 Acuñar y revocar credenciales (`ft api-keys`, `ft admin tokens`) queda fuera del
 MCP a propósito: un agente lista credenciales para auditarlas, no las emite.
-El PDF de comprobante de una liquidación se baja del panel — el contrato expone
-`hasDocument` y los nombres de archivo, no una URL de descarga (ver
-[CONTRACT-GAPS.md](https://github.com/AppFreeticket/ai-native/blob/main/CONTRACT-GAPS.md)).
+`customer_*` son para integraciones enterprise: piden una API key de servicio
+enterprise **y** el session token del comprador (`X-Customer-Session`). El canje
+que emite ese token tampoco es un tool — mintea sesiones de terceros.
+`settlements_document` y `settlements_proof` devuelven una **URL firmada con TTL
+de 5 minutos**, no el archivo: la API responde 302 y seguir la redirección
+metería el PDF entero en el contexto del modelo.
+Los tools de contenido listan lo publicado sin el playback id; para reproducir
+hay que pedir `content_playback_token` (30 min en vivo, 1 h en video), y el
+contenido `memberOnly` exige además la sesión de un comprador con membresía.
 
 **Público B2C `/api/public`** (sin credenciales — el agente de un comprador):
 
@@ -133,7 +141,7 @@ pague. Alcance del checkout: admisión general (no numerado / no members-only).
 | Dominio | Tools |
 |---|---|
 | Sesión / auditoría | `admin_whoami` · `admin_audit_log` · `admin_tokens` |
-| Workspaces | `admin_workspaces` · `admin_workspaces_get` · `admin_workspaces_create` · `admin_workspaces_update` · `admin_workspaces_suspend` · `admin_workspaces_restore` |
+| Workspaces | `admin_workspaces` · `admin_workspaces_get` · `admin_workspaces_create` · `admin_workspaces_update` (incluye `webTemplate` / `customDomain`) · `admin_workspaces_assign_plan` · `admin_workspaces_suspend` · `admin_workspaces_restore` |
 | Users | `admin_users` · `admin_users_get` · `admin_users_update` · `admin_impersonate` · `admin_impersonate_stop` |
 | Platform plans | `admin_platform_plans_list` · `admin_platform_plans_get` · `admin_platform_plans_create` · `admin_platform_plans_update` |
 | Feature flags | `admin_feature_flags_list` · `admin_feature_flags_set` |
@@ -151,17 +159,26 @@ JSON: el host los dibuja.
   (con formato de moneda, pills de estado y scroll horizontal),
   **objeto → tiles de KPI**.
 - El HTML es autocontenido: sin scripts externos, sin fetch, sin fuentes
-  remotas. Adopta las variables CSS del host (`hostContext.styles.variables`) y
-  reporta su alto con `ui/notifications/size-changed`, así queda integrado al
-  tema del chat en vez de imponer el suyo.
+  remotas. Declara `csp: {}` — no pide red, así el sandbox deny-by-default del
+  host no tiene nada que bloquear.
+- **La marca es nuestra, el tema es del host.** El view adopta las variables CSS
+  del host (`hostContext.styles.variables`) para integrarse al chat, pero solo
+  las del contrato de la extensión (`--color-*`, `--font-*`): el logo de
+  FreeTicket y el acento de marca no son sobreescribibles. Al cambiar de tema
+  fija `data-theme` **y** `color-scheme`, si no `light-dark()` seguiría al SO y
+  el view saldría claro dentro de un chat oscuro.
+- Solo escucha al frame que lo montó (`event.source`), reporta su alto con
+  `ui/notifications/size-changed`, formatea moneda en el `locale` del host y
+  responde `ui/resource-teardown` para que el desmontaje sea limpio.
 - Hosts sin la extensión (o clientes de terminal) ignoran `_meta` y ven el mismo
   texto de siempre: nada se rompe.
 
-Con vista: `events_list` · `ticket_types_list` · `sales_list` · `plans_list` ·
-`discounts_list` · `webhooks_list` · `venues_list` · `staff_list` ·
-`reports_summary` · `reports_by_event` · `reports_timeseries` ·
-`reports_inventory` · `reconciliation` · `settlements_list` ·
-`reports_financials` · `api_keys_list` · `admin_tokens`.
+**29 tools con vista** (v0.14.0) — todos los listados y reportes. Los detalles (`*_get`) y
+los writes van sin vista a propósito: un objeto suelto o un ack de `delete` no
+gana nada con la tabla, y dibujarlo parece que hubiera datos donde no los hay.
+`src/ui.test.ts` monta el view real en jsdom y falla si un listado nuevo se
+registra sin `_meta.ui`, si el host logra pisar la marca, o si un payload de la
+API se renderiza sin escapar.
 
 ## Desarrollo
 
@@ -172,6 +189,7 @@ pnpm dev          # corre el server vía stdio
 pnpm typecheck && pnpm test
 ```
 
+Contratos al día: B2B **1.7.0**, superadmin **1.3.0**, público **0.4.0**.
 Los contratos `openapi.json` (`/api/v1`) y `admin-openapi.json` (`/api/admin`) los
 sirve `free-admin` y son la única fuente de verdad — linajes semver separados.
 Para propagar un cambio del backend, usá el agente `contract-sync` del paraguas

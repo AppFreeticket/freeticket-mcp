@@ -11,6 +11,7 @@ export type _Error = {
 export type Page = {
 	nextCursor: string | null;
 	hasMore: boolean;
+	total?: number;
 };
 
 export type Workspace = {
@@ -19,13 +20,30 @@ export type Workspace = {
 	slug: string;
 };
 
+export type WorkspaceAccess = {
+	id: string;
+	name: string;
+	slug: string;
+	/**
+	 * Rol efectivo del usuario EN ESTE workspace.
+	 */
+	role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
+	/**
+	 * Secciones habilitadas (slugs). null = sin acotar; [] = acceso vencido o revocado.
+	 */
+	sections: Array<string> | null;
+};
+
 export type Me = {
 	userId: string;
 	name: string;
 	email: string;
+	/**
+	 * DEPRECADO: rol efectivo en el workspace ACTIVO. Usa el `role` de cada fila de `workspaces`. Se conserva por compatibilidad con los clientes ya publicados.
+	 */
 	role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
 	activeWorkspaceId: string;
-	workspaces: Array<Workspace>;
+	workspaces: Array<WorkspaceAccess>;
 };
 
 export type DeviceCodeResponse = {
@@ -79,6 +97,15 @@ export type Venue = {
 	createdAt: string;
 };
 
+export type EventNextDate = {
+	id: string;
+	label: string | null;
+	startsAt: string;
+	endsAt: string | null;
+	timezone: string;
+	status: "DRAFT" | "PUBLISHED" | "SOLD_OUT" | "CANCELLED" | "COMPLETED";
+};
+
 export type Event = {
 	id: string;
 	name: string;
@@ -94,6 +121,7 @@ export type Event = {
 	venue: Venue | null;
 	externalTicketUrl: string | null;
 	access: "owner" | "artist";
+	nextDate?: EventNextDate | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -206,6 +234,7 @@ export type SaleItem = {
 	subtotal: number;
 	ticketCode: string;
 	checkedInAt: string | null;
+	seatLabel: string | null;
 };
 
 export type Sale = {
@@ -258,7 +287,7 @@ export type MembershipPlan = {
 	description: string | null;
 	price: number;
 	currency: string;
-	billingCycle: "MONTHLY" | "QUARTERLY" | "ANNUAL" | "LIFETIME";
+	billingCycle: "MONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL" | "LIFETIME";
 	benefits: {
 		presale: boolean;
 		freeTicket: boolean;
@@ -276,7 +305,7 @@ export type MembershipPlanCreate = {
 	description?: string;
 	price: number;
 	currency: string;
-	billingCycle: "MONTHLY" | "QUARTERLY" | "ANNUAL" | "LIFETIME";
+	billingCycle: "MONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL" | "LIFETIME";
 	benefitPresale: boolean;
 	benefitFreeTicket: boolean;
 	benefitDiscount: boolean;
@@ -291,7 +320,7 @@ export type MembershipPlanUpdate = {
 	description?: string | null;
 	price?: number;
 	currency?: string;
-	billingCycle?: "MONTHLY" | "QUARTERLY" | "ANNUAL" | "LIFETIME";
+	billingCycle?: "MONTHLY" | "QUARTERLY" | "SEMIANNUAL" | "ANNUAL" | "LIFETIME";
 	benefitPresale?: boolean;
 	benefitFreeTicket?: boolean;
 	benefitDiscount?: boolean;
@@ -328,6 +357,8 @@ export type StaffUser = {
 	email: string;
 	role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
 	organizationId: string | null;
+	workspaceId?: string;
+	workspaceName?: string;
 	createdAt: string;
 };
 
@@ -392,10 +423,19 @@ export type SaleCreate = {
 	items: Array<{
 		ticketTypeId: string;
 		quantity: number;
+		seats?: Array<string>;
 	}>;
 	channel: "WEB" | "MOBILE" | "POS" | "ADMIN";
 	comp: boolean;
 	notes?: string;
+};
+
+export type SaleCancelRequest = {
+	acknowledge_open_payment?: boolean;
+};
+
+export type SaleRefundRequest = {
+	acknowledge_manual?: boolean;
 };
 
 export type ReportByEventRow = {
@@ -425,6 +465,7 @@ export type ReportFinancialsRow = {
 	platformFee: number;
 	facial: number;
 	paymentFee: number;
+	wompiSalesWithoutRate: number;
 	gmf: number;
 	net: number;
 	currency: string;
@@ -607,6 +648,10 @@ export type CustomerMe = {
 	email: string;
 	name: string;
 	emailVerified: boolean;
+	/**
+	 * Vencimiento de la sesión de comprador (ISO 8601).
+	 */
+	expiresAt: string;
 };
 
 export type CustomerTicketItem = {
@@ -645,6 +690,19 @@ export type CustomerSale = {
 	currency: string;
 };
 
+export type CustomerTicketCancelResult = {
+	id: string;
+	reference: string;
+	status: string;
+};
+
+export type CustomerLogout = {
+	/**
+	 * true si la sesión existía y fue borrada; false si el token ya no era válido (igual queda cerrada).
+	 */
+	revoked: boolean;
+};
+
 export type EnterpriseExchangeRequest = {
 	/**
 	 * One-time token recibido en el callback de la landing (formato `{slug}.{token}`, se reenvía tal cual).
@@ -669,11 +727,239 @@ export type EnterpriseExchangeResponse = {
 	};
 };
 
+export type CustomerMembershipState = {
+	/**
+	 * true solo con membresía ACTIVE y vigente en este workspace.
+	 */
+	active: boolean;
+	membership: {
+		id: string;
+		status: "PENDING" | "ACTIVE" | "EXPIRED" | "CANCELLED" | "PAUSED";
+		plan: MembershipPlan;
+		startedAt: string | null;
+		/**
+		 * null = LIFETIME o membresía sin vencimiento.
+		 */
+		expiresAt: string | null;
+		autoRenew: boolean;
+	} | null;
+};
+
+export type CustomerSubscribeRequest = {
+	/**
+	 * Id de un MembershipPlan activo del workspace de la key.
+	 */
+	planId: string;
+};
+
+export type CustomerSubscribeResult = {
+	/**
+	 * URL del checkout de membresía en el host canónico. La landing debe redirigir al comprador ahí.
+	 */
+	checkoutUrl: string;
+	planId: string;
+};
+
+export type CustomerSubscriptionCancelResult = {
+	id: string;
+	status: "PENDING" | "ACTIVE" | "EXPIRED" | "CANCELLED" | "PAUSED";
+	cancelledAt: string | null;
+};
+
+export type CustomerProfile = {
+	id: string;
+	email: string;
+	name: string;
+	phone: string | null;
+};
+
+export type CustomerProfileUpdate = {
+	name?: string;
+	/**
+	 * null o cadena vacía borran el teléfono.
+	 */
+	phone?: string | null;
+};
+
+export type ContentVideo = {
+	id: string;
+	title: string;
+	description: string | null;
+	durationSeconds: number | null;
+	posterUrl: string | null;
+	series: {
+		id: string;
+		title: string;
+	} | null;
+	/**
+	 * true = solo miembros vigentes de la organización pueden reproducirlo.
+	 */
+	memberOnly: boolean;
+	publishedAt: string | null;
+};
+
+export type ContentPost = {
+	id: string;
+	type: "TEXT" | "IMAGE" | "VIDEO";
+	content: string | null;
+	imageUrl: string | null;
+	/**
+	 * Post de tipo VIDEO: id del ContentVideo, para cruzar con `GET /content/videos`.
+	 */
+	videoId: string | null;
+	eventId: string | null;
+	/**
+	 * true = post reservado a miembros vigentes; su contenido llega redactado.
+	 */
+	locked: boolean;
+	/**
+	 * Snapshot Open Graph del primer link del texto.
+	 */
+	link: {
+		url: string;
+		title: string | null;
+		description: string | null;
+		imageUrl: string | null;
+		domain: string;
+	} | null;
+	commentsCount: number;
+	publishedAt: string;
+};
+
+export type ContentLive = {
+	id: string;
+	title: string;
+	/**
+	 * ACTIVE = transmitiendo ahora (banner en vivo).
+	 */
+	status: "IDLE" | "ACTIVE" | "COMPLETED" | "DISABLED";
+	memberOnly: boolean;
+	startedAt: string | null;
+	endedAt: string | null;
+	/**
+	 * true si quedó grabación reproducible tras la transmisión.
+	 */
+	hasRecording: boolean;
+};
+
+export type ContentPlaybackTokenRequest = {
+	kind: "video" | "live";
+	id: string;
+};
+
+export type ContentPlaybackToken = {
+	playbackId: string;
+	tokens: {
+		playback: string;
+		drm: string;
+		thumbnail?: string;
+		storyboard?: string;
+	};
+};
+
 export type ResendTicket = {
 	ticketCode: string;
 	sentTo: string;
 	sentAt: string;
 };
+
+export type GetEventsIdDatesData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/dates";
+};
+
+export type GetEventsIdDatesErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetEventsIdDatesError =
+	GetEventsIdDatesErrors[keyof GetEventsIdDatesErrors];
+
+export type GetEventsIdDatesResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<EventDate>;
+	};
+};
+
+export type GetEventsIdDatesResponse =
+	GetEventsIdDatesResponses[keyof GetEventsIdDatesResponses];
+
+export type PostEventsIdDatesData = {
+	body: EventDateCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/dates";
+};
+
+export type PostEventsIdDatesErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PostEventsIdDatesError =
+	PostEventsIdDatesErrors[keyof PostEventsIdDatesErrors];
+
+export type PostEventsIdDatesResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: EventDate;
+	};
+};
+
+export type PostEventsIdDatesResponse =
+	PostEventsIdDatesResponses[keyof PostEventsIdDatesResponses];
 
 export type PostAuthDeviceCodeData = {
 	body?: never;
@@ -687,6 +973,10 @@ export type PostAuthDeviceCodeErrors = {
 	 * Demasiadas solicitudes desde la misma IP (anti-flood).
 	 */
 	429: _Error;
+	/**
+	 * No se pudo generar un device_code/user_code único tras reintentar (colisión persistente).
+	 */
+	503: _Error;
 };
 
 export type PostAuthDeviceCodeError =
@@ -731,6 +1021,12 @@ export type PostAuthDeviceTokenResponse =
 
 export type GetMeData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/me";
@@ -770,12 +1066,18 @@ export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
 
 export type GetEventsData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
 		 * 1-100, default 20
 		 */
-		limit?: string;
+		limit?: number;
 		/**
 		 * id del último resultado de la página previa
 		 */
@@ -784,6 +1086,14 @@ export type GetEventsData = {
 		 * Búsqueda por nombre/descripción, insensible a mayúsculas y acentos
 		 */
 		q?: string;
+		/**
+		 * Filtra por estado (DRAFT | PUBLISHED | SOLD_OUT | CANCELLED | COMPLETED). Se aplica en la consulta, así `limit` cuenta solo filas devueltas.
+		 */
+		status?: "DRAFT" | "PUBLISHED" | "SOLD_OUT" | "CANCELLED" | "COMPLETED";
+		/**
+		 * `1` para incluir `page.total` (count sobre el mismo filtro). Opt-in: sin él no se paga la consulta extra.
+		 */
+		withTotal?: boolean;
 	};
 	url: "/events";
 };
@@ -823,6 +1133,12 @@ export type GetEventsResponse = GetEventsResponses[keyof GetEventsResponses];
 
 export type PostEventsData = {
 	body: EventCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/events";
@@ -841,6 +1157,10 @@ export type PostEventsErrors = {
 	 * Recurso inexistente o fuera de alcance.
 	 */
 	404: _Error;
+	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
 	/**
 	 * Validación del cuerpo/parámetros.
 	 */
@@ -862,6 +1182,12 @@ export type PostEventsResponse = PostEventsResponses[keyof PostEventsResponses];
 
 export type DeleteEventsIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -905,6 +1231,12 @@ export type DeleteEventsIdResponse =
 
 export type GetEventsIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -947,6 +1279,12 @@ export type GetEventsIdResponse =
 
 export type PatchEventsIdData = {
 	body: EventUpdate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -989,6 +1327,12 @@ export type PatchEventsIdResponse =
 
 export type PostEventsIdPublishData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1010,6 +1354,10 @@ export type PostEventsIdPublishErrors = {
 	 */
 	404: _Error;
 	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
+	/**
 	 * Validación del cuerpo/parámetros.
 	 */
 	422: _Error;
@@ -1030,94 +1378,14 @@ export type PostEventsIdPublishResponses = {
 export type PostEventsIdPublishResponse =
 	PostEventsIdPublishResponses[keyof PostEventsIdPublishResponses];
 
-export type GetEventsIdDatesData = {
-	body?: never;
-	path: {
-		id: string;
-	};
-	query?: never;
-	url: "/events/{id}/dates";
-};
-
-export type GetEventsIdDatesErrors = {
-	/**
-	 * Credencial inválida o ausente.
-	 */
-	401: _Error;
-	/**
-	 * Rol insuficiente o recurso no accesible.
-	 */
-	403: _Error;
-	/**
-	 * Recurso inexistente o fuera de alcance.
-	 */
-	404: _Error;
-	/**
-	 * Validación del cuerpo/parámetros.
-	 */
-	422: _Error;
-};
-
-export type GetEventsIdDatesError =
-	GetEventsIdDatesErrors[keyof GetEventsIdDatesErrors];
-
-export type GetEventsIdDatesResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: Array<EventDate>;
-	};
-};
-
-export type GetEventsIdDatesResponse =
-	GetEventsIdDatesResponses[keyof GetEventsIdDatesResponses];
-
-export type PostEventsIdDatesData = {
-	body: EventDateCreate;
-	path: {
-		id: string;
-	};
-	query?: never;
-	url: "/events/{id}/dates";
-};
-
-export type PostEventsIdDatesErrors = {
-	/**
-	 * Credencial inválida o ausente.
-	 */
-	401: _Error;
-	/**
-	 * Rol insuficiente o recurso no accesible.
-	 */
-	403: _Error;
-	/**
-	 * Recurso inexistente o fuera de alcance.
-	 */
-	404: _Error;
-	/**
-	 * Validación del cuerpo/parámetros.
-	 */
-	422: _Error;
-};
-
-export type PostEventsIdDatesError =
-	PostEventsIdDatesErrors[keyof PostEventsIdDatesErrors];
-
-export type PostEventsIdDatesResponses = {
-	/**
-	 * OK
-	 */
-	201: {
-		data: EventDate;
-	};
-};
-
-export type PostEventsIdDatesResponse =
-	PostEventsIdDatesResponses[keyof PostEventsIdDatesResponses];
-
 export type DeleteEventsIdDatesDateIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 		dateId: string;
@@ -1162,6 +1430,12 @@ export type DeleteEventsIdDatesDateIdResponse =
 
 export type PatchEventsIdDatesDateIdData = {
 	body: EventDateUpdate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 		dateId: string;
@@ -1206,13 +1480,22 @@ export type PatchEventsIdDatesDateIdResponse =
 
 export type GetTicketTypesData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
 		 * filtra por fecha de evento
 		 */
 		eventDateId?: string;
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/ticket-types";
@@ -1255,6 +1538,12 @@ export type GetTicketTypesResponse =
 
 export type PostTicketTypesData = {
 	body: TicketTypeCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/ticket-types";
@@ -1296,6 +1585,12 @@ export type PostTicketTypesResponse =
 
 export type DeleteTicketTypesIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1339,6 +1634,12 @@ export type DeleteTicketTypesIdResponse =
 
 export type GetTicketTypesIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1382,6 +1683,12 @@ export type GetTicketTypesIdResponse =
 
 export type PatchTicketTypesIdData = {
 	body: TicketTypeUpdate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1425,16 +1732,22 @@ export type PatchTicketTypesIdResponse =
 
 export type GetSalesData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
 		 * PENDING|CONFIRMED|ABANDONED|CANCELLED|REFUNDED
 		 */
-		status?: string;
+		status?: "PENDING" | "CONFIRMED" | "ABANDONED" | "CANCELLED" | "REFUNDED";
 		/**
 		 * WEB|MOBILE|POS|ADMIN
 		 */
-		channel?: string;
+		channel?: "WEB" | "MOBILE" | "POS" | "ADMIN";
 		/**
 		 * id del evento
 		 */
@@ -1459,13 +1772,20 @@ export type GetSalesData = {
 		 * fecha hasta (ISO 8601, sobre created_at)
 		 */
 		to?: string;
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/sales";
 };
 
 export type GetSalesErrors = {
+	/**
+	 * Solicitud inválida: parámetros mal formados.
+	 */
+	400: _Error;
 	/**
 	 * Credencial inválida o ausente.
 	 */
@@ -1500,6 +1820,12 @@ export type GetSalesResponse = GetSalesResponses[keyof GetSalesResponses];
 
 export type PostSalesData = {
 	body: SaleCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/sales";
@@ -1539,6 +1865,12 @@ export type PostSalesResponse = PostSalesResponses[keyof PostSalesResponses];
 
 export type GetSalesIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1579,7 +1911,13 @@ export type GetSalesIdResponses = {
 export type GetSalesIdResponse = GetSalesIdResponses[keyof GetSalesIdResponses];
 
 export type PostSalesIdCancelData = {
-	body?: never;
+	body: SaleCancelRequest;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1600,6 +1938,10 @@ export type PostSalesIdCancelErrors = {
 	 * Recurso inexistente o fuera de alcance.
 	 */
 	404: _Error;
+	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
 	/**
 	 * Validación del cuerpo/parámetros.
 	 */
@@ -1622,7 +1964,13 @@ export type PostSalesIdCancelResponse =
 	PostSalesIdCancelResponses[keyof PostSalesIdCancelResponses];
 
 export type PostSalesIdRefundData = {
-	body?: never;
+	body: SaleRefundRequest;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1644,9 +1992,17 @@ export type PostSalesIdRefundErrors = {
 	 */
 	404: _Error;
 	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
+	/**
 	 * Validación del cuerpo/parámetros.
 	 */
 	422: _Error;
+	/**
+	 * Error del proveedor externo al completar la operación.
+	 */
+	502: _Error;
 };
 
 export type PostSalesIdRefundError =
@@ -1666,9 +2022,18 @@ export type PostSalesIdRefundResponse =
 
 export type GetMembershipPlansData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/membership-plans";
@@ -1711,6 +2076,12 @@ export type GetMembershipPlansResponse =
 
 export type PostMembershipPlansData = {
 	body: MembershipPlanCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/membership-plans";
@@ -1752,6 +2123,12 @@ export type PostMembershipPlansResponse =
 
 export type DeleteMembershipPlansIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1795,6 +2172,12 @@ export type DeleteMembershipPlansIdResponse =
 
 export type GetMembershipPlansIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1838,6 +2221,12 @@ export type GetMembershipPlansIdResponse =
 
 export type PatchMembershipPlansIdData = {
 	body: MembershipPlanUpdate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -1881,9 +2270,18 @@ export type PatchMembershipPlansIdResponse =
 
 export type GetVenuesData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/venues";
@@ -1924,6 +2322,12 @@ export type GetVenuesResponse = GetVenuesResponses[keyof GetVenuesResponses];
 
 export type PostVenuesData = {
 	body: VenueCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/venues";
@@ -1963,6 +2367,12 @@ export type PostVenuesResponse = PostVenuesResponses[keyof PostVenuesResponses];
 
 export type DeleteVenuesIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -2006,6 +2416,12 @@ export type DeleteVenuesIdResponse =
 
 export type GetVenuesIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -2048,6 +2464,12 @@ export type GetVenuesIdResponse =
 
 export type PatchVenuesIdData = {
 	body: VenueUpdate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -2090,10 +2512,23 @@ export type PatchVenuesIdResponse =
 
 export type GetStaffData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
+		/**
+		 * Ids de workspace separados por comas (máx. 25). Devuelve el staff de todos ellos en una sola llamada, con cada fila etiquetada con `workspaceId`/`workspaceName` (una fila por persona y workspace). Se intersecta siempre contra los workspaces que la credencial ya puede administrar: nunca amplía su alcance. Sin el parámetro, se lista el workspace del header `X-Workspace-Id`.
+		 */
+		workspaceIds?: string;
 	};
 	url: "/staff";
 };
@@ -2133,6 +2568,12 @@ export type GetStaffResponse = GetStaffResponses[keyof GetStaffResponses];
 
 export type PostStaffData = {
 	body: StaffCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/staff";
@@ -2152,9 +2593,17 @@ export type PostStaffErrors = {
 	 */
 	404: _Error;
 	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
+	/**
 	 * Validación del cuerpo/parámetros.
 	 */
 	422: _Error;
+	/**
+	 * Demasiadas solicitudes: límite de tasa excedido.
+	 */
+	429: _Error;
 };
 
 export type PostStaffError = PostStaffErrors[keyof PostStaffErrors];
@@ -2172,6 +2621,12 @@ export type PostStaffResponse = PostStaffResponses[keyof PostStaffResponses];
 
 export type PatchStaffIdRoleData = {
 	body: RoleUpdate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -2192,6 +2647,10 @@ export type PatchStaffIdRoleErrors = {
 	 * Recurso inexistente o fuera de alcance.
 	 */
 	404: _Error;
+	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
 	/**
 	 * Validación del cuerpo/parámetros.
 	 */
@@ -2215,12 +2674,18 @@ export type PatchStaffIdRoleResponse =
 
 export type GetReportsSummaryData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
 		 * 7d | 30d (default) | 90d | 1y
 		 */
-		period?: string;
+		period?: "7d" | "30d" | "90d" | "1y";
 	};
 	url: "/reports/summary";
 };
@@ -2261,6 +2726,12 @@ export type GetReportsSummaryResponse =
 
 export type GetReportsInventoryData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
@@ -2282,11 +2753,11 @@ export type GetReportsInventoryData = {
 		/**
 		 * Incluir eventos/fechas en DRAFT (default false)
 		 */
-		includeDrafts?: string;
+		includeDrafts?: boolean;
 		/**
 		 * event | date | ticketType (default)
 		 */
-		groupBy?: string;
+		groupBy?: "event" | "date" | "ticketType";
 	};
 	url: "/reports/inventory";
 };
@@ -2327,6 +2798,12 @@ export type GetReportsInventoryResponse =
 
 export type GetReportsReconciliationData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query: {
 		/**
@@ -2340,7 +2817,12 @@ export type GetReportsReconciliationData = {
 		/**
 		 * Filtra por flag: OK|MISSING_INVOICE|MISSING_CUFE|AMOUNT_MISMATCH|MISSING_PAYMENT
 		 */
-		match_status?: string;
+		match_status?:
+			| "OK"
+			| "MISSING_INVOICE"
+			| "MISSING_CUFE"
+			| "AMOUNT_MISMATCH"
+			| "MISSING_PAYMENT";
 		/**
 		 * Filtra por payment_provider (ej: mercadopago)
 		 */
@@ -2348,11 +2830,11 @@ export type GetReportsReconciliationData = {
 		/**
 		 * Página 1-based (default 1)
 		 */
-		page?: string;
+		page?: number;
 		/**
 		 * Tamaño de página 1..500 (default 100)
 		 */
-		page_size?: string;
+		page_size?: number;
 	};
 	url: "/reports/reconciliation";
 };
@@ -2393,6 +2875,12 @@ export type GetReportsReconciliationResponse =
 
 export type GetReportsExportsReconciliationData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query: {
 		/**
@@ -2406,7 +2894,12 @@ export type GetReportsExportsReconciliationData = {
 		/**
 		 * Filtra por flag: OK|MISSING_INVOICE|MISSING_CUFE|AMOUNT_MISMATCH|MISSING_PAYMENT
 		 */
-		match_status?: string;
+		match_status?:
+			| "OK"
+			| "MISSING_INVOICE"
+			| "MISSING_CUFE"
+			| "AMOUNT_MISMATCH"
+			| "MISSING_PAYMENT";
 		/**
 		 * Filtra por payment_provider (ej: mercadopago)
 		 */
@@ -2451,6 +2944,12 @@ export type GetReportsExportsReconciliationResponse =
 
 export type GetReportsExportsAttendeesData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
@@ -2472,7 +2971,7 @@ export type GetReportsExportsAttendeesData = {
 		/**
 		 * PENDING|CONFIRMED|ABANDONED|CANCELLED|REFUNDED (default CONFIRMED)
 		 */
-		status?: string;
+		status?: "PENDING" | "CONFIRMED" | "ABANDONED" | "CANCELLED" | "REFUNDED";
 	};
 	url: "/reports/exports/attendees";
 };
@@ -2513,6 +3012,12 @@ export type GetReportsExportsAttendeesResponse =
 
 export type GetReportsExportsBuyersData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
@@ -2534,7 +3039,7 @@ export type GetReportsExportsBuyersData = {
 		/**
 		 * PENDING|CONFIRMED|ABANDONED|CANCELLED|REFUNDED (default CONFIRMED)
 		 */
-		status?: string;
+		status?: "PENDING" | "CONFIRMED" | "ABANDONED" | "CANCELLED" | "REFUNDED";
 	};
 	url: "/reports/exports/buyers";
 };
@@ -2575,6 +3080,12 @@ export type GetReportsExportsBuyersResponse =
 
 export type GetReportsExportsSubscribersData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/reports/exports/subscribers";
@@ -2616,6 +3127,12 @@ export type GetReportsExportsSubscribersResponse =
 
 export type GetReportsByEventData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
@@ -2629,7 +3146,7 @@ export type GetReportsByEventData = {
 		/**
 		 * PENDING|CONFIRMED (default)|ABANDONED|CANCELLED|REFUNDED
 		 */
-		status?: string;
+		status?: "PENDING" | "CONFIRMED" | "ABANDONED" | "CANCELLED" | "REFUNDED";
 	};
 	url: "/reports/by-event";
 };
@@ -2670,12 +3187,18 @@ export type GetReportsByEventResponse =
 
 export type GetReportsTimeseriesData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query: {
 		/**
 		 * day | week | month
 		 */
-		interval: string;
+		interval: "day" | "week" | "month";
 		/**
 		 * ISO 8601, filtra Sale.created_at (gte)
 		 */
@@ -2728,6 +3251,12 @@ export type GetReportsTimeseriesResponse =
 
 export type GetReportsFinancialsData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
@@ -2737,7 +3266,7 @@ export type GetReportsFinancialsData = {
 		/**
 		 * true = solo funciones ya ocurridas (liquidables); false = futuras
 		 */
-		past?: string;
+		past?: "true" | "false";
 	};
 	url: "/reports/financials";
 };
@@ -2778,6 +3307,12 @@ export type GetReportsFinancialsResponse =
 
 export type GetSettlementsData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
@@ -2787,11 +3322,11 @@ export type GetSettlementsData = {
 		/**
 		 * SENT|AWAITING_PAYMENT|PAID
 		 */
-		status?: string;
+		status?: "SENT" | "AWAITING_PAYMENT" | "PAID";
 		/**
 		 * 1..100 (default 20)
 		 */
-		limit?: string;
+		limit?: number;
 		/**
 		 * Id de la última fila de la página previa
 		 */
@@ -2835,8 +3370,97 @@ export type GetSettlementsResponses = {
 export type GetSettlementsResponse =
 	GetSettlementsResponses[keyof GetSettlementsResponses];
 
+export type GetSettlementsIdDocumentData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/settlements/{id}/document";
+};
+
+export type GetSettlementsIdDocumentErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente (< ADMIN).
+	 */
+	403: _Error;
+	/**
+	 * Liquidación inexistente, de otra organización, fuera de alcance, o todavía sin documento.
+	 */
+	404: _Error;
+	/**
+	 * No se pudo firmar la URL en el storage.
+	 */
+	502: _Error;
+	/**
+	 * Storage no configurado.
+	 */
+	503: _Error;
+};
+
+export type GetSettlementsIdDocumentError =
+	GetSettlementsIdDocumentErrors[keyof GetSettlementsIdDocumentErrors];
+
+export type GetSettlementsIdProofsFileNameData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+		fileName: string;
+	};
+	query?: never;
+	url: "/settlements/{id}/proofs/{fileName}";
+};
+
+export type GetSettlementsIdProofsFileNameErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente (< ADMIN).
+	 */
+	403: _Error;
+	/**
+	 * Liquidación inexistente, de otra organización, fuera de alcance, o sin un comprobante con ese nombre.
+	 */
+	404: _Error;
+	/**
+	 * No se pudo firmar la URL en el storage.
+	 */
+	502: _Error;
+	/**
+	 * Storage no configurado.
+	 */
+	503: _Error;
+};
+
+export type GetSettlementsIdProofsFileNameError =
+	GetSettlementsIdProofsFileNameErrors[keyof GetSettlementsIdProofsFileNameErrors];
+
 export type GetDiscountsData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
 		/**
@@ -2846,8 +3470,11 @@ export type GetDiscountsData = {
 		/**
 		 * true|false
 		 */
-		active?: string;
-		limit?: string;
+		active?: boolean;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/discounts";
@@ -2889,6 +3516,12 @@ export type GetDiscountsResponse =
 
 export type PostDiscountsData = {
 	body: DiscountCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/discounts";
@@ -2907,6 +3540,10 @@ export type PostDiscountsErrors = {
 	 * Recurso inexistente o fuera de alcance.
 	 */
 	404: _Error;
+	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
 	/**
 	 * Validación del cuerpo/parámetros.
 	 */
@@ -2929,6 +3566,12 @@ export type PostDiscountsResponse =
 
 export type DeleteDiscountsIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -2972,6 +3615,12 @@ export type DeleteDiscountsIdResponse =
 
 export type PatchDiscountsIdData = {
 	body: DiscountUpdate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -3015,9 +3664,18 @@ export type PatchDiscountsIdResponse =
 
 export type GetWebhooksData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/webhooks";
@@ -3059,6 +3717,12 @@ export type GetWebhooksResponse =
 
 export type PostWebhooksData = {
 	body: WebhookCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/webhooks";
@@ -3099,6 +3763,12 @@ export type PostWebhooksResponse =
 
 export type DeleteWebhooksIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -3142,6 +3812,12 @@ export type DeleteWebhooksIdResponse =
 
 export type GetMembershipPlansIdSubscribersData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -3149,8 +3825,11 @@ export type GetMembershipPlansIdSubscribersData = {
 		/**
 		 * PENDING|ACTIVE|EXPIRED|CANCELLED|PAUSED
 		 */
-		status?: string;
-		limit?: string;
+		status?: "PENDING" | "ACTIVE" | "EXPIRED" | "CANCELLED" | "PAUSED";
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/membership-plans/{id}/subscribers";
@@ -3193,6 +3872,12 @@ export type GetMembershipPlansIdSubscribersResponse =
 
 export type PostSubscriptionsIdCancelData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -3236,6 +3921,12 @@ export type PostSubscriptionsIdCancelResponse =
 
 export type GetSalesIdTicketsData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -3279,6 +3970,12 @@ export type GetSalesIdTicketsResponse =
 
 export type PostTicketsTicketCodeCheckinData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		ticketCode: string;
 	};
@@ -3322,6 +4019,12 @@ export type PostTicketsTicketCodeCheckinResponse =
 
 export type GetTicketsTicketCodeAccessData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		ticketCode: string;
 	};
@@ -3365,9 +4068,18 @@ export type GetTicketsTicketCodeAccessResponse =
 
 export type GetApiKeysData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/api-keys";
@@ -3408,6 +4120,12 @@ export type GetApiKeysResponse = GetApiKeysResponses[keyof GetApiKeysResponses];
 
 export type PostApiKeysData = {
 	body: ApiKeyCreate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/api-keys";
@@ -3448,6 +4166,12 @@ export type PostApiKeysResponse =
 
 export type DeleteApiKeysIdData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		id: string;
 	};
@@ -3491,6 +4215,12 @@ export type DeleteApiKeysIdResponse =
 
 export type GetCustomerMeData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/customer/me";
@@ -3531,9 +4261,18 @@ export type GetCustomerMeResponse =
 
 export type GetCustomerTicketsData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: {
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/customer/tickets";
@@ -3574,8 +4313,159 @@ export type GetCustomerTicketsResponses = {
 export type GetCustomerTicketsResponse =
 	GetCustomerTicketsResponses[keyof GetCustomerTicketsResponses];
 
+export type GetCustomerTicketsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/tickets/{id}";
+};
+
+export type GetCustomerTicketsIdErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetCustomerTicketsIdError =
+	GetCustomerTicketsIdErrors[keyof GetCustomerTicketsIdErrors];
+
+export type GetCustomerTicketsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerSale;
+	};
+};
+
+export type GetCustomerTicketsIdResponse =
+	GetCustomerTicketsIdResponses[keyof GetCustomerTicketsIdResponses];
+
+export type PostCustomerTicketsIdCancelData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/tickets/{id}/cancel";
+};
+
+export type PostCustomerTicketsIdCancelErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PostCustomerTicketsIdCancelError =
+	PostCustomerTicketsIdCancelErrors[keyof PostCustomerTicketsIdCancelErrors];
+
+export type PostCustomerTicketsIdCancelResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerTicketCancelResult;
+	};
+};
+
+export type PostCustomerTicketsIdCancelResponse =
+	PostCustomerTicketsIdCancelResponses[keyof PostCustomerTicketsIdCancelResponses];
+
+export type PostCustomerLogoutData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/logout";
+};
+
+export type PostCustomerLogoutErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PostCustomerLogoutError =
+	PostCustomerLogoutErrors[keyof PostCustomerLogoutErrors];
+
+export type PostCustomerLogoutResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerLogout;
+	};
+};
+
+export type PostCustomerLogoutResponse =
+	PostCustomerLogoutResponses[keyof PostCustomerLogoutResponses];
+
 export type PostApiCustomerAuthEnterpriseExchangeData = {
 	body: EnterpriseExchangeRequest;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path?: never;
 	query?: never;
 	url: "/api/customer-auth/enterprise-exchange";
@@ -3606,8 +4496,507 @@ export type PostApiCustomerAuthEnterpriseExchangeResponses = {
 export type PostApiCustomerAuthEnterpriseExchangeResponse =
 	PostApiCustomerAuthEnterpriseExchangeResponses[keyof PostApiCustomerAuthEnterpriseExchangeResponses];
 
+export type GetCustomerMembershipData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/membership";
+};
+
+export type GetCustomerMembershipErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetCustomerMembershipError =
+	GetCustomerMembershipErrors[keyof GetCustomerMembershipErrors];
+
+export type GetCustomerMembershipResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerMembershipState;
+	};
+};
+
+export type GetCustomerMembershipResponse =
+	GetCustomerMembershipResponses[keyof GetCustomerMembershipResponses];
+
+export type PostCustomerSubscriptionsData = {
+	body: CustomerSubscribeRequest;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/subscriptions";
+};
+
+export type PostCustomerSubscriptionsErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PostCustomerSubscriptionsError =
+	PostCustomerSubscriptionsErrors[keyof PostCustomerSubscriptionsErrors];
+
+export type PostCustomerSubscriptionsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerSubscribeResult;
+	};
+};
+
+export type PostCustomerSubscriptionsResponse =
+	PostCustomerSubscriptionsResponses[keyof PostCustomerSubscriptionsResponses];
+
+export type PostCustomerSubscriptionsCancelData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/subscriptions/cancel";
+};
+
+export type PostCustomerSubscriptionsCancelErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PostCustomerSubscriptionsCancelError =
+	PostCustomerSubscriptionsCancelErrors[keyof PostCustomerSubscriptionsCancelErrors];
+
+export type PostCustomerSubscriptionsCancelResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerSubscriptionCancelResult;
+	};
+};
+
+export type PostCustomerSubscriptionsCancelResponse =
+	PostCustomerSubscriptionsCancelResponses[keyof PostCustomerSubscriptionsCancelResponses];
+
+export type GetCustomerProfileData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/profile";
+};
+
+export type GetCustomerProfileErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetCustomerProfileError =
+	GetCustomerProfileErrors[keyof GetCustomerProfileErrors];
+
+export type GetCustomerProfileResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerProfile;
+	};
+};
+
+export type GetCustomerProfileResponse =
+	GetCustomerProfileResponses[keyof GetCustomerProfileResponses];
+
+export type PatchCustomerProfileData = {
+	body: CustomerProfileUpdate;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/profile";
+};
+
+export type PatchCustomerProfileErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PatchCustomerProfileError =
+	PatchCustomerProfileErrors[keyof PatchCustomerProfileErrors];
+
+export type PatchCustomerProfileResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerProfile;
+	};
+};
+
+export type PatchCustomerProfileResponse =
+	PatchCustomerProfileResponses[keyof PatchCustomerProfileResponses];
+
+export type GetContentVideosData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/content/videos";
+};
+
+export type GetContentVideosErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetContentVideosError =
+	GetContentVideosErrors[keyof GetContentVideosErrors];
+
+export type GetContentVideosResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ContentVideo>;
+		page: Page;
+	};
+};
+
+export type GetContentVideosResponse =
+	GetContentVideosResponses[keyof GetContentVideosResponses];
+
+export type GetContentPostsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/content/posts";
+};
+
+export type GetContentPostsErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetContentPostsError =
+	GetContentPostsErrors[keyof GetContentPostsErrors];
+
+export type GetContentPostsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ContentPost>;
+		page: Page;
+	};
+};
+
+export type GetContentPostsResponse =
+	GetContentPostsResponses[keyof GetContentPostsResponses];
+
+export type GetContentLivesData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/content/lives";
+};
+
+export type GetContentLivesErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetContentLivesError =
+	GetContentLivesErrors[keyof GetContentLivesErrors];
+
+export type GetContentLivesResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ContentLive>;
+		page: Page;
+	};
+};
+
+export type GetContentLivesResponse =
+	GetContentLivesResponses[keyof GetContentLivesResponses];
+
+export type GetContentLivesIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/lives/{id}";
+};
+
+export type GetContentLivesIdErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type GetContentLivesIdError =
+	GetContentLivesIdErrors[keyof GetContentLivesIdErrors];
+
+export type GetContentLivesIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentLive;
+	};
+};
+
+export type GetContentLivesIdResponse =
+	GetContentLivesIdResponses[keyof GetContentLivesIdResponses];
+
+export type PostContentPlaybackTokenData = {
+	body: ContentPlaybackTokenRequest;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/playback-token";
+};
+
+export type PostContentPlaybackTokenErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PostContentPlaybackTokenError =
+	PostContentPlaybackTokenErrors[keyof PostContentPlaybackTokenErrors];
+
+export type PostContentPlaybackTokenResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentPlaybackToken;
+	};
+};
+
+export type PostContentPlaybackTokenResponse =
+	PostContentPlaybackTokenResponses[keyof PostContentPlaybackTokenResponses];
+
 export type PostTicketsTicketCodeResendData = {
 	body?: never;
+	headers?: {
+		/**
+		 * Workspace activo a operar. Opcional: sin él, se usa el workspace por defecto del usuario dueño de la key (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
 	path: {
 		ticketCode: string;
 	};
@@ -3651,7 +5040,7 @@ export type PostTicketsTicketCodeResendResponse =
 
 export type ClientOptions = {
 	baseUrl:
-		| "http://localhost:3000/api/v1"
+		| "https://admin.appfreeticket.com/api/v1"
 		| `${string}://${string}`
 		| (string & {});
 };

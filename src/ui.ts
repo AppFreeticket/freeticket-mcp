@@ -21,15 +21,39 @@
  * bundleado con tsup.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { BRAND } from "./brand";
+import { BRAND, FAVICON_SVG } from "./brand";
 
 /** mimeType que exige la spec para un view HTML. */
 export const UI_MIME = "text/html;profile=mcp-app";
 /** Un solo view para todo: el render se decide por la forma del payload. */
 export const UI_URI = "ui://freeticket/view.html";
+/** Versión del protocolo de la extensión que hablamos (LATEST_PROTOCOL_VERSION). */
+export const UI_PROTOCOL = "2026-01-26";
 
 /** `_meta` que ata un tool a su view. Se pasa tal cual a registerTool. */
 export const UI_META = { ui: { resourceUri: UI_URI } } as const;
+
+/**
+ * Registra un read con vista de MCP Apps: mismo tool, más `_meta.ui` apuntando
+ * al view. `server.tool()` no acepta `_meta`, por eso estos pasan por
+ * `registerTool`. Todo listado o reporte debería usar esto — un listado sin
+ * view se ve como un volcado de JSON y nadie nota que le falta.
+ */
+export function uiTool(
+	server: McpServer,
+	name: string,
+	description: string,
+	inputSchema: Record<string, unknown>,
+	// biome-ignore lint/suspicious/noExplicitAny: firma del SDK, varía por tool.
+	cb: (args: any) => Promise<any>,
+): void {
+	server.registerTool(
+		name,
+		// biome-ignore lint/suspicious/noExplicitAny: idem — el shape lo fija zod.
+		{ description, inputSchema: inputSchema as any, _meta: UI_META },
+		cb,
+	);
+}
 
 const VIEW_HTML = `<!DOCTYPE html>
 <html lang="es">
@@ -58,13 +82,11 @@ const VIEW_HTML = `<!DOCTYPE html>
     color: var(--color-text-primary);
     background: transparent;
   }
-  header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+  header { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
+  /* La marca es nuestra y no negociable: el logo de FreeTicket sale de
+     brand.ts, con tamaño fijo para que ningún tema del host lo escale. */
+  header svg { width: 16px; height: 16px; border-radius: 4px; flex: none; }
   header b { font-size: 13px; letter-spacing: -0.01em; }
-  header b::before {
-    content: ""; display: inline-block; width: 6px; height: 6px;
-    border-radius: 2px; background: var(--ft); margin-right: 6px;
-    vertical-align: middle;
-  }
   header span { color: var(--color-text-secondary); font-size: 12px; }
   .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
   .tile {
@@ -93,40 +115,57 @@ const VIEW_HTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
-<header><b>FreeTicket</b><span id="sub">cargando…</span></header>
+<header>${FAVICON_SVG}<b>FreeTicket</b><span id="sub">cargando…</span></header>
 <div id="root"><p class="muted">Esperando datos…</p></div>
 <footer id="foot"></footer>
 <script>
 (() => {
-  const PROTOCOL = "2026-01-26";
+  const PROTOCOL = "${UI_PROTOCOL}";
+  const host = window.parent;
   let id = 0;
   const send = (method, params) =>
-    window.parent.postMessage({ jsonrpc: "2.0", method, params }, "*");
+    host.postMessage({ jsonrpc: "2.0", method, params }, "*");
+  // Solo escuchamos al frame que nos montó: cualquier otro puede inyectar un
+  // tool-result falso y el usuario vería datos que no vinieron de FreeTicket.
+  const fromHost = (e) => e.source === host || e.source == null;
   const request = (method, params) =>
     new Promise((resolve) => {
       const rid = ++id;
       const onMsg = (e) => {
-        if (e.data && e.data.id === rid) {
+        if (fromHost(e) && e.data && e.data.id === rid) {
           window.removeEventListener("message", onMsg);
           resolve(e.data.result);
         }
       };
       window.addEventListener("message", onMsg);
-      window.parent.postMessage({ jsonrpc: "2.0", id: rid, method, params }, "*");
+      host.postMessage({ jsonrpc: "2.0", id: rid, method, params }, "*");
     });
 
   // El host manda sus variables CSS: adoptarlas mantiene el view integrado al
-  // tema del chat en vez de imponerle el nuestro (salvo el acento de marca).
+  // tema del chat en vez de imponerle el nuestro. Solo se aceptan las del
+  // contrato de la extensión (--color-* / --font-*): lo de marca (--ft) queda
+  // fuera del alcance del host por diseño, no por olvido.
+  const HOST_VAR = /^--(color|font)-/;
   const applyTheme = (ctx) => {
     const vars = ctx && ctx.styles && ctx.styles.variables;
     if (vars) for (const [k, v] of Object.entries(vars)) {
-      if (v) document.documentElement.style.setProperty(k, v);
+      if (v && HOST_VAR.test(k)) document.documentElement.style.setProperty(k, v);
     }
-    if (ctx && ctx.theme) document.documentElement.dataset.theme = ctx.theme;
+    if (ctx && ctx.theme) {
+      // data-theme + color-scheme: sin lo segundo, light-dark() sigue el tema
+      // del SO y el view queda claro dentro de un chat oscuro.
+      document.documentElement.dataset.theme = ctx.theme;
+      document.documentElement.style.colorScheme = ctx.theme;
+    }
+    if (ctx && ctx.locale) setLocale(ctx.locale);
   };
 
   const MONEY = /amount|gross|net|total|price|fee|facial|gmf|revenue|subtotal/i;
-  const money = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
+  let money = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
+  const setLocale = (loc) => {
+    try { money = new Intl.NumberFormat(loc, { maximumFractionDigits: 0 }); }
+    catch { /* locale inválido del host: nos quedamos con es-CO */ }
+  };
   const isNum = (v) => typeof v === "number" && Number.isFinite(v);
   const label = (k) =>
     k.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_-]/g, " ");
@@ -233,9 +272,14 @@ const VIEW_HTML = `<!DOCTYPE html>
 
   window.addEventListener("message", (e) => {
     const m = e.data;
-    if (!m || !m.method) return;
+    if (!fromHost(e) || !m || !m.method) return;
     if (m.method === "ui/notifications/tool-result") render(m.params);
     if (m.method === "ui/notifications/host-context-changed") applyTheme(m.params);
+    if (m.method === "ui/notifications/tool-input")
+      document.getElementById("sub").textContent = "consultando…";
+    // Shutdown ordenado: el host espera respuesta antes de desmontar el iframe.
+    if (m.method === "ui/resource-teardown")
+      host.postMessage({ jsonrpc: "2.0", id: m.id, result: {} }, "*");
   });
 
   request("ui/initialize", {

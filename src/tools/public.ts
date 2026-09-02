@@ -10,6 +10,7 @@ import {
 	postOrders,
 	postTicketsCodeResend,
 } from "../public-client/sdk.gen";
+import { uiTool } from "../ui";
 
 /**
  * Tools públicos B2C (/api/public) — sin credenciales. Los consume el agente de
@@ -18,7 +19,8 @@ import {
  * de pago: el checkout lo cierra el humano en Mercado Pago.
  */
 export function registerPublicTools(server: McpServer, client: Client): void {
-	server.tool(
+	uiTool(
+		server,
 		"public_events_list",
 		"Catálogo público de eventos publicados (GET /public/events). Descubrimiento B2C, sin login.",
 		{

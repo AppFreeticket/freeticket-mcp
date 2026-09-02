@@ -29,6 +29,9 @@ export type AdminWorkspace = {
 	type: "ARTIST" | "VENUE" | "ORGANIZER";
 	country: string;
 	isPublished: boolean;
+	webTemplate: string | null;
+	customDomain: string | null;
+	customDomainVerifiedAt: string | null;
 	suspended: boolean;
 	suspendedAt: string | null;
 	deletedAt: string | null;
@@ -48,6 +51,20 @@ export type AdminWorkspaceUpdate = {
 	slug?: string;
 	type?: "ARTIST" | "VENUE" | "ORGANIZER";
 	isPublished?: boolean;
+	webTemplate?: string | null;
+	customDomain?: string | null;
+	customDomainVerifiedAt?: string | null;
+};
+
+export type AdminWorkspacePlanAssign = {
+	planSlug: "spark" | "star" | "icon" | "legend";
+};
+
+export type AdminWorkspacePlan = {
+	workspaceId: string;
+	planSlug: string;
+	planName: string;
+	previousPlanSlug: string | null;
 };
 
 export type AdminUserWorkspace = {
@@ -249,12 +266,15 @@ export type GetWorkspacesData = {
 		/**
 		 * active(default)|suspended|deleted|all
 		 */
-		status?: string;
+		status?: "active" | "suspended" | "deleted" | "all";
 		/**
 		 * Búsqueda por nombre o slug
 		 */
 		q?: string;
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/workspaces";
@@ -314,6 +334,10 @@ export type PostWorkspacesErrors = {
 	 * Recurso inexistente o fuera de alcance.
 	 */
 	404: _Error;
+	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
 	/**
 	 * Validación del cuerpo/parámetros.
 	 */
@@ -401,6 +425,10 @@ export type PatchWorkspacesIdErrors = {
 	 */
 	404: _Error;
 	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
+	/**
 	 * Validación del cuerpo/parámetros.
 	 */
 	422: _Error;
@@ -420,6 +448,53 @@ export type PatchWorkspacesIdResponses = {
 
 export type PatchWorkspacesIdResponse =
 	PatchWorkspacesIdResponses[keyof PatchWorkspacesIdResponses];
+
+export type PostWorkspacesIdPlanData = {
+	body: AdminWorkspacePlanAssign;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/workspaces/{id}/plan";
+};
+
+export type PostWorkspacesIdPlanErrors = {
+	/**
+	 * Credencial inválida o ausente.
+	 */
+	401: _Error;
+	/**
+	 * Rol insuficiente o recurso no accesible.
+	 */
+	403: _Error;
+	/**
+	 * Recurso inexistente o fuera de alcance.
+	 */
+	404: _Error;
+	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
+	/**
+	 * Validación del cuerpo/parámetros.
+	 */
+	422: _Error;
+};
+
+export type PostWorkspacesIdPlanError =
+	PostWorkspacesIdPlanErrors[keyof PostWorkspacesIdPlanErrors];
+
+export type PostWorkspacesIdPlanResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminWorkspacePlan;
+	};
+};
+
+export type PostWorkspacesIdPlanResponse =
+	PostWorkspacesIdPlanResponses[keyof PostWorkspacesIdPlanResponses];
 
 export type PostWorkspacesIdSuspendData = {
 	body?: never;
@@ -443,6 +518,10 @@ export type PostWorkspacesIdSuspendErrors = {
 	 * Recurso inexistente o fuera de alcance.
 	 */
 	404: _Error;
+	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
 	/**
 	 * Validación del cuerpo/parámetros.
 	 */
@@ -518,12 +597,15 @@ export type GetUsersData = {
 		/**
 		 * SUPER_ADMIN|ADMIN|STAFF|VIEWER|MINCULTURA
 		 */
-		role?: string;
+		role?: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
 		/**
 		 * Filtra por membresía a un workspace
 		 */
 		workspaceId?: string;
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/users";
@@ -666,6 +748,10 @@ export type PostImpersonateErrors = {
 	 */
 	404: _Error;
 	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
+	/**
 	 * Validación del cuerpo/parámetros.
 	 */
 	422: _Error;
@@ -789,6 +875,10 @@ export type PostPlatformPlansErrors = {
 	 */
 	404: _Error;
 	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
+	/**
 	 * Validación del cuerpo/parámetros.
 	 */
 	422: _Error;
@@ -903,7 +993,7 @@ export type GetFeatureFlagsData = {
 		/**
 		 * global|plan|workspace
 		 */
-		scope?: string;
+		scope?: "global" | "plan" | "workspace";
 		/**
 		 * plan.slug u organization.id
 		 */
@@ -1004,7 +1094,10 @@ export type GetAuditLogData = {
 		 * ISO 8601
 		 */
 		to?: string;
-		limit?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
 		cursor?: string;
 	};
 	url: "/audit-log";

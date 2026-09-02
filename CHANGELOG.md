@@ -3,6 +3,86 @@
 All notable changes to `@freeticket/mcp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: semver.
 
+## [0.14.0] - 2026-09-02
+
+Sincroniza los tres contratos con lo que free-admin ya sirve: B2B 1.5.0 → **1.7.0**,
+superadmin 1.1.0 → **1.3.0**, público 0.3.0 → **0.4.0**. Cierra seis brechas del
+ledger del paraguas de una sola vez (#355, #356, #381, #382, #383, #403).
+**103 tools** (B2B 76 · superadmin 21 · público 6).
+
+### Added
+- **Área de socios completa** (contrato 1.7.0, issue #355): `customer_ticket_get`,
+  `customer_membership`, `customer_profile`, `customer_ticket_cancel`,
+  `customer_subscribe` (devuelve la URL de pago — el agente nunca cobra),
+  `customer_subscription_cancel`, `customer_profile_update`, `customer_logout`.
+  Misma credencial doble que `customer_me`: API key enterprise + `X-Customer-Session`.
+- **Contenido de la organización** (#356): `content_videos`, `content_posts`,
+  `content_lives`, `content_live_get` y `content_playback_token` (token firmado,
+  30 min en vivo / 1 h en video; `memberOnly` exige comprador con membresía).
+- **Comprobantes de liquidación** (#381): `settlements_document` y
+  `settlements_proof`. La API responde 302 a una URL firmada de 5 minutos, así que
+  van con fetch crudo (`redirect: "manual"`) y devuelven el link — seguir la
+  redirección metería el PDF entero en el contexto del modelo.
+- `admin_workspaces_assign_plan` (#383): venta asistida, activa un tier sin pasar
+  por el autoservicio de Stripe. `admin_workspaces_update` suma `webTemplate`,
+  `customDomain` y `customDomainVerifiedAt`.
+- `events_list` acepta `q`, `status` (filtra en la consulta, así `limit` cuenta
+  filas devueltas) y `withTotal` (agrega `page.total`, opt-in).
+- `sales_cancel` y `sales_refund` exponen los flags que el contrato ahora pide:
+  `acknowledge_open_payment` y `acknowledge_manual`.
+- Vista de MCP Apps en los 4 listados nuevos: van **29 tools con vista**.
+
+### Changed
+- `staff_list` en modo global usa `workspaceIds` del contrato (#382): **una sola
+  llamada** con las filas etiquetadas por el backend, en vez del fan-out de N
+  requests. El resto de los listados sigue con fan-out — el contrato no expone
+  agregación para ellos.
+- `GET /me` ahora trae el **rol efectivo y las secciones por workspace**
+  (`WorkspaceAccess`, #403); `Me.role` queda deprecado en el contrato. El
+  enforcement es del backend: el MCP ya no puede operar un workspace con un rol
+  que el panel acota. El fan-out global además **descarta antes de disparar** los
+  workspaces con `sections: []` (acceso vencido o revocado), en vez de
+  descubrirlos a fuerza de 403 en `errors[]`.
+
+## [0.13.0] - 2026-08-05
+
+### Added
+- `customer_me` y `customer_tickets` (GET /customer/me, GET /customer/tickets):
+  el SSO headless enterprise, único hueco que quedaba en el contrato B2B. Piden
+  API key de servicio enterprise + el session token del comprador
+  (`X-Customer-Session`). El canje que emite ese token sigue fuera del MCP:
+  mintea sesiones de terceros.
+- Vista de MCP Apps en 8 listados que salían en texto plano:
+  `public_events_list`, `event_dates_list`, `customer_tickets`,
+  `admin_workspaces`, `admin_users`, `admin_audit_log`,
+  `admin_platform_plans_list`, `admin_feature_flags_list`. Van 25 tools con vista
+  — todos los listados y reportes.
+- `src/coverage.test.ts`: barrido del contrato. Cada operación de los tres specs
+  tiene tool o está excluida con su motivo; si `sync-openapi` trae un endpoint
+  nuevo y nadie le hace tool, el test falla con su método y path. Las
+  exclusiones deliberadas (device flow, acuñar credenciales, canje de sesiones)
+  quedan documentadas junto al test.
+- Tests reales del view en jsdom: se monta el HTML y se le empujan mensajes del
+  host. Cubren tabla, tiles, sobre `{ data }`, error, escape de payloads de la
+  API, handshake, teardown y las invariantes de marca. Antes solo se verificaba
+  que el string contuviera ciertas subcadenas.
+
+### Fixed
+- **El tema del host ya no puede pisar la marca.** `applyTheme` acepta solo las
+  variables del contrato de la extensión (`--color-*`, `--font-*`); el acento de
+  FreeTicket queda fuera de su alcance. El header muestra el logo real de
+  `brand.ts` en vez de un cuadradito de CSS.
+- Al cambiar de tema el view fija `color-scheme` además de `data-theme`. Sin eso
+  `light-dark()` seguía al sistema operativo y el view salía claro dentro de un
+  chat oscuro.
+- El view valida `event.source`: solo procesa mensajes del frame que lo montó.
+  Cualquier otro podía inyectar un `tool-result` falso y el usuario habría visto
+  datos que no vinieron de FreeTicket.
+- El view responde `ui/resource-teardown` para que el host desmonte el iframe de
+  forma ordenada, y muestra estado al recibir `ui/notifications/tool-input`.
+- La moneda se formatea con el `locale` del host cuando lo declara (antes,
+  siempre `es-CO`).
+
 ## [0.12.0] - 2026-08-03
 
 ### Added

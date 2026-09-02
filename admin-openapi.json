@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket Admin API",
-		"version": "1.1.0",
+		"version": "1.3.0",
 		"description": "API REST de superadmin de FreeTicket (cross-tenant). Autenticación por sesión de plataforma (staff con rol SUPER_ADMIN) o por service token (PAT) vía `Authorization: Bearer <token>` — NO usa API key de tenant. Aislada del contrato B2B /api/v1."
 	},
 	"servers": [
@@ -105,7 +105,8 @@
 						"required": false,
 						"description": "active(default)|suspended|deleted|all",
 						"schema": {
-							"type": "string"
+							"type": "string",
+							"enum": ["active", "suspended", "deleted", "all"]
 						}
 					},
 					{
@@ -121,8 +122,10 @@
 						"name": "limit",
 						"in": "query",
 						"required": false,
+						"description": "1-100, default 20",
 						"schema": {
-							"type": "string"
+							"type": "integer",
+							"default": 20
 						}
 					},
 					{
@@ -266,6 +269,16 @@
 							}
 						}
 					},
+					"409": {
+						"description": "Conflicto: el recurso no admite la operación en su estado actual.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "Validación del cuerpo/parámetros.",
 						"content": {
@@ -363,7 +376,7 @@
 				"operationId": "patchWorkspacesId",
 				"tags": ["workspaces"],
 				"summary": "Actualizar tenant",
-				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. Además de los datos básicos, permite configurar el white-label enterprise: `webTemplate` (plantilla de la página pública), `customDomain` (dominio apex propio, hostname sin esquema ni ruta; se guarda en minúsculas y sin `www.`; `null` lo desvincula) y `customDomainVerifiedAt`. FUERA DE ALCANCE de este endpoint: el alta real del dominio, que sigue siendo manual — agregar el dominio al proyecto de Vercel, sumarlo a la env var `ENTERPRISE_CUSTOM_DOMAINS` y redesplegar (`serverActions.allowedOrigins` se evalúa en build). Esta ruta solo persiste el registro administrativo; hasta ese redeploy el dominio no resuelve al tenant.",
 				"security": [
 					{
 						"session": []
@@ -428,6 +441,117 @@
 					},
 					"404": {
 						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflicto: el recurso no admite la operación en su estado actual.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/workspaces/{id}/plan": {
+			"post": {
+				"operationId": "postWorkspacesIdPlan",
+				"tags": ["workspaces"],
+				"summary": "Asignar plan manualmente (venta asistida)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. Activa el plan sin pasar por el autoservicio de Stripe (`legend` es el tier enterprise). Si el tenant tenía una suscripción de Stripe vinculada se cancela ALLÁ antes de reasignar; si esa cancelación falla, la operación aborta con 409 sin tocar la fila, para no dejar al tenant en un plan que sigue cobrándose por fuera. Es idempotente en el resultado: reasignar el mismo plan deja la suscripción ACTIVE sin vínculo de Stripe.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminWorkspacePlanAssign"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminWorkspacePlan"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Credencial inválida o ausente.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Rol insuficiente o recurso no accesible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflicto: el recurso no admite la operación en su estado actual.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -509,6 +633,16 @@
 					},
 					"404": {
 						"description": "Recurso inexistente o fuera de alcance.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflicto: el recurso no admite la operación en su estado actual.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -638,7 +772,8 @@
 						"required": false,
 						"description": "SUPER_ADMIN|ADMIN|STAFF|VIEWER|MINCULTURA",
 						"schema": {
-							"type": "string"
+							"type": "string",
+							"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
 						}
 					},
 					{
@@ -654,8 +789,10 @@
 						"name": "limit",
 						"in": "query",
 						"required": false,
+						"description": "1-100, default 20",
 						"schema": {
-							"type": "string"
+							"type": "integer",
+							"default": 20
 						}
 					},
 					{
@@ -971,6 +1108,16 @@
 							}
 						}
 					},
+					"409": {
+						"description": "Conflicto: el recurso no admite la operación en su estado actual.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "Validación del cuerpo/parámetros.",
 						"content": {
@@ -1189,6 +1336,16 @@
 							}
 						}
 					},
+					"409": {
+						"description": "Conflicto: el recurso no admite la operación en su estado actual.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "Validación del cuerpo/parámetros.",
 						"content": {
@@ -1398,7 +1555,8 @@
 						"required": false,
 						"description": "global|plan|workspace",
 						"schema": {
-							"type": "string"
+							"type": "string",
+							"enum": ["global", "plan", "workspace"]
 						}
 					},
 					{
@@ -1623,8 +1781,10 @@
 						"name": "limit",
 						"in": "query",
 						"required": false,
+						"description": "1-100, default 20",
 						"schema": {
-							"type": "string"
+							"type": "integer",
+							"default": 20
 						}
 					},
 					{
@@ -2026,6 +2186,36 @@
 					"isPublished": {
 						"type": "boolean"
 					},
+					"webTemplate": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"customDomain": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"customDomainVerifiedAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
 					"suspended": {
 						"type": "boolean"
 					},
@@ -2060,6 +2250,9 @@
 					"type",
 					"country",
 					"isPublished",
+					"webTemplate",
+					"customDomain",
+					"customDomainVerifiedAt",
 					"suspended",
 					"suspendedAt",
 					"deletedAt",
@@ -2115,8 +2308,81 @@
 					},
 					"isPublished": {
 						"type": "boolean"
+					},
+					"webTemplate": {
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 80
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"customDomain": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 253,
+								"pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+\\.?$"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"customDomainVerifiedAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"format": "date-time",
+								"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+							},
+							{
+								"type": "null"
+							}
+						]
 					}
 				},
+				"additionalProperties": false
+			},
+			"AdminWorkspacePlanAssign": {
+				"type": "object",
+				"properties": {
+					"planSlug": {
+						"type": "string",
+						"enum": ["spark", "star", "icon", "legend"]
+					}
+				},
+				"required": ["planSlug"],
+				"additionalProperties": false
+			},
+			"AdminWorkspacePlan": {
+				"type": "object",
+				"properties": {
+					"workspaceId": {
+						"type": "string"
+					},
+					"planSlug": {
+						"type": "string"
+					},
+					"planName": {
+						"type": "string"
+					},
+					"previousPlanSlug": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": ["workspaceId", "planSlug", "planName", "previousPlanSlug"],
 				"additionalProperties": false
 			},
 			"AdminUserWorkspace": {

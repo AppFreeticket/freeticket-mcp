@@ -34,11 +34,32 @@ import type {
 	GetApiKeysData,
 	GetApiKeysError,
 	GetApiKeysResponse,
+	GetContentLivesData,
+	GetContentLivesError,
+	GetContentLivesIdData,
+	GetContentLivesIdError,
+	GetContentLivesIdResponse,
+	GetContentLivesResponse,
+	GetContentPostsData,
+	GetContentPostsError,
+	GetContentPostsResponse,
+	GetContentVideosData,
+	GetContentVideosError,
+	GetContentVideosResponse,
 	GetCustomerMeData,
 	GetCustomerMeError,
+	GetCustomerMembershipData,
+	GetCustomerMembershipError,
+	GetCustomerMembershipResponse,
 	GetCustomerMeResponse,
+	GetCustomerProfileData,
+	GetCustomerProfileError,
+	GetCustomerProfileResponse,
 	GetCustomerTicketsData,
 	GetCustomerTicketsError,
+	GetCustomerTicketsIdData,
+	GetCustomerTicketsIdError,
+	GetCustomerTicketsIdResponse,
 	GetCustomerTicketsResponse,
 	GetDiscountsData,
 	GetDiscountsError,
@@ -105,6 +126,10 @@ import type {
 	GetSalesResponse,
 	GetSettlementsData,
 	GetSettlementsError,
+	GetSettlementsIdDocumentData,
+	GetSettlementsIdDocumentError,
+	GetSettlementsIdProofsFileNameData,
+	GetSettlementsIdProofsFileNameError,
 	GetSettlementsResponse,
 	GetStaffData,
 	GetStaffError,
@@ -127,6 +152,9 @@ import type {
 	GetWebhooksData,
 	GetWebhooksError,
 	GetWebhooksResponse,
+	PatchCustomerProfileData,
+	PatchCustomerProfileError,
+	PatchCustomerProfileResponse,
 	PatchDiscountsIdData,
 	PatchDiscountsIdError,
 	PatchDiscountsIdResponse,
@@ -159,6 +187,21 @@ import type {
 	PostAuthDeviceTokenData,
 	PostAuthDeviceTokenError,
 	PostAuthDeviceTokenResponse,
+	PostContentPlaybackTokenData,
+	PostContentPlaybackTokenError,
+	PostContentPlaybackTokenResponse,
+	PostCustomerLogoutData,
+	PostCustomerLogoutError,
+	PostCustomerLogoutResponse,
+	PostCustomerSubscriptionsCancelData,
+	PostCustomerSubscriptionsCancelError,
+	PostCustomerSubscriptionsCancelResponse,
+	PostCustomerSubscriptionsData,
+	PostCustomerSubscriptionsError,
+	PostCustomerSubscriptionsResponse,
+	PostCustomerTicketsIdCancelData,
+	PostCustomerTicketsIdCancelError,
+	PostCustomerTicketsIdCancelResponse,
 	PostDiscountsData,
 	PostDiscountsError,
 	PostDiscountsResponse,
@@ -224,6 +267,64 @@ export type Options<
 };
 
 /**
+ * Listar fechas de un evento
+ * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ */
+export const getEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsIdDatesResponse,
+		GetEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+	});
+};
+
+/**
+ * Agregar fecha a un evento
+ * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ */
+export const postEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdDatesResponse,
+		PostEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
  * Inicia el Device Authorization Grant (RFC 8628)
  * Endpoint público (sin auth): bootstrap de credenciales del Device Authorization Grant (RFC 8628).
  */
@@ -278,6 +379,10 @@ export const getMe = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/me",
 		...options,
@@ -286,7 +391,7 @@ export const getMe = <ThrowOnError extends boolean = false>(
 
 /**
  * Listar eventos del workspace
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`. Cada evento embebe `nextDate` (su función más próxima, o null), para no requerir `/events/{id}/dates` por evento al renderizar un catálogo.
  */
 export const getEvents = <ThrowOnError extends boolean = false>(
 	options?: Options<GetEventsData, ThrowOnError>,
@@ -299,6 +404,10 @@ export const getEvents = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -322,6 +431,10 @@ export const postEvents = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -351,6 +464,10 @@ export const deleteEventsId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/events/{id}",
 		...options,
@@ -374,6 +491,10 @@ export const getEventsId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/events/{id}",
 		...options,
@@ -395,6 +516,10 @@ export const patchEventsId = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -424,59 +549,13 @@ export const postEventsIdPublish = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/events/{id}/publish",
 		...options,
-	});
-};
-
-/**
- * Listar fechas de un evento
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
- */
-export const getEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<GetEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetEventsIdDatesResponse,
-		GetEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-	});
-};
-
-/**
- * Agregar fecha a un evento
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
- */
-export const postEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<PostEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostEventsIdDatesResponse,
-		PostEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
 	});
 };
 
@@ -495,6 +574,10 @@ export const deleteEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -518,6 +601,10 @@ export const patchEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -547,6 +634,10 @@ export const getTicketTypes = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/ticket-types",
 		...options,
@@ -568,6 +659,10 @@ export const postTicketTypes = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -597,6 +692,10 @@ export const deleteTicketTypesId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/ticket-types/{id}",
 		...options,
@@ -620,6 +719,10 @@ export const getTicketTypesId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/ticket-types/{id}",
 		...options,
@@ -641,6 +744,10 @@ export const patchTicketTypesId = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -670,6 +777,10 @@ export const getSales = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/sales",
 		...options,
@@ -691,6 +802,10 @@ export const postSales = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -720,6 +835,10 @@ export const getSalesId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/sales/{id}",
 		...options,
@@ -727,8 +846,8 @@ export const getSalesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Cancelar una venta
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Cancelar una venta (bloqueada si el cobro sigue abierto)
+ * Marca la venta como CANCELLED, libera su cupo y suelta las sillas numeradas asociadas. IMPORTANTE: una venta PENDING cobrada con Bold tiene un enlace de pago que puede seguir vivo — el API de Bold nunca marca sus enlaces como vencidos —, así que cancelarla podría dejar al comprador pagado y sin entrada. Antes de cancelar se relee el estado real del cobro: si Bold lo reporta aprobado, responde 409 SALE_PAID_AT_GATEWAY y NO se cancela en ningún caso (esa venta se confirma o se reembolsa). Si el cobro sigue abierto o el estado no se puede leer, responde 409 OPEN_PAYMENT_CONFIRMATION_REQUIRED: verifica en el panel de Bold y repite la llamada con {"acknowledge_open_payment": true} para asumir el riesgo de forma explícita. Las ventas de otras pasarelas y las que no tienen un pago iniciado se cancelan sin ese paso.
  */
 export const postSalesIdCancel = <ThrowOnError extends boolean = false>(
 	options: Options<PostSalesIdCancelData, ThrowOnError>,
@@ -743,15 +862,23 @@ export const postSalesIdCancel = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/sales/{id}/cancel",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
 /**
- * Marcar una venta como REEMBOLSADA (NO ejecuta el reembolso en MercadoPago)
- * Marca la venta como REFUNDED y libera las sillas numeradas asociadas. IMPORTANTE: este endpoint NO dispara el reembolso real en el proveedor de pago (MercadoPago); el dinero NO se devuelve al comprador automáticamente. Un 200 aquí confirma únicamente el cambio de estado contable, no el movimiento de fondos. El reembolso en MercadoPago debe gestionarse por separado (panel de MercadoPago o su API).
+ * Reembolsar una venta (el movimiento de fondos depende de la pasarela)
+ * Marca la venta como REFUNDED y libera las sillas numeradas asociadas. IMPORTANTE: que el dinero vuelva al comprador depende de la pasarela de pago y del medio usado. Solo las ventas cobradas con Wompi y TARJETA se anulan de verdad contra la pasarela de pago antes de marcarse. En cualquier otro caso este endpoint NO dispara el reembolso real: el dinero NO se devuelve automáticamente y un 200 confirma únicamente el cambio de estado contable. Esos reembolsos deben gestionarse por separado en el panel de la pasarela de pago. Los medios de Wompi sin devolución por API (PSE, Nequi, transferencia Bancolombia) responden 409: hay que devolver la plata en el panel de Wompi y repetir la llamada con {"acknowledge_manual": true} para reflejar el estado contable. Un 502 significa que la pasarela rechazó la anulación y la venta sigue CONFIRMED.
  */
 export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
 	options: Options<PostSalesIdRefundData, ThrowOnError>,
@@ -766,9 +893,17 @@ export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/sales/{id}/refund",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
@@ -787,6 +922,10 @@ export const getMembershipPlans = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -810,6 +949,10 @@ export const postMembershipPlans = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -839,6 +982,10 @@ export const deleteMembershipPlansId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/membership-plans/{id}",
 		...options,
@@ -862,6 +1009,10 @@ export const getMembershipPlansId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/membership-plans/{id}",
 		...options,
@@ -883,6 +1034,10 @@ export const patchMembershipPlansId = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -912,6 +1067,10 @@ export const getVenues = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/venues",
 		...options,
@@ -933,6 +1092,10 @@ export const postVenues = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -962,6 +1125,10 @@ export const deleteVenuesId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/venues/{id}",
 		...options,
@@ -983,6 +1150,10 @@ export const getVenuesId = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1008,6 +1179,10 @@ export const patchVenuesId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/venues/{id}",
 		...options,
@@ -1020,7 +1195,7 @@ export const patchVenuesId = <ThrowOnError extends boolean = false>(
 
 /**
  * Listar staff con acceso al workspace
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`. Con `?workspaceIds=` la paginación por cursor sigue siendo por usuario: `limit` cuenta personas, no filas.
  */
 export const getStaff = <ThrowOnError extends boolean = false>(
 	options?: Options<GetStaffData, ThrowOnError>,
@@ -1033,6 +1208,10 @@ export const getStaff = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1056,6 +1235,10 @@ export const postStaff = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1085,6 +1268,10 @@ export const patchStaffIdRole = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/staff/{id}/role",
 		...options,
@@ -1112,6 +1299,10 @@ export const getReportsSummary = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/reports/summary",
 		...options,
@@ -1135,6 +1326,10 @@ export const getReportsInventory = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/reports/inventory",
 		...options,
@@ -1156,6 +1351,10 @@ export const getReportsReconciliation = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1183,6 +1382,10 @@ export const getReportsExportsReconciliation = <
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/reports/exports/reconciliation",
 		...options,
@@ -1208,6 +1411,10 @@ export const getReportsExportsAttendees = <
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/reports/exports/attendees",
 		...options,
@@ -1229,6 +1436,10 @@ export const getReportsExportsBuyers = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1256,6 +1467,10 @@ export const getReportsExportsSubscribers = <
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/reports/exports/subscribers",
 		...options,
@@ -1277,6 +1492,10 @@ export const getReportsByEvent = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1302,6 +1521,10 @@ export const getReportsTimeseries = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/reports/timeseries",
 		...options,
@@ -1310,7 +1533,7 @@ export const getReportsTimeseries = <ThrowOnError extends boolean = false>(
 
 /**
  * Estado financiero por función: bruto, costos y neto a liquidar
- * Una fila por función (event_date) con el desglose financiero de sus ventas confirmadas — bruto cobrado, cargo de plataforma + IVA, valor facial, comisión real de la pasarela, 4x1000 y neto a liquidar — más el estado de la liquidación asociada. Mismos números que /dashboard/liquidaciones.
+ * Una fila por función (event_date) con el desglose financiero de sus ventas confirmadas — bruto cobrado, cargo de plataforma + IVA, valor facial, comisión de la pasarela (real en MercadoPago, estimada por tasa en Wompi o Bold), 4x1000 y neto a liquidar — más el estado de la liquidación asociada. Si wompiSalesWithoutRate > 0, la comisión de ventas de Wompi o Bold no se pudo estimar y el neto está inflado.
  */
 export const getReportsFinancials = <ThrowOnError extends boolean = false>(
 	options?: Options<GetReportsFinancialsData, ThrowOnError>,
@@ -1325,6 +1548,10 @@ export const getReportsFinancials = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/reports/financials",
 		...options,
@@ -1333,7 +1560,7 @@ export const getReportsFinancials = <ThrowOnError extends boolean = false>(
 
 /**
  * Liquidaciones del workspace (pagos al organizador)
- * Lista las liquidaciones visibles para la organización (SENT, AWAITING_PAYMENT, PAID) con su id estándar, monto, evento/función y comprobantes. Los archivos (PDF y comprobantes) se descargan desde el panel, no por esta API.
+ * Lista las liquidaciones visibles para la organización (SENT, AWAITING_PAYMENT, PAID) con su id estándar, monto, evento/función y comprobantes. Los archivos se bajan con `GET /settlements/{id}/document` (PDF) y `GET /settlements/{id}/proofs/{fileName}` (comprobantes de la transferencia).
  */
 export const getSettlements = <ThrowOnError extends boolean = false>(
 	options?: Options<GetSettlementsData, ThrowOnError>,
@@ -1348,8 +1575,68 @@ export const getSettlements = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/settlements",
+		...options,
+	});
+};
+
+/**
+ * Descarga el PDF de una liquidación
+ * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`. Los archivos viven en un bucket privado, así que la respuesta es un **302** hacia una URL firmada de 5 minutos (hay que seguir la redirección; el `storage_path` nunca se expone). Solo liquidaciones visibles para la organización (SENT, AWAITING_PAYMENT, PAID) y dentro del `event_scope` de la key.
+ */
+export const getSettlementsIdDocument = <ThrowOnError extends boolean = false>(
+	options: Options<GetSettlementsIdDocumentData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		unknown,
+		GetSettlementsIdDocumentError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/{id}/document",
+		...options,
+	});
+};
+
+/**
+ * Descarga un comprobante de pago de una liquidación
+ * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`. `fileName` es el mismo valor que devuelve `paymentProofs[].fileName` en `GET /settlements` (URL-encoded). Igual que `/document`, responde **302** hacia una URL firmada de 5 minutos del bucket privado.
+ */
+export const getSettlementsIdProofsFileName = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetSettlementsIdProofsFileNameData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		unknown,
+		GetSettlementsIdProofsFileNameError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/{id}/proofs/{fileName}",
 		...options,
 	});
 };
@@ -1369,6 +1656,10 @@ export const getDiscounts = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1392,6 +1683,10 @@ export const postDiscounts = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1421,6 +1716,10 @@ export const deleteDiscountsId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/discounts/{id}",
 		...options,
@@ -1442,6 +1741,10 @@ export const patchDiscountsId = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1471,6 +1774,10 @@ export const getWebhooks = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/webhooks",
 		...options,
@@ -1492,6 +1799,10 @@ export const postWebhooks = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1521,6 +1832,10 @@ export const deleteWebhooksId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/webhooks/{id}",
 		...options,
@@ -1546,6 +1861,10 @@ export const getMembershipPlansIdSubscribers = <
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/membership-plans/{id}/subscribers",
 		...options,
@@ -1569,6 +1888,10 @@ export const postSubscriptionsIdCancel = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/subscriptions/{id}/cancel",
 		...options,
@@ -1590,6 +1913,10 @@ export const getSalesIdTickets = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1617,6 +1944,10 @@ export const postTicketsTicketCodeCheckin = <
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/tickets/{ticketCode}/checkin",
 		...options,
@@ -1642,6 +1973,10 @@ export const getTicketsTicketCodeAccess = <
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/tickets/{ticketCode}/access",
 		...options,
@@ -1665,6 +2000,10 @@ export const getApiKeys = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/api-keys",
 		...options,
@@ -1686,6 +2025,10 @@ export const postApiKeys = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1715,6 +2058,10 @@ export const deleteApiKeysId = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/api-keys/{id}",
 		...options,
@@ -1736,6 +2083,10 @@ export const getCustomerMe = <ThrowOnError extends boolean = false>(
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
@@ -1761,8 +2112,95 @@ export const getCustomerTickets = <ThrowOnError extends boolean = false>(
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/customer/tickets",
+		...options,
+	});
+};
+
+/**
+ * Detalle de una entrada del comprador (deep link)
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. `{id}` acepta el id de la venta o su `reference`. Devuelve 404 si la entrada no es del comprador de la sesión o cae fuera del alcance del workspace de la key.
+ */
+export const getCustomerTicketsId = <ThrowOnError extends boolean = false>(
+	options: Options<GetCustomerTicketsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCustomerTicketsIdResponse,
+		GetCustomerTicketsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/tickets/{id}",
+		...options,
+	});
+};
+
+/**
+ * Cancelar la propia compra (solo si aún no fue pagada)
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Solo cancela ventas PENDING (libera cupo y sillas). Una venta CONFIRMED responde 409 con código `REFUND_REQUIRED`: el reembolso lo gestiona el organizador. `{id}` acepta el id de la venta o su `reference`.
+ */
+export const postCustomerTicketsIdCancel = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerTicketsIdCancelData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerTicketsIdCancelResponse,
+		PostCustomerTicketsIdCancelError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/tickets/{id}/cancel",
+		...options,
+	});
+};
+
+/**
+ * Cerrar la sesión de comprador (SSO headless)
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Borra la sesión del comprador: el `session_token` deja de servir en el acto. Idempotente.
+ */
+export const postCustomerLogout = <ThrowOnError extends boolean = false>(
+	options?: Options<PostCustomerLogoutData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).post<
+		PostCustomerLogoutResponse,
+		PostCustomerLogoutError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/logout",
 		...options,
 	});
 };
@@ -1786,8 +2224,296 @@ export const postApiCustomerAuthEnterpriseExchange = <
 				name: "Authorization",
 				type: "apiKey",
 			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
 		],
 		url: "/api/customer-auth/enterprise-exchange",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Estado de membresía del comprador en el workspace de la key
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. `active` es true solo con membresía ACTIVE y vigente. Si no hay ninguna vigente, `membership` trae la más reciente (vencida, cancelada o pendiente de pago) para que la landing elija el CTA; `null` = nunca fue miembro de este workspace.
+ */
+export const getCustomerMembership = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerMembershipData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerMembershipResponse,
+		GetCustomerMembershipError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/membership",
+		...options,
+	});
+};
+
+/**
+ * Iniciar el alta de una membresía (devuelve la URL de pago)
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Valida que el plan pertenezca al workspace de la key y que el comprador pueda adquirirlo, y devuelve la URL del checkout de membresía del host canónico (el cobro lo cierra la plataforma). Al volver, releer `GET /customer/membership`.
+ */
+export const postCustomerSubscriptions = <ThrowOnError extends boolean = false>(
+	options: Options<PostCustomerSubscriptionsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerSubscriptionsResponse,
+		PostCustomerSubscriptionsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/subscriptions",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Cancelar la propia membresía (SSO headless)
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. La membresía se resuelve por la sesión del comprador y el workspace de la key (no se acepta ningún id). Cancela primero el cobro recurrente en el proveedor y después marca la membresía como CANCELLED. Idempotente.
+ */
+export const postCustomerSubscriptionsCancel = <
+	ThrowOnError extends boolean = false,
+>(
+	options?: Options<PostCustomerSubscriptionsCancelData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).post<
+		PostCustomerSubscriptionsCancelResponse,
+		PostCustomerSubscriptionsCancelError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/subscriptions/cancel",
+		...options,
+	});
+};
+
+/**
+ * Perfil del comprador (nombre y teléfono)
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session`.
+ */
+export const getCustomerProfile = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerProfileData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerProfileResponse,
+		GetCustomerProfileError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/profile",
+		...options,
+	});
+};
+
+/**
+ * Editar el perfil del comprador
+ * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Edita solo al comprador de la sesión: nombre y teléfono. El correo no se edita (es la identidad de la cuenta). Campos ausentes no se tocan.
+ */
+export const patchCustomerProfile = <ThrowOnError extends boolean = false>(
+	options: Options<PatchCustomerProfileData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchCustomerProfileResponse,
+		PatchCustomerProfileError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/profile",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Listar los videos publicados de la organización
+ * Solo videos publicados y con procesamiento terminado (READY) del workspace activo. No incluye el playback id: para reproducir hay que pedir un token en `POST /content/playback-token`.
+ */
+export const getContentVideos = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentVideosData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentVideosResponse,
+		GetContentVideosError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/videos",
+		...options,
+	});
+};
+
+/**
+ * Listar el feed de comunidad de la organización
+ * Publicaciones del workspace activo, de la más reciente a la más vieja, sin borradas ni programadas a futuro. Un post con `locked: true` llega redactado (`content`, `imageUrl`, `videoId`, `eventId` y `link` en null, `commentsCount` en 0): es contenido reservado a miembros y la key no representa a un comprador con membresía vigente. No incluye `likes_count` (solo visible para el dueño del workspace) ni el autor interno de la publicación.
+ */
+export const getContentPosts = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentPostsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentPostsResponse,
+		GetContentPostsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/posts",
+		...options,
+	});
+};
+
+/**
+ * Listar las transmisiones de la organización
+ * Transmisiones del workspace activo, de la más reciente a la más vieja. `status: ACTIVE` es la que está al aire. No incluye la clave RTMP ni los playback ids.
+ */
+export const getContentLives = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentLivesData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentLivesResponse,
+		GetContentLivesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/lives",
+		...options,
+	});
+};
+
+/**
+ * Estado de una transmisión
+ * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ */
+export const getContentLivesId = <ThrowOnError extends boolean = false>(
+	options: Options<GetContentLivesIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetContentLivesIdResponse,
+		GetContentLivesIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/lives/{id}",
+		...options,
+	});
+};
+
+/**
+ * Token firmado para reproducir un video o una transmisión
+ * Requiere API key de servicio enterprise. El contenido `memberOnly` exige además el header `X-Customer-Session` de un comprador con membresía vigente en la organización de la key (si no, 403 `MEMBERSHIP_REQUIRED`). El contenido de otra organización responde 404. Tokens de vida corta: 30 minutos en vivo, 1 hora en video.
+ */
+export const postContentPlaybackToken = <ThrowOnError extends boolean = false>(
+	options: Options<PostContentPlaybackTokenData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentPlaybackTokenResponse,
+		PostContentPlaybackTokenError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/playback-token",
 		...options,
 		headers: {
 			"Content-Type": "application/json",
@@ -1813,6 +2539,10 @@ export const postTicketsTicketCodeResend = <
 		security: [
 			{
 				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
 				type: "apiKey",
 			},
 		],
