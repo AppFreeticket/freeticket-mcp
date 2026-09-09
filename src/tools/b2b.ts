@@ -67,6 +67,37 @@ const saleStatus = z
  * etiquetada con workspaceId/workspaceName. El conjunto de ids válidos sale
  * siempre de GET /me, nunca de lo que pida el cliente sin validar.
  */
+/**
+ * #8: `events_list` devolvía el evento entero — descripción larga y cuatro URLs
+ * de imagen por fila. Con 81 eventos eso desborda la ventana del agente, que
+ * después gasta llamadas de shell para parsear el JSON afuera del modelo. Por
+ * defecto va la vista corta; `verbose: true` trae el objeto tal cual, así el
+ * campo recortado siempre es recuperable y el cliente no define el contrato por
+ * omisión.
+ * ponytail: recorte en el cliente. Si `GET /events` gana un `fields`, esto se
+ * borra y se pide allá.
+ */
+const SLIM_EVENT_FIELDS = [
+	"id",
+	"name",
+	"slug",
+	"status",
+	"access",
+	"venueId",
+	"venue",
+	"nextDate",
+	"updatedAt",
+] as const;
+
+export function slimEvent(event: unknown): Record<string, unknown> {
+	const full = event as Record<string, unknown>;
+	const slim: Record<string, unknown> = {};
+	for (const field of SLIM_EVENT_FIELDS) {
+		if (field in full) slim[field] = full[field];
+	}
+	return slim;
+}
+
 const workspaceParam = z
 	.union([z.literal("all"), z.array(z.string())])
 	.optional()
@@ -158,12 +189,25 @@ export function registerB2bTools(
 				.boolean()
 				.optional()
 				.describe("Incluir page.total (cuenta extra, opt-in)"),
+			verbose: z
+				.boolean()
+				.optional()
+				.describe(
+					"Devolver el evento completo (descripción e imágenes). Por defecto " +
+						"va la vista corta: id, nombre, slug, estado, acceso, venue y " +
+						"próxima fecha.",
+				),
 			workspace: workspaceParam,
 		},
-		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getEvents({ query: q, client: c }),
-			),
+		async ({ workspace, verbose, ...q }) =>
+			runWorkspaceList(ctx, workspace, async (c) => {
+				const res = await getEvents({ query: q, client: c });
+				if (verbose || res.error !== undefined || !res.data) return res;
+				return {
+					...res,
+					data: { ...res.data, data: res.data.data.map(slimEvent) },
+				};
+			}),
 	);
 	server.tool(
 		"events_get",
@@ -339,20 +383,28 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"reports_summary",
-		"KPIs del workspace (GET /reports/summary).",
+		"KPIs del workspace activo (GET /reports/summary). Único reporte sin " +
+			"`workspace`: son un objeto, no filas, y sumar KPIs de tenants distintos " +
+			"no significa nada. Para comparar workspaces usá `reports_by_event` o " +
+			"`reports_financials` con `workspace`.",
 		{ period: z.enum(["7d", "30d", "90d", "1y"]).optional() },
 		async (q) => run(getReportsSummary({ query: q, client })),
 	);
 	uiTool(
 		server,
 		"reports_by_event",
-		"Revenue / tickets vendidos / disponibilidad por evento (GET /reports/by-event).",
+		"Revenue / tickets vendidos / disponibilidad por evento (GET /reports/by-event). " +
+			"`workspace` activa el modo global.",
 		{
 			from: z.string().optional().describe("Desde (ISO 8601)"),
 			to: z.string().optional().describe("Hasta (ISO 8601)"),
 			status: z.string().optional().describe("Filtrar por estado de venta"),
+			workspace: workspaceParam,
 		},
-		async (q) => run(getReportsByEvent({ query: q, client })),
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getReportsByEvent({ query: q, client: c }),
+			),
 	);
 	uiTool(
 		server,
@@ -363,8 +415,12 @@ export function registerB2bTools(
 			from: z.string().optional(),
 			to: z.string().optional(),
 			event: z.string().optional().describe("Filtrar por evento"),
+			workspace: workspaceParam,
 		},
-		async (q) => run(getReportsTimeseries({ query: q, client })),
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getReportsTimeseries({ query: q, client: c }),
+			),
 	);
 	uiTool(
 		server,
@@ -380,8 +436,12 @@ export function registerB2bTools(
 				.optional()
 				.describe("true | false — incluir borradores"),
 			groupBy: z.enum(["ticketType", "date", "event"]).optional(),
+			workspace: workspaceParam,
 		},
-		async (q) => run(getReportsInventory({ query: q, client })),
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getReportsInventory({ query: q, client: c }),
+			),
 	);
 	uiTool(
 		server,
@@ -404,8 +464,12 @@ export function registerB2bTools(
 			provider: z.string().optional().describe("Proveedor de pago"),
 			page: z.string().optional(),
 			page_size: z.string().optional(),
+			workspace: workspaceParam,
 		},
-		async (q) => run(getReportsReconciliation({ query: q, client })),
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getReportsReconciliation({ query: q, client: c }),
+			),
 	);
 
 	const exportFilters = {
@@ -472,8 +536,12 @@ export function registerB2bTools(
 				.enum(["true", "false"])
 				.optional()
 				.describe("true = solo funciones ya ocurridas (liquidables)"),
+			workspace: workspaceParam,
 		},
-		async (q) => run(getReportsFinancials({ query: q, client })),
+		async ({ workspace, ...q }) =>
+			runWorkspaceList(ctx, workspace, (c) =>
+				getReportsFinancials({ query: q, client: c }),
+			),
 	);
 	uiTool(
 		server,

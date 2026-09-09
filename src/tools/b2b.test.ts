@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { makeB2bClient } from "../api";
 import { buildServer } from "../server";
 import { registerAdminTools } from "./admin";
-import { registerB2bTools } from "./b2b";
+import { registerB2bTools, slimEvent } from "./b2b";
 import { registerB2bWriteTools } from "./b2b-writes";
 import { registerPublicTools } from "./public";
 
@@ -19,6 +19,91 @@ function names(server: McpServer): string[] {
 			._registeredTools,
 	);
 }
+
+/** Schema de entrada tal como lo ve el agente, por nombre de tool. */
+function inputKeys(server: McpServer, tool: string): string[] {
+	const reg = (
+		server as unknown as {
+			_registeredTools: Record<string, { inputSchema?: unknown }>;
+		}
+	)._registeredTools[tool];
+	// El SDK guarda el schema ya envuelto en un ZodObject: las claves del tool
+	// viven en `.shape`, no en el objeto mismo.
+	const schema = reg?.inputSchema as
+		| { shape?: Record<string, unknown> }
+		| undefined;
+	return Object.keys(schema?.shape ?? {});
+}
+
+describe("workspace en los reportes (#7)", () => {
+	it("los reportes con forma de filas aceptan workspace; summary no", () => {
+		const server = new McpServer({ name: "t", version: "0.0.0" });
+		registerB2bTools(server, stub, stubCreds);
+		for (const tool of [
+			"reports_by_event",
+			"reports_timeseries",
+			"reports_inventory",
+			"reports_financials",
+			"reconciliation",
+		]) {
+			expect(inputKeys(server, tool)).toContain("workspace");
+		}
+		// KPIs son un objeto: sumarlos entre tenants no significa nada. La
+		// ausencia es deliberada y la descripción del tool la explica.
+		expect(inputKeys(server, "reports_summary")).not.toContain("workspace");
+	});
+});
+
+describe("vista corta de events_list (#8)", () => {
+	it("recorta descripción e imágenes y deja lo que identifica al evento", () => {
+		const full = {
+			id: "e1",
+			name: "RUMBO AL ESPECIAL YOPAL",
+			slug: "yopal",
+			status: "PUBLISHED",
+			access: "PUBLIC",
+			venueId: "v1",
+			venue: { name: "Cinema Casanare" },
+			nextDate: "2026-10-15T01:00Z",
+			updatedAt: "2026-09-01T00:00Z",
+			description: "x".repeat(4000),
+			coverImageUrl: "https://…/cover.png",
+			bannerImageUrl: "https://…/banner.png",
+			squareImageUrl: "https://…/square.png",
+			storyImageUrl: "https://…/story.png",
+			organizationId: "o1",
+			createdAt: "2026-01-01T00:00Z",
+		};
+		const slim = slimEvent(full);
+		for (const dropped of [
+			"description",
+			"coverImageUrl",
+			"bannerImageUrl",
+			"squareImageUrl",
+			"storyImageUrl",
+			"organizationId",
+			"createdAt",
+		]) {
+			expect(slim).not.toHaveProperty(dropped);
+		}
+		// Lo que queda tiene que alcanzar para responder "el evento de Yopal".
+		expect(slim).toMatchObject({
+			id: "e1",
+			name: "RUMBO AL ESPECIAL YOPAL",
+			status: "PUBLISHED",
+			venue: { name: "Cinema Casanare" },
+		});
+		expect(JSON.stringify(slim).length).toBeLessThan(
+			JSON.stringify(full).length / 4,
+		);
+	});
+
+	it("expone verbose para recuperar el objeto completo", () => {
+		const server = new McpServer({ name: "t", version: "0.0.0" });
+		registerB2bTools(server, stub, stubCreds);
+		expect(inputKeys(server, "events_list")).toContain("verbose");
+	});
+});
 
 describe("tool registration", () => {
 	it("registers B2B read tools without collisions", () => {
