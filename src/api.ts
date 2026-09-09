@@ -103,7 +103,35 @@ export async function run(p: Promise<SdkResult>): Promise<{
 	structuredContent?: { data: unknown };
 	isError?: boolean;
 }> {
-	const r = await p;
+	// @hey-api/client-fetch solo puebla `r.error` cuando hubo RESPUESTA HTTP.
+	// Un fallo de transporte (DNS, timeout, TLS, abort) rechaza la promesa, y
+	// sin este catch lo atrapaba el catch genérico del SDK MCP: texto plano,
+	// sin code, sin structuredContent. El agente veía dos formas distintas para
+	// la misma cosa y no podía ramificar por código (issue #12).
+	let r: SdkResult;
+	try {
+		r = await p;
+	} catch (e) {
+		return {
+			isError: true,
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify(
+						{
+							error: {
+								code: "network_error",
+								message: e instanceof Error ? e.message : String(e),
+								retryable: true,
+							},
+						},
+						null,
+						2,
+					),
+				},
+			],
+		};
+	}
 	if (r.error !== undefined) {
 		return {
 			isError: true,

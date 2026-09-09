@@ -134,26 +134,40 @@ export async function runAcrossWorkspaces<T>(
 }
 
 /** Mismo shape de respuesta que `run()` (api.ts), pero para un fan-out ya resuelto. */
-function fanOutContent<T>(result: WorkspaceFanOutResult<T>): {
+function fanOutContent<T>(
+	result: WorkspaceFanOutResult<T>,
+	unresolved: string[] = [],
+): {
 	content: { type: "text"; text: string }[];
 	structuredContent?: { data: unknown };
 	isError?: boolean;
 } {
+	// Un id pedido que no está entre los accesibles se descartaba en silencio:
+	// el agente recibía filas de menos sin poder distinguir "no existe" de
+	// "perdí acceso" de "no tiene datos" (issue #13). Ahora viaja como error.
+	const errors = [
+		...result.errors,
+		...unresolved.map((workspaceId) => ({
+			workspaceId,
+			workspaceName: "",
+			error: {
+				code: "workspace_not_accessible",
+				message:
+					"El id no está entre los workspaces que alcanza esta credencial (o no existe). Revisalo con `whoami`.",
+			},
+		})),
+	];
 	return {
 		content: [
 			{
 				type: "text",
-				text: JSON.stringify(
-					{ data: result.rows, errors: result.errors },
-					null,
-					2,
-				),
+				text: JSON.stringify({ data: result.rows, errors }, null, 2),
 			},
 		],
 		// Las filas agregadas alimentan el view de MCP Apps igual que un listado
 		// de un solo workspace; los errores parciales viven solo en el texto.
 		structuredContent: { data: result.rows },
-		isError: result.rows.length === 0 && result.errors.length > 0,
+		isError: result.rows.length === 0 && errors.length > 0,
 	};
 }
 
@@ -184,5 +198,13 @@ export async function runWorkspaceList<T>(
 		workspace,
 	);
 	if (!targets) return run(fn(ctx.client));
-	return fanOutContent(await runAcrossWorkspaces(ctx.creds, targets, fn));
+	// Los ids pedidos que resolveWorkspaceTargets filtró por inaccesibles.
+	const found = new Set(targets.map((t) => t.id));
+	const unresolved = Array.isArray(workspace)
+		? workspace.filter((id) => !found.has(id))
+		: [];
+	return fanOutContent(
+		await runAcrossWorkspaces(ctx.creds, targets, fn),
+		unresolved,
+	);
 }
