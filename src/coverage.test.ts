@@ -3,13 +3,13 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * Barrido de contrato: cada operación de los tres specs tiene un tool, o está
- * excluida acá con su razón. Sin este test, un endpoint nuevo entra al spec con
- * `sync-openapi` y se queda sin tool para siempre — nadie lo nota, porque no
- * falla nada: simplemente el agente no puede hacer esa cosa.
+ * Contract sweep: every operation of the three specs either has a tool, or is
+ * excluded here with its reason. Without this test, a new endpoint arrives in
+ * the spec through `sync-openapi` and stays tool-less forever — nobody notices,
+ * because nothing fails: the agent simply cannot do that thing.
  *
- * El match es por operationId contra el fuente de los tools: el cliente generado
- * exporta una función por operationId, así que si el nombre aparece, hay tool.
+ * The match is by operationId against the tool sources: the generated client
+ * exports one function per operationId, so if the name shows up, a tool exists.
  */
 const root = join(import.meta.dirname, "..");
 const source = ["admin.ts", "b2b.ts", "b2b-writes.ts", "public.ts"]
@@ -17,24 +17,26 @@ const source = ["admin.ts", "b2b.ts", "b2b-writes.ts", "public.ts"]
 	.join("\n");
 
 /**
- * Operaciones deliberadamente fuera del MCP. Cada una con su motivo: si mañana
- * alguien quiere exponerla, que discuta el motivo, no que lo descubra.
+ * Operations deliberately kept out of the MCP, each with its reason: if someone
+ * wants to expose one tomorrow, they argue with the reason instead of
+ * rediscovering it.
  */
 const EXCLUDED: Record<string, string> = {
-	// Mecánica del device flow: la usa el AS embebido (src/handler.ts), no un
-	// agente. Exponerla como tool sería darle al modelo el flujo de login.
-	postAuthDeviceCode: "device flow — lo maneja el AS del propio mcp",
-	postAuthDeviceToken: "device flow — lo maneja el AS del propio mcp",
-	// Credenciales: un agente no debería poder acuñar ni revocar acceso. Se hace
-	// con el CLI, donde hay un humano en el teclado.
-	postApiKeys: "acuñar credenciales es del CLI (`ft api-keys`)",
-	deleteApiKeysId: "revocar credenciales es del CLI (`ft api-keys`)",
-	postTokens: "acuñar PAT de plataforma es del CLI (`ft admin tokens`)",
-	deleteTokensId: "revocar PAT de plataforma es del CLI (`ft admin tokens`)",
-	// Mintea sesiones de comprador a partir de un one-time token: server-to-server
-	// entre free-admin y el integrador, no algo que un agente deba disparar.
+	// Device flow mechanics: used by the embedded AS (src/handler.ts), not by an
+	// agent. Exposing it as a tool would hand the model the login flow.
+	postAuthDeviceCode: "device flow — handled by the AS inside the mcp",
+	postAuthDeviceToken: "device flow — handled by the AS inside the mcp",
+	// Credentials: an agent should not be able to mint or revoke access. That is
+	// done with the CLI, where there is a human at the keyboard.
+	postApiKeys: "minting credentials belongs to the CLI (`ft api-keys`)",
+	deleteApiKeysId: "revoking credentials belongs to the CLI (`ft api-keys`)",
+	postTokens: "minting platform PATs belongs to the CLI (`ft admin tokens`)",
+	deleteTokensId:
+		"revoking platform PATs belongs to the CLI (`ft admin tokens`)",
+	// Mints buyer sessions from a one-time token: server-to-server between
+	// free-admin and the integrator, not something an agent should fire.
 	postApiCustomerAuthEnterpriseExchange:
-		"canje de sesión de terceros — server-to-server, no de agente",
+		"third-party session exchange — server-to-server, not for an agent",
 };
 
 function operations(specFile: string): { id: string; where: string }[] {
@@ -57,11 +59,11 @@ function operations(specFile: string): { id: string; where: string }[] {
 describe.each([
 	["B2B /api/v1", "openapi.json", 81],
 	["superadmin /api/admin", "admin-openapi.json", 23],
-	["público /api/public", "public-openapi.json", 6],
-])("contrato %s", (_label, file, minOps) => {
+	["public /api/public", "public-openapi.json", 6],
+])("contract %s", (_label, file, minOps) => {
 	const ops = operations(file);
 
-	it("expone todas sus operaciones como tools (o las excluye con motivo)", () => {
+	it("exposes every operation as a tool (or excludes it with a reason)", () => {
 		const uncovered = ops
 			.filter((o) => !EXCLUDED[o.id])
 			.filter((o) => !new RegExp(`\\b${o.id}\\b`).test(source))
@@ -69,13 +71,13 @@ describe.each([
 		expect(uncovered).toEqual([]);
 	});
 
-	it("no encogió de golpe (un spec truncado rompería los clientes en silencio)", () => {
+	it("did not shrink abruptly (a truncated spec would break the clients silently)", () => {
 		expect(ops.length).toBeGreaterThanOrEqual(minOps);
 	});
 });
 
-it("no arrastra exclusiones de operaciones que el contrato ya no tiene", () => {
-	// Una exclusión huérfana es una regla que nadie volvió a mirar.
+it("carries no exclusions for operations the contract no longer has", () => {
+	// An orphaned exclusion is a rule nobody has looked at again.
 	const ids = new Set(
 		["openapi.json", "admin-openapi.json", "public-openapi.json"]
 			.flatMap(operations)

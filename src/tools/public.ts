@@ -13,20 +13,20 @@ import {
 import { uiTool } from "../ui";
 
 /**
- * Tools públicos B2C (/api/public) — sin credenciales. Los consume el agente de
- * un comprador: descubre eventos, consulta stock y reenvía su propio ticket.
- * Se registran siempre (no dependen de FT_API_KEY). El agente nunca toca datos
- * de pago: el checkout lo cierra el humano en Mercado Pago.
+ * Public B2C tools (/api/public) — no credentials. A buyer agent consumes
+ * them: it discovers events, checks stock and resends its own ticket.
+ * They are always registered (they do not depend on FT_API_KEY). The agent
+ * never touches payment data: the human closes checkout at Mercado Pago.
  */
 export function registerPublicTools(server: McpServer, client: Client): void {
 	uiTool(
 		server,
 		"public_events_list",
-		"Catálogo público de eventos publicados (GET /public/events). Descubrimiento B2C, sin login.",
+		"Public catalogue of published events (GET /public/events). B2C discovery, no login.",
 		{
 			q: z.string().optional().describe("Búsqueda por nombre/descripción"),
 			city: z.string().optional().describe("Filtrar por ciudad"),
-			from: z.string().optional().describe("Funciones desde (ISO 8601)"),
+			from: z.string().optional().describe("Dates from (ISO 8601)"),
 			to: z.string().optional().describe("Funciones hasta (ISO 8601)"),
 			page: z.string().optional().describe("Página (default 1)"),
 			pageSize: z.string().optional().describe("Tamaño (default 20, máx 50)"),
@@ -37,28 +37,25 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 	server.tool(
 		"public_events_get",
 		"Detalle público de un evento por slug (GET /public/events/{slug}).",
-		{ slug: z.string().describe("Slug del evento") },
+		{ slug: z.string().describe("Event slug") },
 		async ({ slug }) => run(getEventsSlug({ path: { slug }, client })),
 	);
 	server.tool(
 		"public_events_availability",
-		"Stock en vivo por fecha y tipo de ticket (GET /public/events/{slug}/availability). Consultar antes de armar una orden.",
-		{ slug: z.string().describe("Slug del evento") },
+		"Live stock per date and ticket type (GET /public/events/{slug}/availability). Check it before building an order.",
+		{ slug: z.string().describe("Event slug") },
 		async ({ slug }) =>
 			run(getEventsSlugAvailability({ path: { slug }, client })),
 	);
 	server.tool(
 		"public_orders_create",
-		"Crea una orden B2C y devuelve el link de pago de Mercado Pago (POST /public/orders). " +
-			"El agente NUNCA procesa el pago: entrega la `checkoutUrl` al comprador para que pague. " +
-			"Solo admisión general (no numerado / no members-only) de un mismo organizador. " +
-			"Consultá el stock con public_events_availability antes.",
+		"Creates a B2C order and returns the Mercado Pago payment link (POST /public/orders). " +
+			"The agent NEVER processes the payment: it hands the `checkoutUrl` to the buyer to pay. " +
+			"General admission only (not seated, not members-only) from a single organizer. " +
+			"Check stock with public_events_availability first.",
 		{
-			buyerEmail: z
-				.string()
-				.email()
-				.describe("Correo del comprador (recibe el QR)"),
-			buyerName: z.string().min(1).describe("Nombre del comprador"),
+			buyerEmail: z.string().email().describe("Buyer email (receives the QR)"),
+			buyerName: z.string().min(1).describe("Buyer name"),
 			buyerPhone: z.string().optional(),
 			items: z
 				.array(
@@ -75,24 +72,22 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"public_orders_get",
-		"Estado de una orden B2C — pending | paid | expired | cancelled — y los tickets al pagar (GET /public/orders/{id}).",
+		"Status of a B2C order — pending | paid | expired | cancelled — plus the tickets once paid (GET /public/orders/{id}).",
 		{
-			id: z
-				.string()
-				.describe("Id de la orden (devuelto por public_orders_create)"),
+			id: z.string().describe("Order id (returned by public_orders_create)"),
 		},
 		async ({ id }) => run(getOrdersId({ path: { id }, client })),
 	);
 	server.tool(
 		"public_tickets_resend",
-		"Reenvía el QR/email de un ticket al correo del comprador (POST /public/tickets/{code}/resend). Rate-limited; el email va siempre al correo original de la compra.",
+		"Resends a ticket QR and email to the buyer address (POST /public/tickets/{code}/resend). Rate limited; the email always goes to the original address of the purchase.",
 		{
-			code: z.string().describe("Código del ticket"),
+			code: z.string().describe("Ticket code"),
 			email: z
 				.string()
 				.email()
 				.optional()
-				.describe("Opcional: debe coincidir con el correo del comprador"),
+				.describe("Optional: must match the buyer email"),
 		},
 		async ({ code, email }) =>
 			run(

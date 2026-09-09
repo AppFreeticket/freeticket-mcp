@@ -29,7 +29,7 @@ import { UI_META, uiTool } from "../ui";
 
 const destructive = { destructiveHint: true, idempotentHint: false } as const;
 const mutating = { destructiveHint: false, idempotentHint: false } as const;
-const CONFIRM = " ⚠️ Acción sensible cross-tenant: confirmá con el humano.";
+const CONFIRM = " ⚠️ Sensitive cross-tenant action: confirm with the human.";
 
 /**
  * Tools superadmin (/api/admin, cross-tenant). Se registran solo si hay
@@ -39,7 +39,7 @@ const CONFIRM = " ⚠️ Acción sensible cross-tenant: confirmá con el humano.
 export function registerAdminTools(server: McpServer, client: Client): void {
 	server.tool(
 		"admin_whoami",
-		"Identidad del superadmin de la sesión activa (GET /api/admin/me).",
+		"Identity of the superadmin in the active session (GET /api/admin/me).",
 		async () => run(getMe({ client })),
 	);
 
@@ -73,9 +73,10 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_tokens",
 		{
 			description:
-				"Service tokens (PAT) de plataforma: qué credenciales headless existen " +
-				"y cuándo se usaron (GET /api/admin/tokens). Nunca devuelve el secreto. " +
-				"Acuñar y revocar se hace con el CLI (`ft admin tokens`), no desde acá.",
+				"Platform service tokens (PATs): which headless credentials exist and " +
+				"when they were used (GET /api/admin/tokens). It never returns the " +
+				"secret. Minting and revoking is done with the CLI (`ft admin tokens`), " +
+				"not from here.",
 			inputSchema: {},
 			_meta: UI_META,
 		},
@@ -85,9 +86,9 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	uiTool(
 		server,
 		"admin_audit_log",
-		"Registro de auditoría del superadmin (GET /api/admin/audit-log).",
+		"Superadmin audit log (GET /api/admin/audit-log).",
 		{
-			action: z.string().optional().describe("Filtrar por acción"),
+			action: z.string().optional().describe("Filter by action"),
 			from: z.string().optional().describe("Desde (ISO 8601)"),
 			to: z.string().optional().describe("Hasta (ISO 8601)"),
 			limit: z.string().optional(),
@@ -100,7 +101,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	server.tool(
 		"admin_workspaces_get",
 		"Detalle de un workspace/tenant (GET /api/admin/workspaces/{id}).",
-		{ id: z.string().describe("Id del workspace") },
+		{ id: z.string().describe("Workspace id") },
 		async ({ id }) => run(getWorkspacesId({ path: { id }, client })),
 	);
 	server.tool(
@@ -111,7 +112,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			slug: z.string().describe("Slug único"),
 			type: z.enum(["ARTIST", "VENUE", "ORGANIZER"]),
 			country: z.string(),
-			email: z.string().email().optional().describe("Email del owner"),
+			email: z.string().email().optional().describe("Owner email"),
 		},
 		mutating,
 		async (body) => run(postWorkspaces({ body, client })),
@@ -120,7 +121,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_workspaces_update",
 		"Actualiza un workspace/tenant (PATCH /api/admin/workspaces/{id}).",
 		{
-			id: z.string().describe("Id del workspace"),
+			id: z.string().describe("Workspace id"),
 			name: z.string().optional(),
 			slug: z.string().optional(),
 			type: z.enum(["ARTIST", "VENUE", "ORGANIZER"]).optional(),
@@ -131,20 +132,20 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.max(80)
 				.nullish()
 				.describe(
-					"Template del sitio público del tenant. null lo vuelve al default.",
+					"Template of the public site for the tenant. null restores the default.",
 				),
 			customDomain: z
 				.string()
 				.max(253)
 				.nullish()
 				.describe(
-					"Dominio propio del tenant (sin protocolo). null lo desvincula.",
+					"Custom domain for the tenant (no protocol). null unlinks it.",
 				),
 			customDomainVerifiedAt: z
 				.string()
 				.datetime()
 				.nullish()
-				.describe("Marca la verificación del dominio. null la revierte."),
+				.describe("Marks the domain as verified. null reverts it."),
 		},
 		mutating,
 		async ({ id, ...body }) =>
@@ -152,12 +153,12 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"admin_workspaces_assign_plan",
-		"Asigna un plan de plataforma a mano — venta asistida, sin pasar por el " +
-			`autoservicio de Stripe (POST /api/admin/workspaces/{id}/plan).${CONFIRM} ` +
-			"Si el tenant tenía suscripción de Stripe, se cancela allá primero; si " +
-			"esa cancelación falla, la API aborta con 409 sin tocar nada.",
+		"Assigns a platform plan by hand — an assisted sale, bypassing Stripe " +
+			`self-service (POST /api/admin/workspaces/{id}/plan).${CONFIRM} ` +
+			"If the tenant had a Stripe subscription, it is cancelled there first; " +
+			"if that cancellation fails, the API aborts with 409 touching nothing.",
 		{
-			id: z.string().describe("Id del workspace"),
+			id: z.string().describe("Workspace id"),
 			planSlug: z
 				.enum(["spark", "star", "icon", "legend"])
 				.describe("Tier a activar (`legend` es enterprise)"),
@@ -169,14 +170,14 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	server.tool(
 		"admin_workspaces_suspend",
 		`Suspende un workspace/tenant (POST /api/admin/workspaces/{id}/suspend).${CONFIRM}`,
-		{ id: z.string().describe("Id del workspace") },
+		{ id: z.string().describe("Workspace id") },
 		destructive,
 		async ({ id }) => run(postWorkspacesIdSuspend({ path: { id }, client })),
 	);
 	server.tool(
 		"admin_workspaces_restore",
 		"Restaura un workspace suspendido (POST /api/admin/workspaces/{id}/restore).",
-		{ id: z.string().describe("Id del workspace") },
+		{ id: z.string().describe("Workspace id") },
 		mutating,
 		async ({ id }) => run(postWorkspacesIdRestore({ path: { id }, client })),
 	);
@@ -185,14 +186,14 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	server.tool(
 		"admin_users_get",
 		"Detalle de un usuario global (GET /api/admin/users/{id}).",
-		{ id: z.string().describe("Id del usuario") },
+		{ id: z.string().describe("User id") },
 		async ({ id }) => run(getUsersId({ path: { id }, client })),
 	);
 	server.tool(
 		"admin_users_update",
 		"Actualiza rol o baneo de un usuario (PATCH /api/admin/users/{id}).",
 		{
-			id: z.string().describe("Id del usuario"),
+			id: z.string().describe("User id"),
 			role: z
 				.enum(["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"])
 				.optional(),
@@ -214,7 +215,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"admin_impersonate_stop",
-		"Termina la impersonación activa (POST /api/admin/impersonate/stop).",
+		"Ends the active impersonation (POST /api/admin/impersonate/stop).",
 		mutating,
 		async () => run(postImpersonateStop({ client })),
 	);
@@ -223,14 +224,14 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	uiTool(
 		server,
 		"admin_platform_plans_list",
-		"Lista los planes de plataforma (GET /api/admin/platform-plans).",
+		"Lists the platform plans (GET /api/admin/platform-plans).",
 		{},
 		async () => run(getPlatformPlans({ client })),
 	);
 	server.tool(
 		"admin_platform_plans_get",
 		"Detalle de un plan de plataforma (GET /api/admin/platform-plans/{id}).",
-		{ id: z.string().describe("Id del plan de plataforma") },
+		{ id: z.string().describe("Platform plan id") },
 		async ({ id }) => run(getPlatformPlansId({ path: { id }, client })),
 	);
 	server.tool(
@@ -262,7 +263,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_platform_plans_update",
 		"Actualiza un plan de plataforma (PATCH /api/admin/platform-plans/{id}).",
 		{
-			id: z.string().describe("Id del plan de plataforma"),
+			id: z.string().describe("Platform plan id"),
 			name: z.string().optional(),
 			priceMonthly: z.number().optional(),
 			priceYearly: z.number().optional(),
@@ -296,12 +297,12 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_feature_flags_set",
 		"Activa/desactiva un feature flag en un scope (PUT /api/admin/feature-flags/{key}).",
 		{
-			key: z.string().describe("Key del flag"),
+			key: z.string().describe("Flag key"),
 			scope: z.enum(["global", "plan", "workspace"]),
 			scopeId: z
 				.string()
 				.optional()
-				.describe("Id del plan/workspace si scope no es global"),
+				.describe("Plan or workspace id when scope is not global"),
 			enabled: z.boolean(),
 		},
 		mutating,

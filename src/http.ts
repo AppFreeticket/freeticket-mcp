@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Entrypoint standalone del FreeTicket MCP remoto (Streamable HTTP).
- * Toda la lógica vive en src/handler.ts — compartida con la Vercel Function
- * (api/server.ts). Env: PORT (default 3333) + las de handler.ts.
+ * Standalone entrypoint for the remote FreeTicket MCP (Streamable HTTP).
+ * All the logic lives in src/handler.ts — shared with the Vercel Function
+ * (api/server.ts). Env: PORT (default 3333) plus everything handler.ts reads.
  */
 import { createServer } from "node:http";
 import { handleHttp } from "./handler";

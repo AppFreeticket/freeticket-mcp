@@ -5,107 +5,109 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [0.14.0] - 2026-09-02
 
-Sincroniza los tres contratos con lo que free-admin ya sirve: B2B 1.5.0 → **1.7.0**,
-superadmin 1.1.0 → **1.3.0**, público 0.3.0 → **0.4.0**. Cierra seis brechas del
-ledger del paraguas de una sola vez (#355, #356, #381, #382, #383, #403).
-**103 tools** (B2B 76 · superadmin 21 · público 6).
+Brings all three contracts in line with what free-admin already serves: B2B
+1.5.0 → **1.7.0**, superadmin 1.1.0 → **1.3.0**, public 0.3.0 → **0.4.0**.
+Closes six gaps from the umbrella ledger in one pass (#355, #356, #381, #382,
+#383, #403). **103 tools** (B2B 76 · superadmin 21 · public 6).
 
 ### Added
-- **Área de socios completa** (contrato 1.7.0, issue #355): `customer_ticket_get`,
+- **The full members area** (contract 1.7.0, issue #355): `customer_ticket_get`,
   `customer_membership`, `customer_profile`, `customer_ticket_cancel`,
-  `customer_subscribe` (devuelve la URL de pago — el agente nunca cobra),
+  `customer_subscribe` (returns the payment URL — the agent never charges),
   `customer_subscription_cancel`, `customer_profile_update`, `customer_logout`.
-  Misma credencial doble que `customer_me`: API key enterprise + `X-Customer-Session`.
-- **Contenido de la organización** (#356): `content_videos`, `content_posts`,
-  `content_lives`, `content_live_get` y `content_playback_token` (token firmado,
-  30 min en vivo / 1 h en video; `memberOnly` exige comprador con membresía).
-- **Comprobantes de liquidación** (#381): `settlements_document` y
-  `settlements_proof`. La API responde 302 a una URL firmada de 5 minutos, así que
-  van con fetch crudo (`redirect: "manual"`) y devuelven el link — seguir la
-  redirección metería el PDF entero en el contexto del modelo.
-- `admin_workspaces_assign_plan` (#383): venta asistida, activa un tier sin pasar
-  por el autoservicio de Stripe. `admin_workspaces_update` suma `webTemplate`,
-  `customDomain` y `customDomainVerifiedAt`.
-- `events_list` acepta `q`, `status` (filtra en la consulta, así `limit` cuenta
-  filas devueltas) y `withTotal` (agrega `page.total`, opt-in).
-- `sales_cancel` y `sales_refund` exponen los flags que el contrato ahora pide:
-  `acknowledge_open_payment` y `acknowledge_manual`.
-- Vista de MCP Apps en los 4 listados nuevos: van **29 tools con vista**.
+  Same double credential as `customer_me`: an enterprise API key plus
+  `X-Customer-Session`.
+- **Organization content** (#356): `content_videos`, `content_posts`,
+  `content_lives`, `content_live_get` and `content_playback_token` (a signed
+  token, 30 min live / 1 h video; `memberOnly` requires a buyer with a membership).
+- **Settlement receipts** (#381): `settlements_document` and `settlements_proof`.
+  The API answers 302 to a 5-minute signed URL, so they use a raw fetch
+  (`redirect: "manual"`) and return the link — following the redirect would drop
+  the whole PDF into the model's context.
+- `admin_workspaces_assign_plan` (#383): an assisted sale, activating a tier
+  without going through Stripe self-service. `admin_workspaces_update` gains
+  `webTemplate`, `customDomain` and `customDomainVerifiedAt`.
+- `events_list` accepts `q`, `status` (filtered in the query, so `limit` counts
+  returned rows) and `withTotal` (adds `page.total`, opt-in).
+- `sales_cancel` and `sales_refund` expose the flags the contract now demands:
+  `acknowledge_open_payment` and `acknowledge_manual`.
+- An MCP Apps view on the 4 new lists: **29 tools with a view**.
 
 ### Changed
-- `staff_list` en modo global usa `workspaceIds` del contrato (#382): **una sola
-  llamada** con las filas etiquetadas por el backend, en vez del fan-out de N
-  requests. El resto de los listados sigue con fan-out — el contrato no expone
-  agregación para ellos.
-- `GET /me` ahora trae el **rol efectivo y las secciones por workspace**
-  (`WorkspaceAccess`, #403); `Me.role` queda deprecado en el contrato. El
-  enforcement es del backend: el MCP ya no puede operar un workspace con un rol
-  que el panel acota. El fan-out global además **descarta antes de disparar** los
-  workspaces con `sections: []` (acceso vencido o revocado), en vez de
-  descubrirlos a fuerza de 403 en `errors[]`.
+- `staff_list` in global mode uses the contract's `workspaceIds` (#382): **one
+  single call** with rows tagged by the backend, instead of a fan-out of N
+  requests. The other lists still fan out — the contract exposes no aggregation
+  for them.
+- `GET /me` now carries the **effective role and sections per workspace**
+  (`WorkspaceAccess`, #403); `Me.role` is deprecated in the contract.
+  Enforcement belongs to the backend: the MCP can no longer operate a workspace
+  with a role the panel restricts. The global fan-out additionally **discards
+  before firing** the workspaces with `sections: []` (expired or revoked
+  access), instead of discovering them by collecting 403s in `errors[]`.
 
 ## [0.13.0] - 2026-08-05
 
 ### Added
-- `customer_me` y `customer_tickets` (GET /customer/me, GET /customer/tickets):
-  el SSO headless enterprise, único hueco que quedaba en el contrato B2B. Piden
-  API key de servicio enterprise + el session token del comprador
-  (`X-Customer-Session`). El canje que emite ese token sigue fuera del MCP:
-  mintea sesiones de terceros.
-- Vista de MCP Apps en 8 listados que salían en texto plano:
+- `customer_me` and `customer_tickets` (GET /customer/me, GET /customer/tickets):
+  the enterprise headless SSO, the last hole left in the B2B contract. They need
+  an enterprise service API key plus the buyer's session token
+  (`X-Customer-Session`). The exchange that issues that token stays out of the
+  MCP: it mints third-party sessions.
+- An MCP Apps view on 8 lists that were coming out as plain text:
   `public_events_list`, `event_dates_list`, `customer_tickets`,
   `admin_workspaces`, `admin_users`, `admin_audit_log`,
-  `admin_platform_plans_list`, `admin_feature_flags_list`. Van 25 tools con vista
-  — todos los listados y reportes.
-- `src/coverage.test.ts`: barrido del contrato. Cada operación de los tres specs
-  tiene tool o está excluida con su motivo; si `sync-openapi` trae un endpoint
-  nuevo y nadie le hace tool, el test falla con su método y path. Las
-  exclusiones deliberadas (device flow, acuñar credenciales, canje de sesiones)
-  quedan documentadas junto al test.
-- Tests reales del view en jsdom: se monta el HTML y se le empujan mensajes del
-  host. Cubren tabla, tiles, sobre `{ data }`, error, escape de payloads de la
-  API, handshake, teardown y las invariantes de marca. Antes solo se verificaba
-  que el string contuviera ciertas subcadenas.
+  `admin_platform_plans_list`, `admin_feature_flags_list`. That makes 25 tools
+  with a view — every list and every report.
+- `src/coverage.test.ts`: a contract sweep. Every operation of the three specs
+  either has a tool or is excluded with its reasoning; if `sync-openapi` pulls a
+  new endpoint and nobody writes it a tool, the test fails with its method and
+  path. The deliberate exclusions (device flow, minting credentials, session
+  exchange) are documented next to the test.
+- Real jsdom tests of the view: the HTML is mounted and host messages are pushed
+  at it. They cover the table, the tiles, the `{ data }` envelope, the error
+  state, escaping of API payloads, the handshake, teardown and the brand
+  invariants. Before, the only check was that the string contained certain
+  substrings.
 
 ### Fixed
-- **El tema del host ya no puede pisar la marca.** `applyTheme` acepta solo las
-  variables del contrato de la extensión (`--color-*`, `--font-*`); el acento de
-  FreeTicket queda fuera de su alcance. El header muestra el logo real de
-  `brand.ts` en vez de un cuadradito de CSS.
-- Al cambiar de tema el view fija `color-scheme` además de `data-theme`. Sin eso
-  `light-dark()` seguía al sistema operativo y el view salía claro dentro de un
-  chat oscuro.
-- El view valida `event.source`: solo procesa mensajes del frame que lo montó.
-  Cualquier otro podía inyectar un `tool-result` falso y el usuario habría visto
-  datos que no vinieron de FreeTicket.
-- El view responde `ui/resource-teardown` para que el host desmonte el iframe de
-  forma ordenada, y muestra estado al recibir `ui/notifications/tool-input`.
-- La moneda se formatea con el `locale` del host cuando lo declara (antes,
-  siempre `es-CO`).
+- **The host's theme can no longer override the branding.** `applyTheme` accepts
+  only the extension contract's variables (`--color-*`, `--font-*`); the
+  FreeTicket accent is out of its reach. The header shows the real logo from
+  `brand.ts` instead of a little CSS square.
+- On a theme change the view sets `color-scheme` as well as `data-theme`.
+  Without that, `light-dark()` followed the operating system and the view
+  rendered light inside a dark chat.
+- The view validates `event.source`: it only processes messages from the frame
+  that mounted it. Any other frame could inject a fake `tool-result`, and the
+  user would have seen data that did not come from FreeTicket.
+- The view answers `ui/resource-teardown` so the host unmounts the iframe
+  cleanly, and shows a state when it receives `ui/notifications/tool-input`.
+- Currency is formatted with the host's locale when it declares one (previously
+  always `es-CO`).
 
 ## [0.12.0] - 2026-08-03
 
 ### Added
-- **MCP Apps (`io.modelcontextprotocol/ui`, spec 2026-01-26)**: el server publica
-  el recurso `ui://freeticket/view.html` (mimeType `text/html;profile=mcp-app`) y
-  17 tools de lectura lo declaran en `_meta.ui.resourceUri`. Un único view
-  autocontenido renderiza **tabla** para listados y **tiles de KPI** para
-  objetos, con formato de moneda, pills de estado y adopción del tema del host.
-  Los resultados ahora viajan también en `structuredContent` (`{ data }`), que
-  es lo que consume el view. Hosts sin la extensión ignoran `_meta` y siguen
-  viendo el texto.
-- `settlements_list` (GET /settlements) y `reports_financials`
-  (GET /reports/financials): las liquidaciones al organizador y el desglose
-  financiero por función — los números autoritativos del panel de Liquidaciones.
-- `api_keys_list` (GET /api-keys) y `admin_tokens` (GET /api/admin/tokens):
-  auditoría de credenciales. Acuñar y revocar sigue siendo del CLI a propósito.
-- Ola B completa: `event_dates_create`, `event_dates_update`,
-  `ticket_types_update`, `plans_update`, `venues_update`. El contrato 1.5.0 ya
-  declara su `requestBody`, así que los schemas salen del spec.
+- **MCP Apps (`io.modelcontextprotocol/ui`, spec 2026-01-26)**: the server
+  publishes the `ui://freeticket/view.html` resource (mimeType
+  `text/html;profile=mcp-app`) and 17 read tools declare it in
+  `_meta.ui.resourceUri`. A single self-contained view renders a **table** for
+  lists and **KPI tiles** for objects, with currency formatting, status pills
+  and adoption of the host's theme. Results now also travel in
+  `structuredContent` (`{ data }`), which is what the view consumes. Hosts
+  without the extension ignore `_meta` and keep seeing the text.
+- `settlements_list` (GET /settlements) and `reports_financials`
+  (GET /reports/financials): organizer settlements and the per-date financial
+  breakdown — the authoritative numbers from the Settlements panel.
+- `api_keys_list` (GET /api-keys) and `admin_tokens` (GET /api/admin/tokens):
+  credential auditing. Minting and revoking stay with the CLI on purpose.
+- Wave B completed: `event_dates_create`, `event_dates_update`,
+  `ticket_types_update`, `plans_update`, `venues_update`. Contract 1.5.0 now
+  declares their `requestBody`, so the schemas come from the spec.
 
 ### Changed
-- Contratos sincronizados: B2B `1.5.0`, admin `1.1.0`, público `0.3.0`.
-- `plans_create` incluye `sortOrder` (pasó a requerido en el contrato).
+- Contracts synchronized: B2B `1.5.0`, admin `1.1.0`, public `0.3.0`.
+- `plans_create` includes `sortOrder` (it became required in the contract).
 
 ## [0.11.0] - 2026-07-08
 
@@ -153,21 +155,22 @@ ledger del paraguas de una sola vez (#355, #356, #381, #382, #383, #403).
 ## [0.9.0] - 2026-07-07
 
 ### Added
-- **B2C público (`/api/public`)**: 6 tools `public_*` anónimos (sin credenciales)
-  para el agente de un comprador — `public_events_list|get|availability`
-  (descubrimiento), `public_orders_create` (crea la orden y devuelve la
-  `checkoutUrl` de Mercado Pago; el agente nunca toca el pago) + `public_orders_get`
-  (estado + tickets al pagar), y `public_tickets_resend`. Cliente generado del
-  tercer contrato (`public-openapi.json` 0.3.0 → `src/public-client/`,
+- **Public B2C (`/api/public`)**: 6 anonymous `public_*` tools (no credentials)
+  for a buyer's agent — `public_events_list|get|availability` (discovery),
+  `public_orders_create` (creates the order and returns the Mercado Pago
+  `checkoutUrl`; the agent never touches the payment) + `public_orders_get`
+  (status + tickets once paid), and `public_tickets_resend`. Client generated
+  from the third contract (`public-openapi.json` 0.3.0 → `src/public-client/`,
   `sync-openapi:public`, `openapi-ts.public.config.ts`).
-- Capas por credencial en `buildServer`: los `public_*` se registran **siempre**;
-  B2B solo con `apiKey`; `admin_*` solo con `adminSession`. El server HTTP sirve
-  el set público de forma **anónima** (sin Bearer, 200) y suma las capas
-  autenticadas cuando llega el token.
+- Credential-based layers in `buildServer`: `public_*` tools are registered
+  **always**; B2B only with an `apiKey`; `admin_*` only with an `adminSession`.
+  The HTTP server serves the public set **anonymously** (no Bearer, 200) and
+  adds the authenticated layers once a token arrives.
 
 ### Changed
-- `Creds.apiKey` ahora es opcional: sin credencial el server arranca en modo
-  anónimo (solo B2C) en vez de fallar. El entrypoint stdio ya no aborta sin key.
+- `Creds.apiKey` is now optional: with no credential the server starts in
+  anonymous mode (B2C only) instead of failing. The stdio entrypoint no longer
+  aborts without a key.
 
 ## [0.6.0] - 2026-07-07
 

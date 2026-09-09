@@ -1,9 +1,9 @@
 /**
- * Brand assets copiados de free-admin (public/brand/favicon.svg) — misma
- * identidad en toda la superficie FreeTicket. Si la marca cambia allá, se
- * recopia acá (no hay pipeline: es un asset estático).
+ * Brand assets copied from free-admin (public/brand/favicon.svg) — one identity
+ * across the whole FreeTicket surface. If the brand changes there, it is copied
+ * here again (there is no pipeline: it is a static asset).
  */
-/** Acento de marca — el mismo teal que usa el CLI en sus tablas. */
+/** Brand accent — the same teal the CLI uses in its tables. */
 export const BRAND = { accent: "#07C2BA" } as const;
 
 export const FAVICON_SVG =

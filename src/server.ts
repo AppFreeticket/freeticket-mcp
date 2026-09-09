@@ -14,23 +14,24 @@ import { registerUi } from "./ui";
 export const VERSION = "0.14.0";
 
 /**
- * Construye un McpServer aislado para una sesión. Cada sesión trae sus propios
- * clients — no hay estado global compartido, así el mismo binario sirve a varios
- * tenants por HTTP sin cruzar credenciales.
+ * Builds an isolated McpServer for one session. Every session carries its own
+ * clients — there is no shared global state, so the same binary serves many
+ * tenants over HTTP without crossing credentials.
  *
- * Capas por nivel de credencial:
- *  - public_* (B2C): SIEMPRE — anónimo, no necesita API key.
- *  - B2B: solo si la sesión trae `apiKey`.
- *  - admin_*: solo si trae `adminSession`.
+ * Layers by credential level:
+ *  - public_* (B2C): ALWAYS — anonymous, needs no API key.
+ *  - B2B: only when the session carries an `apiKey`.
+ *  - admin_*: only when it carries an `adminSession`.
  */
 export function buildServer(creds: Creds): McpServer {
 	const server = new McpServer({ name: "freeticket", version: VERSION });
 
-	// View de MCP Apps. Se registra siempre: los tools que lo usan lo apuntan por
-	// `_meta.ui.resourceUri` y un host sin la extensión simplemente no lo pide.
+	// The MCP Apps view. Always registered: the tools that use it point at it
+	// through `_meta.ui.resourceUri`, and a host without the extension just
+	// never asks for it.
 	registerUi(server);
 
-	// B2C público: sin credenciales, siempre disponible.
+	// Public B2C: no credentials, always available.
 	registerPublicTools(server, makePublicClient(creds.apiUrl));
 
 	if (creds.apiKey) {

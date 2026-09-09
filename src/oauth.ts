@@ -1,18 +1,23 @@
 /**
- * OAuth 2.1 embebido para el transporte HTTP remoto.
+ * Embedded OAuth 2.1 for the remote HTTP transport.
  *
  * claude.ai (Add custom connector) solo sabe autenticar connectors vía OAuth:
  * discovery (RFC 8414/9728) → dynamic client registration (RFC 7591) →
- * authorize con PKCE → token. No puede mandar headers custom ni una API key.
+ * authorize with PKCE → token. It cannot send custom headers or an API key.
  *
- * Este módulo es el puente: una página de consentimiento donde el usuario pega
- * sus credenciales FreeTicket (API key B2B, workspace, sesión superadmin) y un
- * emisor de tokens **stateless**: el token es el payload de credenciales
- * sellado con AES-256-GCM bajo MCP_TOKEN_SECRET. No hay base de datos ni
- * registro de clientes — el server no guarda nada.
+ * This module is the bridge: a consent page where the user supplies their
+ * FreeTicket credentials (B2B API key, workspace, superadmin session) and a
+ * **stateless** token issuer — the token is the credential payload sealed with
+ * AES-256-GCM under MCP_TOKEN_SECRET. There is no database and no client
+ * registry; the server stores nothing.
  *
- * ponytail: AS embebido en el mcp; si free-admin publica un authorization
- * server real, FT_OAUTH_ISSUER lo delega sin tocar este código.
+ * The consent page copy is in Spanish on purpose: it is the login screen a
+ * FreeTicket organizer sees, and their product language is Spanish. Everything
+ * else in this repo is English.
+ *
+ * ponytail: the AS is embedded in the mcp; if free-admin ever publishes a real
+ * authorization server, FT_OAUTH_ISSUER delegates to it without touching this
+ * code.
  */
 import {
 	createCipheriv,
@@ -22,13 +27,13 @@ import {
 } from "node:crypto";
 import type { Creds } from "./api";
 
-/** Payload sellado dentro de un token/código. Claves cortas: viaja en la URL. */
+/** Payload sealed inside a token or code. Short keys: it travels in the URL. */
 export interface Sealed {
 	/** API key B2B */
 	k?: string;
 	/** workspace id */
 	w?: string;
-	/** sesión superadmin (cookie better-auth) */
+	/** superadmin session (better-auth cookie) */
 	a?: string;
 	/** PKCE code_challenge — solo en authorization codes */
 	ch?: string;
@@ -72,7 +77,7 @@ export function seal(payload: Sealed, secret: string, prefix: string): string {
 	);
 }
 
-/** Abre un token sellado. `null` si el prefijo, la firma o el exp no validan. */
+/** Opens a sealed token. `null` when the prefix, signature or exp do not validate. */
 export function open(
 	token: string,
 	secret: string,
@@ -111,7 +116,7 @@ export function sealedToCreds(p: Sealed, apiUrl: string): Creds {
 	};
 }
 
-/** Metadata RFC 8414 del authorization server embebido. */
+/** RFC 8414 metadata for the embedded authorization server. */
 export function authServerMetadata(origin: string) {
 	return {
 		issuer: origin,
@@ -130,15 +135,15 @@ const esc = (s: string) =>
 	s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
 /**
- * Página de consentimiento. Camino principal: **login con la sesión de
- * free-admin** vía device flow (RFC 8628, mismo backend que `ft login`) — un
+ * The consent page. Primary path: **login with the free-admin session** via
+ * the device flow (RFC 8628, the same backend as `ft login`) — one
  * botón, cero keys. La página hace polling a /device-token y redirige sola al
  * cliente MCP. El form de credenciales manuales queda como "Opciones
  * avanzadas" (CI, superadmin). Copy en español neutro (audiencia LATAM).
  *
  * Diseño = tokens de free-admin (globals.css): amarillo #ffd500 sobre negro
  * #070707, muted #717182, borde #e0e0e0, radios 0.75rem card / 0.5rem botón,
- * dark mode con los mismos oklch del tema `.dark`.
+ * dark mode with the same oklch values as the `.dark` theme.
  */
 export function consentPage(
 	params: URLSearchParams,
