@@ -1,7 +1,7 @@
 import type { Client } from "@hey-api/client-fetch";
 import { type Creds, makeB2bClient, run } from "./api";
 import { getMe } from "./client/sdk.gen";
-import type { Workspace } from "./client/types.gen";
+import type { WorkspaceAccess } from "./client/types.gen";
 
 /**
  * Modo global de workspaces (brecha #3): fan-out en el cliente, no agregación
@@ -47,8 +47,8 @@ type ListFn<T> = (
  */
 export function makeWorkspaceResolver(
 	client: Client,
-): () => Promise<Workspace[]> {
-	let cached: Promise<Workspace[]> | null = null;
+): () => Promise<WorkspaceAccess[]> {
+	let cached: Promise<WorkspaceAccess[]> | null = null;
 	return () => {
 		if (!cached) {
 			cached = getMe({ client })
@@ -68,11 +68,16 @@ export function makeWorkspaceResolver(
  * están en esa lista Y son accesibles; los que no, se descartan en silencio.
  */
 export async function resolveWorkspaceTargets(
-	resolveWorkspaces: () => Promise<Workspace[]>,
+	resolveWorkspaces: () => Promise<WorkspaceAccess[]>,
 	workspace: string | string[] | undefined,
-): Promise<Workspace[] | null> {
+): Promise<WorkspaceAccess[] | null> {
 	if (workspace === undefined) return null;
-	const accessible = await resolveWorkspaces();
+	// `sections: []` = acceso vencido o revocado en ese workspace (contrato
+	// 1.7.0). Antes se descubría a fuerza de 403 dentro del fan-out; ahora el
+	// target ni se dispara. `null` = sin acotar, se incluye.
+	const accessible = (await resolveWorkspaces()).filter(
+		(w) => w.sections === null || w.sections.length > 0,
+	);
 	if (workspace === "all") return accessible;
 	const ids = new Set(workspace);
 	return accessible.filter((w) => ids.has(w.id));
@@ -86,7 +91,7 @@ export async function resolveWorkspaceTargets(
  */
 export async function runAcrossWorkspaces<T>(
 	creds: Creds,
-	targets: Workspace[],
+	targets: WorkspaceAccess[],
 	fn: ListFn<T>,
 ): Promise<WorkspaceFanOutResult<T>> {
 	const rows: WorkspaceRow<T>[] = [];
@@ -156,7 +161,7 @@ function fanOutContent<T>(result: WorkspaceFanOutResult<T>): {
 export interface WorkspaceListContext {
 	client: Client;
 	creds: Creds;
-	resolveWorkspaces: () => Promise<Workspace[]>;
+	resolveWorkspaces: () => Promise<WorkspaceAccess[]>;
 }
 
 /**

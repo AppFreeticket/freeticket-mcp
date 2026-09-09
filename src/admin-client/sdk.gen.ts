@@ -63,6 +63,9 @@ import type {
 	PostTokensResponse,
 	PostWorkspacesData,
 	PostWorkspacesError,
+	PostWorkspacesIdPlanData,
+	PostWorkspacesIdPlanError,
+	PostWorkspacesIdPlanResponse,
 	PostWorkspacesIdRestoreData,
 	PostWorkspacesIdRestoreError,
 	PostWorkspacesIdRestoreResponse,
@@ -194,7 +197,7 @@ export const getWorkspacesId = <ThrowOnError extends boolean = false>(
 
 /**
  * Actualizar tenant
- * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Además de los datos básicos, permite configurar el white-label enterprise: `webTemplate` (plantilla de la página pública), `customDomain` (dominio apex propio, hostname sin esquema ni ruta; se guarda en minúsculas y sin `www.`; `null` lo desvincula) y `customDomainVerifiedAt`. FUERA DE ALCANCE de este endpoint: el alta real del dominio, que sigue siendo manual — agregar el dominio al proyecto de Vercel, sumarlo a la env var `ENTERPRISE_CUSTOM_DOMAINS` y redesplegar (`serverActions.allowedOrigins` se evalúa en build). Esta ruta solo persiste el registro administrativo; hasta ese redeploy el dominio no resuelve al tenant.
  */
 export const patchWorkspacesId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchWorkspacesIdData, ThrowOnError>,
@@ -212,6 +215,34 @@ export const patchWorkspacesId = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/workspaces/{id}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Asignar plan manualmente (venta asistida)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Activa el plan sin pasar por el autoservicio de Stripe (`legend` es el tier enterprise). Si el tenant tenía una suscripción de Stripe vinculada se cancela ALLÁ antes de reasignar; si esa cancelación falla, la operación aborta con 409 sin tocar la fila, para no dejar al tenant en un plan que sigue cobrándose por fuera. Es idempotente en el resultado: reasignar el mismo plan deja la suscripción ACTIVE sin vínculo de Stripe.
+ */
+export const postWorkspacesIdPlan = <ThrowOnError extends boolean = false>(
+	options: Options<PostWorkspacesIdPlanData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostWorkspacesIdPlanResponse,
+		PostWorkspacesIdPlanError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/workspaces/{id}/plan",
 		...options,
 		headers: {
 			"Content-Type": "application/json",

@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket Public API",
-		"version": "0.3.0",
+		"version": "0.4.0",
 		"description": "API REST pública de FreeTicket para el comprador B2C y sus agentes (CLI/MCP). Sin autenticación: cada endpoint es anónimo y con rate limit estricto. Aislada de los contratos B2B /api/v1 y superadmin /api/admin."
 	},
 	"servers": [
@@ -153,7 +153,8 @@
 						"required": false,
 						"description": "Página (default 1)",
 						"schema": {
-							"type": "string"
+							"type": "integer",
+							"default": 1
 						}
 					},
 					{
@@ -162,7 +163,8 @@
 						"required": false,
 						"description": "Tamaño de página (default 20, máx 50)",
 						"schema": {
-							"type": "string"
+							"type": "integer",
+							"default": 20
 						}
 					},
 					{
@@ -171,7 +173,8 @@
 						"required": false,
 						"description": "date_asc | price_asc | price_desc",
 						"schema": {
-							"type": "string"
+							"type": "string",
+							"enum": ["date_asc", "price_asc", "price_desc"]
 						}
 					}
 				],
@@ -456,8 +459,28 @@
 							}
 						}
 					},
+					"409": {
+						"description": "Conflicto: el recurso no admite la operación en su estado actual.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "Validación del cuerpo/parámetros.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "Error del proveedor externo al completar la operación.",
 						"content": {
 							"application/json": {
 								"schema": {

@@ -174,15 +174,15 @@ export type GetEventsData = {
 		/**
 		 * Página (default 1)
 		 */
-		page?: string;
+		page?: number;
 		/**
 		 * Tamaño de página (default 20, máx 50)
 		 */
-		pageSize?: string;
+		pageSize?: number;
 		/**
 		 * date_asc | price_asc | price_desc
 		 */
-		sort?: string;
+		sort?: "date_asc" | "price_asc" | "price_desc";
 	};
 	url: "/events";
 };
@@ -325,9 +325,17 @@ export type PostOrdersErrors = {
 	 */
 	404: _Error;
 	/**
+	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 */
+	409: _Error;
+	/**
 	 * Validación del cuerpo/parámetros.
 	 */
 	422: _Error;
+	/**
+	 * Error del proveedor externo al completar la operación.
+	 */
+	502: _Error;
 };
 
 export type PostOrdersError = PostOrdersErrors[keyof PostOrdersErrors];
