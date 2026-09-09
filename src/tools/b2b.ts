@@ -56,6 +56,9 @@ const id = z.string().describe("Id del recurso");
 const eventStatus = z
 	.enum(["DRAFT", "PUBLISHED", "SOLD_OUT", "CANCELLED", "COMPLETED"])
 	.describe("Estado del evento");
+const saleChannel = z
+	.enum(["WEB", "MOBILE", "POS", "ADMIN"])
+	.describe("Canal de venta");
 const saleStatus = z
 	.enum(["PENDING", "CONFIRMED", "ABANDONED", "CANCELLED", "REFUNDED"])
 	.describe("Estado de la venta");
@@ -209,8 +212,11 @@ export function registerB2bTools(
 		"sales_list",
 		"Lista ventas con filtros (GET /sales). `workspace` activa el modo global.",
 		{
-			status: z.string().optional().describe("Filtrar por estado"),
-			channel: z.string().optional().describe("Canal de venta"),
+			// El contrato los declara enum; tiparlos como string suelto le hacía
+			// gastar un roundtrip al agente para enterarse de que "PAID" o
+			// "MOBILE_APP" no existen (issue #11). El schema es el contrato.
+			status: saleStatus.optional(),
+			channel: saleChannel.optional(),
 			event: z.string().optional().describe("Filtrar por evento"),
 			eventDate: z.string().optional().describe("Filtrar por fecha de evento"),
 			reference: z.string().optional().describe("Buscar por referencia"),
@@ -350,7 +356,7 @@ export function registerB2bTools(
 		{
 			from: z.string().optional().describe("Desde (ISO 8601)"),
 			to: z.string().optional().describe("Hasta (ISO 8601)"),
-			status: z.string().optional().describe("Filtrar por estado de venta"),
+			status: saleStatus.optional(),
 		},
 		async (q) => run(getReportsByEvent({ query: q, client })),
 	);
