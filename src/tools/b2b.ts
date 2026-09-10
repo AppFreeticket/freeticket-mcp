@@ -47,38 +47,37 @@ import { uiTool } from "../ui";
 import { makeWorkspaceResolver, runWorkspaceList } from "../workspaces";
 
 const paging = {
-	limit: z.string().optional().describe("Resultados por página (1-100)"),
-	cursor: z.string().optional().describe("Cursor de paginación"),
+	limit: z.string().optional().describe("Results per page (1-100)"),
+	cursor: z.string().optional().describe("Pagination cursor"),
 };
-const id = z.string().describe("Id del recurso");
+const id = z.string().describe("Resource id");
 
-/** Enums del contrato — el cliente generado ya no acepta un string suelto. */
+/** Contract enums — the generated client no longer accepts a loose string. */
 const eventStatus = z
 	.enum(["DRAFT", "PUBLISHED", "SOLD_OUT", "CANCELLED", "COMPLETED"])
-	.describe("Estado del evento");
+	.describe("Event status");
 const saleChannel = z
 	.enum(["WEB", "MOBILE", "POS", "ADMIN"])
-	.describe("Canal de venta");
+	.describe("Sales channel");
 const saleStatus = z
 	.enum(["PENDING", "CONFIRMED", "ABANDONED", "CANCELLED", "REFUNDED"])
-	.describe("Estado de la venta");
+	.describe("Sale status");
 
 /**
- * Modo global (brecha #3): opcional en los tools de lectura con listado.
- * Ausente = comportamiento actual (solo el workspace activo de la sesión).
- * "all" o una lista de ids agrega varios workspaces — cada fila queda
- * etiquetada con workspaceId/workspaceName. El conjunto de ids válidos sale
- * siempre de GET /me, nunca de lo que pida el cliente sin validar.
+ * Global mode (gap #3): optional on the read tools that list.
+ * Absent = current behaviour (the session's active workspace only).
+ * "all", or a list of ids, aggregates several workspaces — every row is
+ * tagged with workspaceId/workspaceName. The set of valid ids always comes
+ * from GET /me, never from whatever the client asks for unvalidated.
  */
 /**
- * #8: `events_list` devolvía el evento entero — descripción larga y cuatro URLs
- * de imagen por fila. Con 81 eventos eso desborda la ventana del agente, que
- * después gasta llamadas de shell para parsear el JSON afuera del modelo. Por
- * defecto va la vista corta; `verbose: true` trae el objeto tal cual, así el
- * campo recortado siempre es recuperable y el cliente no define el contrato por
- * omisión.
- * ponytail: recorte en el cliente. Si `GET /events` gana un `fields`, esto se
- * borra y se pide allá.
+ * #8: `events_list` used to return the whole event — a long description and
+ * four image URLs per row. At 81 events that overflows the agent's window, and
+ * it then burns shell calls parsing the JSON outside the model. The slim view
+ * is the default; `verbose: true` returns the object as-is, so a trimmed field
+ * is always recoverable and the client does not define the contract by omission.
+ * ponytail: trimming in the client. If `GET /events` grows a `fields` param,
+ * this goes away and is asked for upstream.
  */
 const SLIM_EVENT_FIELDS = [
 	"id",
@@ -105,17 +104,17 @@ const workspaceParam = z
 	.union([z.literal("all"), z.array(z.string())])
 	.optional()
 	.describe(
-		'Modo global: "all" agrega todos los workspaces accesibles de la sesión, ' +
-			"o una lista de ids agrega solo esos. Ausente = solo el workspace activo " +
-			"(comportamiento actual). Cada fila del resultado queda etiquetada con " +
+		'Global mode: "all" aggregates every workspace the session can reach, ' +
+			"or a list of ids aggregates only those. Absent = the active workspace " +
+			"only (current behaviour). Every row of the result is tagged with " +
 			"workspaceId/workspaceName.",
 	);
 
 /**
- * Descargas de liquidación: la API responde **302** hacia una URL firmada con
- * TTL de 5 minutos. Seguir la redirección traería el PDF entero al contexto del
- * modelo, así que se corta en el 302 y se devuelve el link para que lo abra
- * quien corresponda. Por eso va con fetch crudo y no con el cliente generado.
+ * Settlement downloads: the API answers **302** towards a signed URL with a
+ * 5-minute TTL. Following the redirect would pull the whole PDF into the
+ * model's context, so we stop at the 302 and return the link for whoever should
+ * open it. That is why this uses a raw fetch and not the generated client.
  */
 async function signedDownload(
 	creds: Creds,
@@ -138,7 +137,7 @@ async function signedDownload(
 			content: [
 				{
 					type: "text",
-					text: `La API no devolvió la URL firmada (HTTP ${res.status}): ${await res.text()}`,
+					text: `The API did not return the signed URL (HTTP ${res.status}): ${await res.text()}`,
 				},
 			],
 		};
@@ -153,13 +152,13 @@ async function signedDownload(
 }
 
 /**
- * Ola A: todos los reads del contrato B2B /api/v1 (un tool = un operationId).
- * Writes (create/update/delete/publish/checkin/refund…) = Ola B, sin modo
+ * Wave A: every read of the B2B /api/v1 contract (one tool = one operationId).
+ * Writes (create/update/delete/publish/checkin/refund…) = Wave B, with no
  * global: siguen siendo de un solo workspace, explícito.
  *
- * Los listados y reportes se registran con `uiTool`: además del JSON traen el
- * view de MCP Apps (src/ui.ts), que el host renderiza como tabla o KPIs. Un
- * host sin la extensión ignora `_meta` y ve el mismo texto de siempre.
+ * Lists and reports register through `uiTool`: alongside the JSON they carry
+ * the MCP Apps view (src/ui.ts), which the host renders as a table or KPIs. A
+ * host without the extension ignores `_meta` and sees the same text as always.
  */
 export function registerB2bTools(
 	server: McpServer,
@@ -174,16 +173,16 @@ export function registerB2bTools(
 
 	server.tool(
 		"whoami",
-		"Usuario y workspaces de la sesión configurada (GET /me).",
+		"User and workspaces of the configured session (GET /me).",
 		async () => run(getMe({ client })),
 	);
 
 	uiTool(
 		server,
 		"events_list",
-		"Lista los eventos del workspace (GET /events). `status` filtra en la " +
+		"Lists the workspace's events (GET /events). `status` filters in the " +
 			"consulta (así `limit` cuenta solo filas devueltas) y `withTotal` agrega " +
-			"`page.total`. `workspace` activa el modo global.",
+			"`page.total`. `workspace` turns on global mode.",
 		{
 			...paging,
 			q: z.string().optional().describe("Búsqueda por nombre/descripción"),
@@ -196,8 +195,8 @@ export function registerB2bTools(
 				.boolean()
 				.optional()
 				.describe(
-					"Devolver el evento completo (descripción e imágenes). Por defecto " +
-						"va la vista corta: id, nombre, slug, estado, acceso, venue y " +
+					"Return the whole event (description and images). The slim view " +
+						"is the default: id, name, slug, status, access, venue and " +
 						"próxima fecha.",
 				),
 			workspace: workspaceParam,
@@ -214,15 +213,15 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"events_get",
-		"Detalle de un evento (GET /events/{id}).",
+		"Detail of one event (GET /events/{id}).",
 		{ id },
 		async ({ id }) => run(getEventsId({ path: { id }, client })),
 	);
 	uiTool(
 		server,
 		"event_dates_list",
-		"Fechas/funciones de un evento (GET /events/{id}/dates).",
-		{ eventId: z.string().describe("Id del evento") },
+		"Dates of an event (GET /events/{id}/dates).",
+		{ eventId: z.string().describe("Event id") },
 		async ({ eventId }) =>
 			run(getEventsIdDates({ path: { id: eventId }, client })),
 	);
@@ -230,12 +229,9 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"ticket_types_list",
-		"Tipos de ticket (GET /ticket-types). `workspace` activa el modo global.",
+		"Ticket types (GET /ticket-types). `workspace` turns on global mode.",
 		{
-			eventDateId: z
-				.string()
-				.optional()
-				.describe("Filtrar por fecha de evento"),
+			eventDateId: z.string().optional().describe("Filter by event date"),
 			...paging,
 			workspace: workspaceParam,
 		},
@@ -254,21 +250,18 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"sales_list",
-		"Lista ventas con filtros (GET /sales). `workspace` activa el modo global.",
+		"Lists sales with filters (GET /sales). `workspace` turns on global mode.",
 		{
-			// El contrato los declara enum; tiparlos como string suelto le hacía
-			// gastar un roundtrip al agente para enterarse de que "PAID" o
-			// "MOBILE_APP" no existen (issue #11). El schema es el contrato.
+			// The contract declares these as enums; typing them as a loose string
+			// cost the agent a roundtrip to discover that "PAID" or "MOBILE_APP"
+			// do not exist (issue #11). The schema is the contract.
 			status: saleStatus.optional(),
 			channel: saleChannel.optional(),
-			event: z.string().optional().describe("Filtrar por evento"),
-			eventDate: z.string().optional().describe("Filtrar por fecha de evento"),
+			event: z.string().optional().describe("Filter by event"),
+			eventDate: z.string().optional().describe("Filter by event date"),
 			reference: z.string().optional().describe("Buscar por referencia"),
-			buyer: z
-				.string()
-				.optional()
-				.describe("Buscar por comprador (nombre/email)"),
-			from: z.string().optional().describe("Creadas desde (ISO 8601)"),
+			buyer: z.string().optional().describe("Search by buyer (name or email)"),
+			from: z.string().optional().describe("Created from (ISO 8601)"),
 			to: z.string().optional().describe("Creadas hasta (ISO 8601)"),
 			...paging,
 			workspace: workspaceParam,
@@ -280,20 +273,20 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"sales_get",
-		"Detalle de una venta (GET /sales/{id}).",
+		"Detail of one sale (GET /sales/{id}).",
 		{ id },
 		async ({ id }) => run(getSalesId({ path: { id }, client })),
 	);
 	server.tool(
 		"sales_tickets",
-		"Tickets/asistentes individuales de una venta (GET /sales/{id}/tickets).",
-		{ id: z.string().describe("Id de la venta") },
+		"Individual tickets and attendees of a sale (GET /sales/{id}/tickets).",
+		{ id: z.string().describe("Sale id") },
 		async ({ id }) => run(getSalesIdTickets({ path: { id }, client })),
 	);
 	server.tool(
 		"tickets_access",
 		"Estado de acceso de un ticket por su código QR — no admite, solo consulta (GET /tickets/{code}/access).",
-		{ code: z.string().describe("Código QR del ticket") },
+		{ code: z.string().describe("Ticket QR code") },
 		async ({ code }) =>
 			run(getTicketsTicketCodeAccess({ path: { ticketCode: code }, client })),
 	);
@@ -301,7 +294,7 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"plans_list",
-		"Planes de membresía (GET /membership-plans). `workspace` activa el modo global.",
+		"Membership plans (GET /membership-plans). `workspace` turns on global mode.",
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) =>
 			runWorkspaceList(ctx, workspace, (c) =>
@@ -317,7 +310,7 @@ export function registerB2bTools(
 	server.tool(
 		"plans_subscribers",
 		"Suscriptores/miembros de un plan (GET /membership-plans/{id}/subscribers).",
-		{ id: z.string().describe("Id del plan") },
+		{ id: z.string().describe("Plan id") },
 		async ({ id }) =>
 			run(getMembershipPlansIdSubscribers({ path: { id }, client })),
 	);
@@ -325,9 +318,9 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"discounts_list",
-		"Cupones/descuentos del workspace (GET /discounts). `workspace` activa el modo global.",
+		"Workspace coupons and discounts (GET /discounts). `workspace` turns on global mode.",
 		{
-			event: z.string().optional().describe("Filtrar por evento"),
+			event: z.string().optional().describe("Filter by event"),
 			active: z.string().optional().describe("true | false"),
 			...paging,
 			workspace: workspaceParam,
@@ -340,7 +333,7 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"webhooks_list",
-		"Webhooks registrados (GET /webhooks). `workspace` activa el modo global.",
+		"Registered webhooks (GET /webhooks). `workspace` turns on global mode.",
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) =>
 			runWorkspaceList(ctx, workspace, (c) =>
@@ -351,7 +344,7 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"venues_list",
-		"Venues del workspace (GET /venues). `workspace` activa el modo global.",
+		"Workspace venues (GET /venues). `workspace` turns on global mode.",
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) =>
 			runWorkspaceList(ctx, workspace, (c) =>
@@ -367,9 +360,9 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"staff_list",
-		"Staff del workspace (GET /staff). `workspace` activa el modo global: a " +
-			"diferencia del resto, acá lo resuelve el contrato con `workspaceIds` " +
-			"(una sola llamada, filas etiquetadas por el backend), no un fan-out.",
+		"Workspace staff (GET /staff). `workspace` turns on global mode: unlike " +
+			"the rest, here the contract resolves it with `workspaceIds` (one single " +
+			"call, rows tagged by the backend), not a fan-out.",
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) => {
 			if (!workspace) return run(getStaff({ query: q, client }));
@@ -389,18 +382,18 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"reports_summary",
-		"KPIs del workspace activo (GET /reports/summary). Único reporte sin " +
-			"`workspace`: son un objeto, no filas, y sumar KPIs de tenants distintos " +
-			"no significa nada. Para comparar workspaces usá `reports_by_event` o " +
-			"`reports_financials` con `workspace`.",
+		"KPIs for the active workspace (GET /reports/summary). The only report " +
+			"without `workspace`: these are an object, not rows, and adding up KPIs " +
+			"across different tenants means nothing. To compare workspaces use " +
+			"`reports_by_event` or `reports_financials` with `workspace`.",
 		{ period: z.enum(["7d", "30d", "90d", "1y"]).optional() },
 		async (q) => run(getReportsSummary({ query: q, client })),
 	);
 	uiTool(
 		server,
 		"reports_by_event",
-		"Revenue / tickets vendidos / disponibilidad por evento (GET /reports/by-event). " +
-			"`workspace` activa el modo global.",
+		"Revenue, tickets sold and availability per event (GET /reports/by-event). " +
+			"`workspace` turns on global mode.",
 		{
 			from: z.string().optional().describe("Desde (ISO 8601)"),
 			to: z.string().optional().describe("Hasta (ISO 8601)"),
@@ -420,7 +413,7 @@ export function registerB2bTools(
 			interval: z.enum(["day", "week", "month"]),
 			from: z.string().optional(),
 			to: z.string().optional(),
-			event: z.string().optional().describe("Filtrar por evento"),
+			event: z.string().optional().describe("Filter by event"),
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
@@ -431,7 +424,7 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"reports_inventory",
-		"Capacidad / vendido / reservado / disponible por evento·fecha·tipo (GET /reports/inventory).",
+		"Capacity, sold, reserved and available per event·date·type (GET /reports/inventory).",
 		{
 			eventId: z.string().optional(),
 			eventDateId: z.string().optional(),
@@ -452,12 +445,12 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"reconciliation",
-		"Conciliación financiera para el CFO: cruza cada venta con su transacción de " +
-			"Mercado Pago y su factura de Siigo, marcando descuadres (GET /reports/reconciliation). " +
+		"Financial reconciliation for the CFO: crosses every sale with its Mercado " +
+			"Pago transaction and its Siigo invoice, flagging mismatches (GET /reports/reconciliation). " +
 			"match_status: OK | MISSING_INVOICE | MISSING_CUFE | AMOUNT_MISMATCH | MISSING_PAYMENT.",
 		{
-			date_from: z.string().describe("Inicio del rango (ISO 8601)"),
-			date_to: z.string().describe("Fin del rango (ISO 8601)"),
+			date_from: z.string().describe("Range start (ISO 8601)"),
+			date_to: z.string().describe("Range end (ISO 8601)"),
 			match_status: z
 				.enum([
 					"OK",
@@ -488,39 +481,39 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"settlements_list",
-		"Liquidaciones del workspace — lo que FreeTicket le paga al organizador, " +
-			"con monto, estado y evento/función (GET /settlements). Trae hasDocument " +
-			"y el nombre de los archivos; el PDF se baja con `settlements_document`.",
+		"Workspace settlements — what FreeTicket pays the organizer, with amount, " +
+			"status and event or date (GET /settlements). It carries hasDocument and " +
+			"the file names; the PDF is fetched with `settlements_document`.",
 		{
-			event: z.string().optional().describe("Filtrar por evento"),
+			event: z.string().optional().describe("Filter by event"),
 			status: z
 				.enum(["SENT", "AWAITING_PAYMENT", "PAID"])
 				.optional()
-				.describe("Estado de la liquidación"),
+				.describe("Settlement status"),
 			...paging,
 		},
 		async (q) => run(getSettlements({ query: q, client })),
 	);
-	// getSettlementsIdDocument / getSettlementsIdProofsFileName: no usan el
-	// cliente generado (son 302 a URL firmada), pero acá quedan nombrados para
-	// que el barrido de coverage.test.ts los cuente como cubiertos.
+	// getSettlementsIdDocument / getSettlementsIdProofsFileName: these do not
+	// use the generated client (they are 302s to a signed URL), but they are
+	// named here so the coverage.test.ts sweep counts them as covered.
 	server.tool(
 		"settlements_document",
-		"Link de descarga del PDF de una liquidación (GET /settlements/{id}/document). " +
-			"Devuelve una URL firmada que vence en 5 minutos — no el archivo.",
+		"Download link for a settlement PDF (GET /settlements/{id}/document). " +
+			"Returns a signed URL that expires in 5 minutes — not the file.",
 		{ id },
 		async ({ id }) => signedDownload(creds, `/settlements/${id}/document`),
 	);
 	server.tool(
 		"settlements_proof",
-		"Link de descarga de un comprobante de pago de la liquidación " +
-			"(GET /settlements/{id}/proofs/{fileName}). El nombre del archivo sale " +
-			"de `settlements_list`. URL firmada, vence en 5 minutos.",
+		"Download link for a settlement payment proof " +
+			"(GET /settlements/{id}/proofs/{fileName}). The file name comes from " +
+			"`settlements_list`. Signed URL, expires in 5 minutes.",
 		{
 			id,
 			fileName: z
 				.string()
-				.describe("Nombre del archivo, tal cual lo lista la liquidación"),
+				.describe("File name, exactly as the settlement lists it"),
 		},
 		async ({ id, fileName }) =>
 			signedDownload(
@@ -531,17 +524,17 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"reports_financials",
-		"Estado financiero por función: bruto, cargo de plataforma, valor facial, " +
-			"comisión de pasarela, 4x1000 y neto a liquidar, más el estado de la " +
-			"liquidación asociada (GET /reports/financials). Son los números " +
-			"autoritativos del panel de Liquidaciones — no hay que recalcularlos " +
-			"cruzando /sales con Mercado Pago.",
+		"Financial statement per date: gross, platform fee, face value, gateway " +
+			"commission, the 4x1000 tax and the net to settle, plus the status of the " +
+			"associated settlement (GET /reports/financials). These are the " +
+			"authoritative numbers from the Settlements panel — there is no need to " +
+			"recompute them by crossing /sales with Mercado Pago.",
 		{
-			event: z.string().optional().describe("Filtrar por evento"),
+			event: z.string().optional().describe("Filter by event"),
 			past: z
 				.enum(["true", "false"])
 				.optional()
-				.describe("true = solo funciones ya ocurridas (liquidables)"),
+				.describe("true = only dates that already happened (settleable)"),
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
@@ -552,30 +545,30 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"api_keys_list",
-		"API keys de servicio del usuario — para auditar qué credenciales existen " +
-			"y cuándo se usaron (GET /api-keys). Nunca devuelve el secreto. " +
-			"Acuñar y revocar keys se hace con el CLI (`ft api-keys`), no desde acá: " +
-			"un agente no debería poder mintear credenciales.",
+		"The user's service API keys — to audit which credentials exist and when " +
+			"they were used (GET /api-keys). It never returns the secret. Minting and " +
+			"revoking keys is done with the CLI (`ft api-keys`), not from here: an " +
+			"agent should not be able to mint credentials.",
 		{ ...paging },
 		async (q) => run(getApiKeys({ query: q, client })),
 	);
 
-	// ── SSO headless (integraciones enterprise) ──────────────────────────────
-	// Estos dos hablan en nombre de un comprador, no del workspace: exigen una
-	// API key de servicio enterprise Y el session token que devolvió el canje
-	// (POST /api/customer-auth/enterprise-exchange). El canje NO se expone como
-	// tool: mintea sesiones de terceros — misma política que api_keys/admin
-	// tokens. Con una key normal, la API responde 403 y el agente lo ve.
+	// ── Headless SSO (enterprise integrations) ───────────────────────────────
+	// These two speak on behalf of a buyer, not of the workspace: they demand an
+	// enterprise service API key AND the session token the exchange returned
+	// (POST /api/customer-auth/enterprise-exchange). The exchange is NOT exposed
+	// as a tool: it mints third-party sessions — the same policy as api_keys and
+	// admin tokens. With a normal key the API answers 403 and the agent sees it.
 	const customerSession = z
 		.string()
 		.describe(
-			"Session token del comprador (header X-Customer-Session), obtenido en el " +
-				"canje del SSO headless. Sin él la API responde 401.",
+			"The buyer's session token (X-Customer-Session header), obtained from the " +
+				"headless SSO exchange. Without it the API answers 401.",
 		);
 	server.tool(
 		"customer_me",
-		"Identidad del comprador autenticado por SSO headless (GET /customer/me). " +
-			"Requiere API key de servicio enterprise + session token del comprador.",
+		"Identity of the buyer authenticated through headless SSO (GET /customer/me). " +
+			"Requires an enterprise service API key plus the buyer's session token.",
 		{ customerSession },
 		async ({ customerSession }) =>
 			run(
@@ -588,9 +581,9 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"customer_tickets",
-		"Entradas del comprador dentro del alcance de la key (GET /customer/tickets). " +
-			"Solo ventas CONFIRMED de eventos que el workspace pineado puede leer. " +
-			"Requiere API key de servicio enterprise + session token del comprador.",
+		"The buyer's tickets within the key's scope (GET /customer/tickets). Only " +
+			"CONFIRMED sales of events the pinned workspace can read. Requires an " +
+			"enterprise service API key plus the buyer's session token.",
 		{ customerSession, ...paging },
 		async ({ customerSession, ...q }) =>
 			run(
@@ -604,13 +597,13 @@ export function registerB2bTools(
 
 	server.tool(
 		"reports_export_buyers",
-		"Export de compradores — una fila por venta (GET /reports/exports/buyers).",
+		"Buyer export — one row per sale (GET /reports/exports/buyers).",
 		exportFilters,
 		async (q) => run(getReportsExportsBuyers({ query: q, client })),
 	);
 	server.tool(
 		"reports_export_attendees",
-		"Export de asistentes — una fila por ticket (GET /reports/exports/attendees).",
+		"Attendee export — one row per ticket (GET /reports/exports/attendees).",
 		exportFilters,
 		async (q) => run(getReportsExportsAttendees({ query: q, client })),
 	);
@@ -621,7 +614,7 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"reports_export_reconciliation",
-		"Export de conciliación para contabilidad (GET /reports/exports/reconciliation).",
+		"Reconciliation export for accounting (GET /reports/exports/reconciliation).",
 		{
 			date_from: z.string(),
 			date_to: z.string(),
@@ -639,13 +632,13 @@ export function registerB2bTools(
 		async (q) => run(getReportsExportsReconciliation({ query: q, client })),
 	);
 
-	// ── Área de socios (contrato 1.7.0) ──────────────────────────────────────
-	// Misma credencial doble que customer_me: API key enterprise + sesión del
-	// comprador. Con estos el agente ya cubre el área de socios del sitio:
-	// entradas, membresía y perfil.
+	// ── Members area (contract 1.7.0) ────────────────────────────────────────
+	// The same double credential as customer_me: an enterprise API key plus the
+	// session of the buyer. With these the agent covers the members area of the
+	// website: tickets, membership and profile.
 	server.tool(
 		"customer_ticket_get",
-		"Detalle de una entrada del comprador — deep link desde el listado " +
+		"Detail of one ticket held by the buyer — a deep link from the list " +
 			"(GET /customer/tickets/{id}).",
 		{ id, customerSession },
 		async ({ id, customerSession }) =>
@@ -660,8 +653,9 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"customer_membership",
-		"Estado de membresía del comprador en el workspace de la key: plan, " +
-			"vigencia y si puede ver contenido de socios (GET /customer/membership).",
+		"Membership status of the buyer in the workspace of the key: plan, " +
+			"validity, and whether members-only content is visible " +
+			"(GET /customer/membership).",
 		{ customerSession },
 		async ({ customerSession }) =>
 			run(
@@ -673,7 +667,7 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"customer_profile",
-		"Perfil del comprador — nombre y teléfono (GET /customer/profile).",
+		"Profile of the buyer — name and phone (GET /customer/profile).",
 		{ customerSession },
 		async ({ customerSession }) =>
 			run(
@@ -684,34 +678,35 @@ export function registerB2bTools(
 			),
 	);
 
-	// ── Contenido de la organización (contrato 1.7.0) ────────────────────────
-	// Videos, feed y transmisiones publicados. Los listados NO traen el playback
-	// id: para reproducir hay que pedir un token con `content_playback_token`.
+	// ── Organization content (contract 1.7.0) ────────────────────────────────
+	// Published videos, feed and live streams. The lists do NOT carry the
+	// playback id: to play anything you must request a token with
+	// `content_playback_token`.
 	uiTool(
 		server,
 		"content_videos",
-		"Videos publicados y listos (READY) de la organización (GET /content/videos). " +
-			"Para reproducir uno, pedir token con `content_playback_token`.",
+		"Published, READY videos of the organization (GET /content/videos). To play " +
+			"one, request a token with `content_playback_token`.",
 		{ ...paging },
 		async (q) => run(getContentVideos({ query: q, client })),
 	);
 	uiTool(
 		server,
 		"content_posts",
-		"Feed de comunidad de la organización (GET /content/posts).",
+		"Community feed of the organization (GET /content/posts).",
 		{ ...paging },
 		async (q) => run(getContentPosts({ query: q, client })),
 	);
 	uiTool(
 		server,
 		"content_lives",
-		"Transmisiones en vivo de la organización, con su estado (GET /content/lives).",
+		"Live streams of the organization, with their status (GET /content/lives).",
 		{ ...paging },
 		async (q) => run(getContentLives({ query: q, client })),
 	);
 	server.tool(
 		"content_live_get",
-		"Estado de una transmisión puntual (GET /content/lives/{id}).",
+		"Status of one specific live stream (GET /content/lives/{id}).",
 		{ id },
 		async ({ id }) => run(getContentLivesId({ path: { id }, client })),
 	);

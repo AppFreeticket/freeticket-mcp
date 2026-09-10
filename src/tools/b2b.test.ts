@@ -7,36 +7,36 @@ import { registerB2bTools, slimEvent } from "./b2b";
 import { registerB2bWriteTools } from "./b2b-writes";
 import { registerPublicTools } from "./public";
 
-// Client aislado de juguete: el registro no hace red, solo necesita el objeto.
+// Isolated toy client: registration makes no network calls, it just needs the object.
 const stubCreds = { apiUrl: "http://localhost", apiKey: "test" };
 const stub = makeB2bClient(stubCreds);
 
 // El registro no debe tirar y no debe haber nombres duplicados entre capas.
 function names(server: McpServer): string[] {
-	// ponytail: _registeredTools es interno del SDK; si cambia, este test avisa.
+	// ponytail: _registeredTools is SDK-internal; if it changes, this test says so.
 	return Object.keys(
 		(server as unknown as { _registeredTools: Record<string, unknown> })
 			._registeredTools,
 	);
 }
 
-/** Schema de entrada tal como lo ve el agente, por nombre de tool. */
+/** Input schema exactly as the agent sees it, keyed by tool name. */
 function inputKeys(server: McpServer, tool: string): string[] {
 	const reg = (
 		server as unknown as {
 			_registeredTools: Record<string, { inputSchema?: unknown }>;
 		}
 	)._registeredTools[tool];
-	// El SDK guarda el schema ya envuelto en un ZodObject: las claves del tool
-	// viven en `.shape`, no en el objeto mismo.
+	// The SDK stores the schema already wrapped in a ZodObject: the tool keys
+	// live in `.shape`, not in the object itself.
 	const schema = reg?.inputSchema as
 		| { shape?: Record<string, unknown> }
 		| undefined;
 	return Object.keys(schema?.shape ?? {});
 }
 
-describe("workspace en los reportes (#7)", () => {
-	it("los reportes con forma de filas aceptan workspace; summary no", () => {
+describe("workspace on reports (#7)", () => {
+	it("row-shaped reports accept workspace; summary does not", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
 		registerB2bTools(server, stub, stubCreds);
 		for (const tool of [
@@ -49,13 +49,13 @@ describe("workspace en los reportes (#7)", () => {
 			expect(inputKeys(server, tool)).toContain("workspace");
 		}
 		// KPIs son un objeto: sumarlos entre tenants no significa nada. La
-		// ausencia es deliberada y la descripción del tool la explica.
+		// absence is deliberate and the tool description explains it.
 		expect(inputKeys(server, "reports_summary")).not.toContain("workspace");
 	});
 });
 
 describe("vista corta de events_list (#8)", () => {
-	it("recorta descripción e imágenes y deja lo que identifica al evento", () => {
+	it("trims description and images, keeping what identifies the event", () => {
 		const full = {
 			id: "e1",
 			name: "RUMBO AL ESPECIAL YOPAL",
@@ -86,7 +86,7 @@ describe("vista corta de events_list (#8)", () => {
 		]) {
 			expect(slim).not.toHaveProperty(dropped);
 		}
-		// Lo que queda tiene que alcanzar para responder "el evento de Yopal".
+		// What is left must be enough to answer "the Yopal event".
 		expect(slim).toMatchObject({
 			id: "e1",
 			name: "RUMBO AL ESPECIAL YOPAL",
@@ -98,7 +98,7 @@ describe("vista corta de events_list (#8)", () => {
 		);
 	});
 
-	it("expone verbose para recuperar el objeto completo", () => {
+	it("exposes verbose to recover the whole object", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
 		registerB2bTools(server, stub, stubCreds);
 		expect(inputKeys(server, "events_list")).toContain("verbose");
@@ -129,7 +129,7 @@ describe("tool registration", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
 		registerB2bWriteTools(server, stub);
 		const t = names(server);
-		// 35 writes: 29 del contrato 1.5.0 + los 6 del 1.7.0 (área de socios y
+		// 35 writes: 29 from contract 1.5.0 + the 6 from 1.7.0 (members area and
 		// token de reproducción de contenido).
 		expect(t.length).toBe(35);
 		expect(new Set(t).size).toBe(t.length);
@@ -161,7 +161,7 @@ describe("tool registration", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
 		registerAdminTools(server, stub);
 		const t = names(server);
-		// 4 reads originales + 15 de la Ola C + admin_tokens (admin 1.1.0)
+		// 4 original reads + 15 from Wave C + admin_tokens (admin 1.1.0)
 		// + admin_workspaces_assign_plan (admin 1.3.0).
 		expect(t.length).toBe(21);
 		expect(new Set(t).size).toBe(t.length);
@@ -195,18 +195,18 @@ describe("tool registration", () => {
 	});
 
 	it("buildServer layers tools by credential level", () => {
-		// Anónimo (sin apiKey): solo public_*.
+		// Anonymous (no apiKey): public_* only.
 		const anon = names(buildServer({ apiUrl: "http://localhost" }));
 		expect(anon.every((n) => n.startsWith("public_"))).toBe(true);
 		expect(anon).toContain("public_events_list");
 
-		// Con apiKey: public + B2B, sin admin.
+		// With apiKey: public + B2B, no admin.
 		const b2b = names(buildServer({ apiUrl: "http://localhost", apiKey: "k" }));
 		expect(b2b).toContain("public_events_list");
 		expect(b2b).toContain("events_create");
 		expect(b2b.some((n) => n.startsWith("admin_"))).toBe(false);
 
-		// Con adminSession: las tres capas.
+		// With adminSession: all three layers.
 		const full = names(
 			buildServer({
 				apiUrl: "http://localhost",

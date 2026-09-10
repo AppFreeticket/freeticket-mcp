@@ -1,13 +1,14 @@
 # @freeticket/mcp
 
-Servidor **MCP** (Model Context Protocol) oficial de FreeTicket. Expone el dominio
-B2B —eventos, fechas, ventas, tickets, membresías, venues, staff, informes— como
-_tools_ a cualquier cliente MCP (Claude Code, Claude Desktop, etc.).
+FreeTicket's official **MCP** (Model Context Protocol) server. It exposes the
+B2B domain — events, dates, sales, tickets, memberships, venues, staff, reports
+— as _tools_ to any MCP client (Claude Code, Claude Desktop, claude.ai).
 
-Mismo contrato y misma sesión que el CLI `ft`: si ya hiciste `ft login`, el MCP
-queda autenticado sin configurar nada (lee `~/.freeticket/config.json`).
+Same contract and same session as the `ft` CLI: if you have run `ft login`, the
+MCP is already authenticated with nothing to configure (it reads
+`~/.freeticket/config.json`).
 
-## Uso (Claude Code / Claude Desktop)
+## Use (Claude Code / Claude Desktop)
 
 ```jsonc
 {
@@ -15,71 +16,79 @@ queda autenticado sin configurar nada (lee `~/.freeticket/config.json`).
     "freeticket": {
       "command": "npx",
       "args": ["-y", "@freeticket/mcp"]
-      // Sin env: usa la sesión de `ft login`. Para CI/headless:
+      // No env: uses the `ft login` session. For CI or headless:
       // "env": { "FT_API_KEY": "ft_live_...", "FT_WORKSPACE_ID": "ws_..." }
     }
   }
 }
 ```
 
-Config: env > `~/.freeticket/config.json` > default. Variables: `FT_API_URL`
-(base, sin `/api/v1`), `FT_API_KEY`, `FT_WORKSPACE_ID`, `FT_ADMIN_SESSION`
-(habilita los tools `admin_*` del contrato superadmin `/api/admin`).
+> ⚠️ `@freeticket/mcp` is **not published on npm yet**, so this stdio entry does
+> not work today — `npx` cannot resolve the package. Use the remote server
+> below until it ships.
 
-## Uso remoto por URL (HTTP)
+Config precedence: env > `~/.freeticket/config.json` > default. Variables:
+`FT_API_URL` (base, without `/api/v1`), `FT_API_KEY`, `FT_WORKSPACE_ID`,
+`FT_ADMIN_SESSION` (enables the `admin_*` tools of the superadmin contract
+`/api/admin`).
 
-Además del stdio, el server corre por **Streamable HTTP** para agregarlo como
-connector por URL (claude.ai, Claude Code remoto, curl) sin instalar nada local:
+## Remote use over URL (HTTP)
+
+Beyond stdio, the server runs over **Streamable HTTP** so it can be added as a
+connector by URL (claude.ai, remote Claude Code, curl) with nothing installed
+locally. It is live at `https://mcp.appfreeticket.com/mcp`.
 
 ```bash
-freeticket-mcp-http          # escucha en :3333 (PORT para cambiarlo)
+freeticket-mcp-http          # listens on :3333 (PORT to change it)
 ```
 
-Es **stateless**: cada request trae sus credenciales y el server arma clientes
-aislados por sesión (nunca lee el disco), así un mismo proceso sirve a varios
-workspaces sin cruzar sesiones. Endpoints:
+It is **stateless**: every request carries its own credentials and the server
+builds per-session isolated clients (it never reads disk), so one process serves
+many workspaces without crossing sessions. Endpoints:
 
 | Endpoint | Auth | Tools |
 |---|---|---|
-| `POST /mcp` | Bearer (token OAuth o API key cruda) | `public_*` + B2B (+ `admin_*` si la credencial lo trae) |
-| `POST /mcp/public` | ninguna | solo `public_*` (agentes compradores) |
+| `POST /mcp` | Bearer (OAuth token or raw API key) | `public_*` + B2B (+ `admin_*` when the credential carries it) |
+| `POST /mcp/public` | none | `public_*` only (buyer-side agents) |
 
-### Conectar en claude.ai (Add custom connector)
+### Connecting from claude.ai (Add custom connector)
 
-El server trae un **authorization server OAuth 2.1 embebido** — es lo único que
-claude.ai sabe hablar (no puede mandar API keys ni headers custom). Pasos:
+The server ships an **embedded OAuth 2.1 authorization server** — that is the
+only thing claude.ai knows how to speak (it cannot send API keys or custom
+headers). Steps:
 
 1. claude.ai → Settings → Connectors → **Add custom connector**.
-2. Remote MCP server URL: `https://<tu-deploy>/mcp`. Client ID/Secret: vacíos
-   (usa dynamic client registration, RFC 7591).
-3. Al conectar se abre el consentimiento: botón **"Continuar con FreeTicket"** →
-   inicias sesión en free-admin con tu cuenta de siempre y apruebas (device flow
-   RFC 8628, el mismo backend que `ft login`). Sin keys que pegar; si tienes
-   varios workspaces, eliges cuál conectar. Bajo "Opciones avanzadas" queda el
-   form manual (API key para CI, cookie superadmin para los `admin_*`).
-4. Las credenciales se sellan (AES-256-GCM, `MCP_TOKEN_SECRET`) dentro del token
-   emitido — el server no persiste nada: sin base de datos, multi-tenant seguro.
+2. Remote MCP server URL: `https://mcp.appfreeticket.com/mcp`. Client ID and
+   Secret: leave empty (it uses dynamic client registration, RFC 7591).
+3. Connecting opens the consent page: the **"Continue with FreeTicket"** button
+   signs you into free-admin with your usual account and asks for approval
+   (device flow, RFC 8628 — the same backend as `ft login`). No keys to paste;
+   with several workspaces, you pick which one to connect. Under "Advanced
+   options" there is still the manual form (an API key for CI, the superadmin
+   cookie for the `admin_*` tools).
+4. Credentials are sealed (AES-256-GCM, `MCP_TOKEN_SECRET`) inside the issued
+   token — the server persists nothing: no database, multi-tenant safe.
 
-Flujo estándar completo: discovery RFC 9728/8414 → `/register` → `/authorize`
-(PKCE S256) → `/token` (con refresh). `FT_OAUTH_ISSUER` delega todo a un AS
-externo (p. ej. cuando `free-admin` publique el suyo).
+The full standard flow: RFC 9728/8414 discovery → `/register` → `/authorize`
+(PKCE S256) → `/token` (with refresh). `FT_OAUTH_ISSUER` delegates all of it to
+an external AS (for instance, once `free-admin` publishes its own).
 
-### Auth directa (curl, clientes propios)
+### Direct auth (curl, your own clients)
 
 ```bash
 curl -X POST http://localhost:3333/mcp \
-  -H 'authorization: Bearer ft_live_...' \      # API key cruda
-  -H 'x-workspace-id: ws_...' \                 # opcional
-  -H 'x-admin-session: <cookie>' \              # opcional — habilita admin_*
+  -H 'authorization: Bearer ft_live_...' \      # raw API key
+  -H 'x-workspace-id: ws_...' \                 # optional
+  -H 'x-admin-session: <cookie>' \              # optional — enables admin_*
   -H 'content-type: application/json' \
   -H 'accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-### Deploy en Vercel
+### Deploying on Vercel
 
-El repo ya trae `vercel.json` + `api/server.ts` (misma lógica que el binario,
-como Vercel Function):
+The repo already carries `vercel.json` + `api/server.ts` (the same logic as the
+binary, as a Vercel Function):
 
 ```bash
 vercel                                        # preview
@@ -87,112 +96,119 @@ vercel env add MCP_TOKEN_SECRET production    # openssl rand -hex 32
 vercel --prod
 ```
 
-Env en Vercel: `MCP_TOKEN_SECRET` (**requerido** — sin él los tokens mueren en
-cada cold start), `FT_API_URL` (opcional, default producción), `MCP_PUBLIC_URL`
-(opcional — se deriva del Host). Connector URL resultante:
-`https://<proyecto>.vercel.app/mcp`.
+Env on Vercel: `MCP_TOKEN_SECRET` (**required** — without it tokens die on every
+cold start), `FT_API_URL` (optional, defaults to production), `MCP_PUBLIC_URL`
+(optional — derived from the Host header). The resulting connector URL is
+`https://<project>.vercel.app/mcp`.
 
 ## Tools
 
-**B2B `/api/v1`** (un tool = una operación del contrato). Los writes destructivos
-(`*_delete`, `*_refund`, `*_cancel`) llevan `destructiveHint` y piden confirmación.
+**B2B `/api/v1`** (one tool = one contract operation). Destructive writes
+(`*_delete`, `*_refund`, `*_cancel`) carry `destructiveHint` and ask for
+confirmation.
 
-| Dominio | Reads | Writes |
+| Domain | Reads | Writes |
 |---|---|---|
-| Sesión | `whoami` | — |
-| Eventos | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
+| Session | `whoami` | — |
+| Events | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
 | Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_resend` |
-| Ventas | `sales_list` · `sales_get` · `sales_tickets` | `sales_create` · `sales_cancel` · `sales_refund` |
-| Membresías | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
-| Comercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` |
-| Reportes | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reports_financials` · `reconciliation` | — |
-| Liquidaciones | `settlements_list` · `settlements_document` · `settlements_proof` | — |
-| Credenciales | `api_keys_list` | — |
+| Sales | `sales_list` · `sales_get` · `sales_tickets` | `sales_create` · `sales_cancel` · `sales_refund` |
+| Memberships | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
+| Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` |
+| Reports | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reports_financials` · `reconciliation` | — |
+| Settlements | `settlements_list` · `settlements_document` · `settlements_proof` | — |
+| Credentials | `api_keys_list` | — |
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
-| Área de socios (SSO headless) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` |
-| Contenido | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` |
+| Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` |
+| Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` |
 
-Acuñar y revocar credenciales (`ft api-keys`, `ft admin tokens`) queda fuera del
-MCP a propósito: un agente lista credenciales para auditarlas, no las emite.
-`customer_*` son para integraciones enterprise: piden una API key de servicio
-enterprise **y** el session token del comprador (`X-Customer-Session`). El canje
-que emite ese token tampoco es un tool — mintea sesiones de terceros.
-`settlements_document` y `settlements_proof` devuelven una **URL firmada con TTL
-de 5 minutos**, no el archivo: la API responde 302 y seguir la redirección
-metería el PDF entero en el contexto del modelo.
-Los tools de contenido listan lo publicado sin el playback id; para reproducir
-hay que pedir `content_playback_token` (30 min en vivo, 1 h en video), y el
-contenido `memberOnly` exige además la sesión de un comprador con membresía.
+Minting and revoking credentials (`ft api-keys`, `ft admin tokens`) is left out
+of the MCP on purpose: an agent lists credentials to audit them, it does not
+issue them. The `customer_*` tools are for enterprise integrations: they need an
+enterprise service API key **and** the buyer's session token
+(`X-Customer-Session`). The exchange that issues that token is not a tool
+either — it mints third-party sessions.
 
-**Público B2C `/api/public`** (sin credenciales — el agente de un comprador):
+`settlements_document` and `settlements_proof` return a **signed URL with a
+5-minute TTL**, not the file: the API answers 302, and following the redirect
+would drop the whole PDF into the model's context.
 
-| Dominio | Tools |
+The content tools list what is published without the playback id; to play
+anything you need `content_playback_token` (30 min live, 1 h video), and
+`memberOnly` content additionally requires a buyer session with a membership.
+
+**Public B2C `/api/public`** (no credentials — a buyer's agent):
+
+| Domain | Tools |
 |---|---|
-| Descubrimiento | `public_events_list` · `public_events_get` · `public_events_availability` |
-| Checkout | `public_orders_create` (→ `checkoutUrl` de Mercado Pago) · `public_orders_get` |
-| Post-venta | `public_tickets_resend` |
+| Discovery | `public_events_list` · `public_events_get` · `public_events_availability` |
+| Checkout | `public_orders_create` (→ a Mercado Pago `checkoutUrl`) · `public_orders_get` |
+| Post-sale | `public_tickets_resend` |
 
-Los `public_*` se registran **siempre** (anónimos). El agente nunca toca el
-pago: `public_orders_create` devuelve el link de Mercado Pago para que el humano
-pague. Alcance del checkout: admisión general (no numerado / no members-only).
+The `public_*` tools are **always** registered (anonymous). The agent never
+touches the payment: `public_orders_create` returns the Mercado Pago link for
+the human to pay. Checkout scope: general admission (not seated, not
+members-only).
 
-**Superadmin `/api/admin`** (solo con `FT_ADMIN_SESSION`):
+**Superadmin `/api/admin`** (only with `FT_ADMIN_SESSION`):
 
-| Dominio | Tools |
+| Domain | Tools |
 |---|---|
-| Sesión / auditoría | `admin_whoami` · `admin_audit_log` · `admin_tokens` |
-| Workspaces | `admin_workspaces` · `admin_workspaces_get` · `admin_workspaces_create` · `admin_workspaces_update` (incluye `webTemplate` / `customDomain`) · `admin_workspaces_assign_plan` · `admin_workspaces_suspend` · `admin_workspaces_restore` |
+| Session / audit | `admin_whoami` · `admin_audit_log` · `admin_tokens` |
+| Workspaces | `admin_workspaces` · `admin_workspaces_get` · `admin_workspaces_create` · `admin_workspaces_update` (includes `webTemplate` / `customDomain`) · `admin_workspaces_assign_plan` · `admin_workspaces_suspend` · `admin_workspaces_restore` |
 | Users | `admin_users` · `admin_users_get` · `admin_users_update` · `admin_impersonate` · `admin_impersonate_stop` |
 | Platform plans | `admin_platform_plans_list` · `admin_platform_plans_get` · `admin_platform_plans_create` · `admin_platform_plans_update` |
 | Feature flags | `admin_feature_flags_list` · `admin_feature_flags_set` |
 
-## UI en el host (MCP Apps)
+## UI in the host (MCP Apps)
 
-El server implementa la extensión **`io.modelcontextprotocol/ui`** ([MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps),
-spec `2026-01-26`), así que los listados y reportes no llegan como un muro de
-JSON: el host los dibuja.
+The server implements the **`io.modelcontextprotocol/ui`** extension
+([MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps), spec
+`2026-01-26`), so lists and reports do not arrive as a wall of JSON: the host
+draws them.
 
-- Recurso: `ui://freeticket/view.html`, mimeType `text/html;profile=mcp-app`.
-- Los tools con vista lo apuntan por `_meta.ui.resourceUri`; el resultado viaja
-  también en `structuredContent` para que el view lo lea.
-- Un único view decide el render por la forma del payload: **array → tabla**
-  (con formato de moneda, pills de estado y scroll horizontal),
-  **objeto → tiles de KPI**.
-- El HTML es autocontenido: sin scripts externos, sin fetch, sin fuentes
-  remotas. Declara `csp: {}` — no pide red, así el sandbox deny-by-default del
-  host no tiene nada que bloquear.
-- **La marca es nuestra, el tema es del host.** El view adopta las variables CSS
-  del host (`hostContext.styles.variables`) para integrarse al chat, pero solo
-  las del contrato de la extensión (`--color-*`, `--font-*`): el logo de
-  FreeTicket y el acento de marca no son sobreescribibles. Al cambiar de tema
-  fija `data-theme` **y** `color-scheme`, si no `light-dark()` seguiría al SO y
-  el view saldría claro dentro de un chat oscuro.
-- Solo escucha al frame que lo montó (`event.source`), reporta su alto con
-  `ui/notifications/size-changed`, formatea moneda en el `locale` del host y
-  responde `ui/resource-teardown` para que el desmontaje sea limpio.
-- Hosts sin la extensión (o clientes de terminal) ignoran `_meta` y ven el mismo
-  texto de siempre: nada se rompe.
+- Resource: `ui://freeticket/view.html`, mimeType `text/html;profile=mcp-app`.
+- Tools with a view point at it through `_meta.ui.resourceUri`; the result also
+  travels in `structuredContent` so the view can read it.
+- A single view picks the render from the shape of the payload: **array → table**
+  (currency formatting, status pills, horizontal scroll), **object → KPI tiles**.
+- The HTML is self-contained: no external scripts, no fetch, no remote fonts. It
+  declares `csp: {}` — it asks for no network, so the host's deny-by-default
+  sandbox has nothing to block.
+- **The brand is ours, the theme is the host's.** The view adopts the host's CSS
+  variables (`hostContext.styles.variables`) to blend into the chat, but only
+  those in the extension's contract (`--color-*`, `--font-*`): the FreeTicket
+  logo and brand accent are not overridable. On a theme change it sets
+  `data-theme` **and** `color-scheme`, otherwise `light-dark()` would follow the
+  OS and the view would render light inside a dark chat.
+- It listens only to the frame that mounted it (`event.source`), reports its
+  height with `ui/notifications/size-changed`, formats currency in the host's
+  locale, and answers `ui/resource-teardown` so unmounting is clean.
+- Hosts without the extension (or terminal clients) ignore `_meta` and see the
+  same text as always: nothing breaks.
 
-**29 tools con vista** (v0.14.0) — todos los listados y reportes. Los detalles (`*_get`) y
-los writes van sin vista a propósito: un objeto suelto o un ack de `delete` no
-gana nada con la tabla, y dibujarlo parece que hubiera datos donde no los hay.
-`src/ui.test.ts` monta el view real en jsdom y falla si un listado nuevo se
-registra sin `_meta.ui`, si el host logra pisar la marca, o si un payload de la
-API se renderiza sin escapar.
+**29 tools with a view** (v0.14.0) — every list and every report. Details
+(`*_get`) and writes deliberately have none: a lone object or a `delete`
+acknowledgement gains nothing from a table, and drawing one suggests there is
+data where there is not. `src/ui.test.ts` mounts the real view in jsdom and
+fails if a new list registers without `_meta.ui`, if the host manages to
+override the branding, or if an API payload renders unescaped.
 
-## Desarrollo
+## Development
 
 ```bash
 pnpm install
-pnpm generate     # regenera src/client/ y src/admin-client/ desde los specs
-pnpm dev          # corre el server vía stdio
+pnpm generate     # regenerates src/client/, src/admin-client/ and src/public-client/ from the specs
+pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contratos al día: B2B **1.7.0**, superadmin **1.3.0**, público **0.4.0**.
-Los contratos `openapi.json` (`/api/v1`) y `admin-openapi.json` (`/api/admin`) los
-sirve `free-admin` y son la única fuente de verdad — linajes semver separados.
-Para propagar un cambio del backend, usá el agente `contract-sync` del paraguas
-[ai-native](https://github.com/AppFreeticket/ai-native).
+Contracts this build targets: B2B **1.7.0**, superadmin **1.3.0**, public
+**0.4.0**. All three are served by `free-admin` and are the only source of
+truth, on separate semver lineages. To propagate a backend change, use the
+`contract-sync` agent from the
+[ai-native](https://github.com/AppFreeticket/ai-native) umbrella — and check for
+drift first: what free-admin serves today may already be ahead of the numbers
+above.
 
 MIT.

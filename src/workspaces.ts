@@ -4,19 +4,18 @@ import { getMe } from "./client/sdk.gen";
 import type { WorkspaceAccess } from "./client/types.gen";
 
 /**
- * Modo global de workspaces (brecha #3): fan-out en el cliente, no agregación
- * en el servidor. Los tools de lectura que devuelven listas aceptan un
- * parámetro opcional `workspace` — ausente = comportamiento actual (un solo
- * workspace, el de la sesión). El conjunto de workspaces sale SIEMPRE de
- * GET /me, nunca de ids que pida el cliente sin validar contra esa lista.
- * Las escrituras no tienen este parámetro: siguen siendo de un workspace
- * explícito.
+ * Global workspace mode (gap #3): a fan-out in the client, not aggregation in
+ * the server. The read tools that return lists accept an optional `workspace`
+ * parameter — absent = current behaviour (one workspace, the session's). The
+ * set of workspaces ALWAYS comes from GET /me, never from ids the client asks
+ * for without validating against that list. Writes do not take this parameter:
+ * they stay scoped to one explicit workspace.
  */
 
-/** Límite de requests en paralelo por fan-out — no satura la API. */
+/** Cap on parallel requests per fan-out — it does not flood the API. */
 const FAN_OUT_CONCURRENCY = 5;
 
-/** Fila agregada: el dato tal cual + de qué workspace salió. */
+/** An aggregated row: the datum as-is, plus which workspace it came from. */
 export type WorkspaceRow<T> = T & {
 	workspaceId: string;
 	workspaceName: string;
@@ -34,16 +33,16 @@ export interface WorkspaceFanOutResult<T> {
 	errors: WorkspaceFanOutError[];
 }
 
-/** Forma común de los tools de lectura con listado: `{ data: T[], page }`. */
+/** The common shape of the listing read tools: `{ data: T[], page }`. */
 type ListFn<T> = (
 	client: Client,
 ) => Promise<{ data?: { data: T[] }; error?: unknown }>;
 
 /**
- * Resuelve los workspaces accesibles de la sesión (GET /me) y los cachea en
- * memoria: un fan-out de varios tools no debe pegarle a /me una vez por tool.
- * La cache vive en el closure devuelto — una por sesión (ver registerB2bTools),
- * nunca compartida entre tenants.
+ * Resolves the workspaces the session can reach (GET /me) and caches them in
+ * memory: a fan-out across several tools must not hit /me once per tool. The
+ * cache lives in the returned closure — one per session (see registerB2bTools),
+ * never shared between tenants.
  */
 export function makeWorkspaceResolver(
 	client: Client,
@@ -62,19 +61,19 @@ export function makeWorkspaceResolver(
 }
 
 /**
- * Valida el parámetro `workspace` del tool contra los workspaces accesibles
- * de la sesión. `undefined` → null (sin fan-out, se usa el client de sesión
- * tal cual hoy). `"all"` → todos los accesibles. Lista de ids → solo los que
- * están en esa lista Y son accesibles; los que no, se descartan en silencio.
+ * Validates the tool's `workspace` parameter against the workspaces the
+ * session can reach. `undefined` → null (no fan-out, the session client is used
+ * as it is today). `"all"` → every reachable one. A list of ids → only those in
+ * that list AND reachable; the rest are dropped silently.
  */
 export async function resolveWorkspaceTargets(
 	resolveWorkspaces: () => Promise<WorkspaceAccess[]>,
 	workspace: string | string[] | undefined,
 ): Promise<WorkspaceAccess[] | null> {
 	if (workspace === undefined) return null;
-	// `sections: []` = acceso vencido o revocado en ese workspace (contrato
-	// 1.7.0). Antes se descubría a fuerza de 403 dentro del fan-out; ahora el
-	// target ni se dispara. `null` = sin acotar, se incluye.
+	// `sections: []` = access expired or revoked in that workspace (contract
+	// 1.7.0). It used to be discovered by collecting 403s inside the fan-out;
+	// now the target never fires. `null` = unrestricted, so it is included.
 	const accessible = (await resolveWorkspaces()).filter(
 		(w) => w.sections === null || w.sections.length > 0,
 	);
@@ -84,10 +83,11 @@ export async function resolveWorkspaceTargets(
 }
 
 /**
- * Dispara `fn` contra cada workspace en `targets` con su propio client (misma
- * apiKey, distinto X-Workspace-Id) y agrega las filas devueltas etiquetadas
- * con el workspace de origen. Un workspace que falla (403/500/lo que sea) no
- * tumba a los demás: su error queda en `errors` y el resto se devuelve igual.
+ * Fires `fn` against every workspace in `targets` with its own client (same
+ * apiKey, different X-Workspace-Id) and aggregates the returned rows, tagged
+ * with the workspace they came from. A workspace that fails (403, 500, whatever)
+ * does not take the others down: its error lands in `errors` and the rest is
+ * returned regardless.
  */
 export async function runAcrossWorkspaces<T>(
 	creds: Creds,
@@ -133,7 +133,7 @@ export async function runAcrossWorkspaces<T>(
 	return { rows, errors };
 }
 
-/** Mismo shape de respuesta que `run()` (api.ts), pero para un fan-out ya resuelto. */
+/** The same response shape as `run()` (api.ts), but for an already-resolved fan-out. */
 function fanOutContent<T>(
 	result: WorkspaceFanOutResult<T>,
 	unresolved: string[] = [],
@@ -142,9 +142,9 @@ function fanOutContent<T>(
 	structuredContent?: { data: unknown };
 	isError?: boolean;
 } {
-	// Un id pedido que no está entre los accesibles se descartaba en silencio:
-	// el agente recibía filas de menos sin poder distinguir "no existe" de
-	// "perdí acceso" de "no tiene datos" (issue #13). Ahora viaja como error.
+	// A requested id that is not among the reachable ones used to be dropped
+	// silently: the agent got fewer rows with no way to tell "does not exist"
+	// from "lost access" from "has no data" (issue #13). Now it travels as an error.
 	const errors = [
 		...result.errors,
 		...unresolved.map((workspaceId) => ({
@@ -153,7 +153,7 @@ function fanOutContent<T>(
 			error: {
 				code: "workspace_not_accessible",
 				message:
-					"El id no está entre los workspaces que alcanza esta credencial (o no existe). Revisalo con `whoami`.",
+					"This id is not among the workspaces this credential reaches (or it does not exist). Check it with `whoami`.",
 			},
 		})),
 	];
@@ -164,14 +164,14 @@ function fanOutContent<T>(
 				text: JSON.stringify({ data: result.rows, errors }, null, 2),
 			},
 		],
-		// Las filas agregadas alimentan el view de MCP Apps igual que un listado
-		// de un solo workspace; los errores parciales viven solo en el texto.
+		// The aggregated rows feed the MCP Apps view exactly like a single-workspace
+		// list; partial errors live only in the text.
 		structuredContent: { data: result.rows },
 		isError: result.rows.length === 0 && errors.length > 0,
 	};
 }
 
-/** Contexto de sesión que necesita un tool de lectura para soportar modo global. */
+/** The session context a read tool needs in order to support global mode. */
 export interface WorkspaceListContext {
 	client: Client;
 	creds: Creds;
@@ -179,10 +179,10 @@ export interface WorkspaceListContext {
 }
 
 /**
- * Entry point que usan los tools de lectura con listado. Sin `workspace`,
- * llama una sola vez con el client de sesión (comportamiento actual, sin
- * request extra a /me). Con `workspace`, resuelve targets contra /me y hace
- * fan-out agregando y etiquetando las filas.
+ * The entry point the listing read tools use. Without `workspace`, it calls
+ * once with the session client (current behaviour, no extra request to /me).
+ * With `workspace`, it resolves targets against /me and fans out, aggregating
+ * and tagging the rows.
  */
 export async function runWorkspaceList<T>(
 	ctx: WorkspaceListContext,
@@ -198,7 +198,7 @@ export async function runWorkspaceList<T>(
 		workspace,
 	);
 	if (!targets) return run(fn(ctx.client));
-	// Los ids pedidos que resolveWorkspaceTargets filtró por inaccesibles.
+	// The requested ids resolveWorkspaceTargets filtered out as unreachable.
 	const found = new Set(targets.map((t) => t.id));
 	const unresolved = Array.isArray(workspace)
 		? workspace.filter((id) => !found.has(id))

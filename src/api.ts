@@ -4,14 +4,15 @@ import { join } from "node:path";
 import { type Client, createClient, createConfig } from "@hey-api/client-fetch";
 
 /**
- * Credenciales de una sesión. En stdio salen de env/config; en HTTP remoto salen
- * del request (nunca del disco) — por eso los clients se construyen por sesión y
+ * Credentials for one session. Over stdio they come from env and config; over
+ * remote HTTP they come from the request (never from disk) — which is why the
+ * clients are built per session and
  * no hay singleton global compartido entre tenants.
  */
 export interface Creds {
 	apiUrl: string;
-	// Ausente = sesión anónima: solo los tools públicos B2C (public_*). Con key
-	// se suman los tools B2B; con adminSession, los admin_*.
+	// Absent = anonymous session: the public B2C tools only (public_*). With a
+	// key the B2B tools are added; with an adminSession, the admin_* ones.
 	apiKey?: string;
 	workspaceId?: string;
 	adminSession?: string;
@@ -19,8 +20,9 @@ export interface Creds {
 }
 
 /**
- * Config compartida con el CLI `ft`: env > ~/.freeticket/config.json > default.
- * Así `ft login` (device flow del browser) también autentica el MCP en stdio.
+ * Config shared with the `ft` CLI: env > ~/.freeticket/config.json > default.
+ * That way `ft login` (the browser device flow) also authenticates the MCP over
+ * stdio.
  */
 function cliConfig(): {
 	apiUrl?: string;
@@ -36,14 +38,14 @@ function cliConfig(): {
 	}
 }
 
-/** Normaliza la base: acepta FT_API_URL con o sin /api/v1 (versiones viejas). */
+/** Normalizes the base: accepts FT_API_URL with or without /api/v1 (older versions). */
 export function normalizeApiUrl(raw: string): string {
 	return raw.replace(/\/$/, "").replace(/\/api\/v1$/, "");
 }
 
 /**
- * Credenciales para el entrypoint stdio (local). Siempre devuelve algo: sin
- * FT_API_KEY el server arranca en modo anónimo (solo tools públicos B2C).
+ * Credentials for the stdio entrypoint (local). It always returns something:
+ * without FT_API_KEY the server starts in anonymous mode (public B2C tools only).
  */
 export function credsFromEnv(): Creds {
 	const stored = cliConfig();
@@ -60,7 +62,7 @@ export function credsFromEnv(): Creds {
 	};
 }
 
-/** Client B2B aislado para una sesión (Bearer + workspace). */
+/** Isolated B2B client for one session (Bearer + workspace). */
 export function makeB2bClient(c: Creds): Client {
 	return createClient(
 		createConfig({
@@ -73,12 +75,12 @@ export function makeB2bClient(c: Creds): Client {
 	);
 }
 
-/** Client público B2C aislado (sin auth). Catálogo + checkout anónimo. */
+/** Isolated public B2C client (no auth). Catalogue plus anonymous checkout. */
 export function makePublicClient(apiUrl: string): Client {
 	return createClient(createConfig({ baseUrl: `${apiUrl}/api/public` }));
 }
 
-/** Client superadmin aislado (cookie de sesión SUPER_ADMIN). Nunca comparte auth. */
+/** Isolated superadmin client (SUPER_ADMIN session cookie). It never shares auth. */
 export function makeAdminClient(c: Creds): Client {
 	return createClient(
 		createConfig({
@@ -91,23 +93,24 @@ export function makeAdminClient(c: Creds): Client {
 type SdkResult = { data?: unknown; error?: unknown };
 
 /**
- * Resultado MCP desde una llamada del SDK generado: data o error del envelope.
+ * An MCP result from a generated SDK call: the envelope's data, or its error.
  *
- * Va siempre con `structuredContent` además del texto: es lo que consume el
- * view de MCP Apps (src/ui.ts) para dibujar tabla/KPIs. Se envuelve en `{ data }`
- * porque la spec exige que structuredContent sea un objeto, y un listado
- * devuelve un array. El texto queda igual para los hosts sin extensión de UI.
+ * It always carries `structuredContent` alongside the text: that is what the
+ * MCP Apps view (src/ui.ts) consumes to draw the table or the KPIs. It is
+ * wrapped in `{ data }` because the spec requires structuredContent to be an
+ * object, and a list returns an array. The text stays the same for hosts
+ * without the UI extension.
  */
 export async function run(p: Promise<SdkResult>): Promise<{
 	content: { type: "text"; text: string }[];
 	structuredContent?: { data: unknown };
 	isError?: boolean;
 }> {
-	// @hey-api/client-fetch solo puebla `r.error` cuando hubo RESPUESTA HTTP.
-	// Un fallo de transporte (DNS, timeout, TLS, abort) rechaza la promesa, y
-	// sin este catch lo atrapaba el catch genérico del SDK MCP: texto plano,
-	// sin code, sin structuredContent. El agente veía dos formas distintas para
-	// la misma cosa y no podía ramificar por código (issue #12).
+	// @hey-api/client-fetch only populates `r.error` when there WAS an HTTP
+	// response. A transport failure (DNS, timeout, TLS, abort) rejects the
+	// promise, and without this catch the MCP SDK's generic catch took it: plain
+	// text, no code, no structuredContent. The agent saw two different shapes
+	// for the same thing and could not branch on a code (issue #12).
 	let r: SdkResult;
 	try {
 		r = await p;
@@ -144,7 +147,7 @@ export async function run(p: Promise<SdkResult>): Promise<{
 	};
 }
 
-/** `{ data, page }` → `data`. El view quiere las filas, no el sobre. */
+/** `{ data, page }` → `data`. The view wants the rows, not the envelope. */
 function unwrapEnvelope(d: unknown): unknown {
 	if (d && typeof d === "object" && "data" in d)
 		return (d as { data: unknown }).data;

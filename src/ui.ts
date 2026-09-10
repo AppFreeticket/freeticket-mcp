@@ -1,55 +1,55 @@
 /**
- * MCP Apps (extensión `io.modelcontextprotocol/ui`, spec 2026-01-26): la UI de
- * FreeTicket dentro del host — Claude, Claude Desktop, VS Code, Goose.
+ * MCP Apps (the `io.modelcontextprotocol/ui` extension, spec 2026-01-26):
+ * FreeTicket's UI inside the host — Claude, Claude Desktop, VS Code, Goose.
  *
- * Contrato de la extensión, en dos partes atadas por el URI:
- *  1. un recurso `ui://` con mimeType `text/html;profile=mcp-app` (el HTML del
- *     view, autocontenido),
- *  2. los tools que quieren render visual declaran `_meta.ui.resourceUri`
- *     apuntando a ese recurso.
+ * The extension contract, in two halves tied together by the URI:
+ *  1. a `ui://` resource with mimeType `text/html;profile=mcp-app` (the view's
+ *     HTML, self-contained),
+ *  2. tools that want a visual render declare `_meta.ui.resourceUri` pointing
+ *     at that resource.
  *
- * El host baja el HTML, lo monta en un iframe sandboxeado y le empuja el
- * resultado del tool por postMessage. Un host que no soporte la extensión
- * ignora `_meta` y se queda con el texto — por eso el mismo tool sirve a los
- * dos mundos y registramos siempre, sin negociar.
+ * The host downloads the HTML, mounts it in a sandboxed iframe and pushes the
+ * tool result at it over postMessage. A host without the extension ignores
+ * `_meta` and keeps the text — which is why the same tool serves both worlds
+ * and we always register, with nothing to negotiate.
  *
- * El view habla el dialecto JSON-RPC de la extensión a mano (~40 líneas) en vez
- * de traer @modelcontextprotocol/ext-apps: así el HTML es un string en el
- * bundle, sin paso de build extra ni lecturas de disco — que es lo que hace que
- * esto funcione igual en stdio y en la Vercel Function.
- * ponytail: si el view crece más allá de tabla + KPIs, mover a un entry propio
- * bundleado con tsup.
+ * The view speaks the extension's JSON-RPC dialect by hand (~40 lines) instead
+ * of pulling in @modelcontextprotocol/ext-apps: that way the HTML is a string
+ * in the bundle, with no extra build step and no disk reads — which is what
+ * makes this behave identically over stdio and in the Vercel Function.
+ * ponytail: if the view grows beyond table + KPIs, move it to its own entry
+ * bundled with tsup.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BRAND, FAVICON_SVG } from "./brand";
 
-/** mimeType que exige la spec para un view HTML. */
+/** The mimeType the spec requires for an HTML view. */
 export const UI_MIME = "text/html;profile=mcp-app";
-/** Un solo view para todo: el render se decide por la forma del payload. */
+/** One view for everything: the render is chosen by the shape of the payload. */
 export const UI_URI = "ui://freeticket/view.html";
-/** Versión del protocolo de la extensión que hablamos (LATEST_PROTOCOL_VERSION). */
+/** The extension protocol version we speak (LATEST_PROTOCOL_VERSION). */
 export const UI_PROTOCOL = "2026-01-26";
 
-/** `_meta` que ata un tool a su view. Se pasa tal cual a registerTool. */
+/** The `_meta` that ties a tool to its view. Passed as-is to registerTool. */
 export const UI_META = { ui: { resourceUri: UI_URI } } as const;
 
 /**
- * Registra un read con vista de MCP Apps: mismo tool, más `_meta.ui` apuntando
- * al view. `server.tool()` no acepta `_meta`, por eso estos pasan por
- * `registerTool`. Todo listado o reporte debería usar esto — un listado sin
- * view se ve como un volcado de JSON y nadie nota que le falta.
+ * Registers a read with an MCP Apps view: the same tool, plus a `_meta.ui`
+ * pointing at the view. `server.tool()` does not accept `_meta`, which is why
+ * these go through `registerTool`. Every list and report should use this — a
+ * list without a view looks like a JSON dump and nobody notices it is missing.
  */
 export function uiTool(
 	server: McpServer,
 	name: string,
 	description: string,
 	inputSchema: Record<string, unknown>,
-	// biome-ignore lint/suspicious/noExplicitAny: firma del SDK, varía por tool.
+	// biome-ignore lint/suspicious/noExplicitAny: SDK signature, varies per tool.
 	cb: (args: any) => Promise<any>,
 ): void {
 	server.registerTool(
 		name,
-		// biome-ignore lint/suspicious/noExplicitAny: idem — el shape lo fija zod.
+		// biome-ignore lint/suspicious/noExplicitAny: same — zod pins the shape.
 		{ description, inputSchema: inputSchema as any, _meta: UI_META },
 		cb,
 	);
@@ -83,8 +83,8 @@ const VIEW_HTML = `<!DOCTYPE html>
     background: transparent;
   }
   header { display: flex; align-items: center; gap: 7px; margin-bottom: 10px; }
-  /* La marca es nuestra y no negociable: el logo de FreeTicket sale de
-     brand.ts, con tamaño fijo para que ningún tema del host lo escale. */
+  /* The brand is ours and not negotiable: the FreeTicket logo comes from
+     brand.ts, at a fixed size so no host theme can scale it. */
   header svg { width: 16px; height: 16px; border-radius: 4px; flex: none; }
   header b { font-size: 13px; letter-spacing: -0.01em; }
   header span { color: var(--color-text-secondary); font-size: 12px; }
@@ -115,8 +115,8 @@ const VIEW_HTML = `<!DOCTYPE html>
 </style>
 </head>
 <body>
-<header>${FAVICON_SVG}<b>FreeTicket</b><span id="sub">cargando…</span></header>
-<div id="root"><p class="muted">Esperando datos…</p></div>
+<header>${FAVICON_SVG}<b>FreeTicket</b><span id="sub">loading…</span></header>
+<div id="root"><p class="muted">Waiting for data…</p></div>
 <footer id="foot"></footer>
 <script>
 (() => {
@@ -125,8 +125,8 @@ const VIEW_HTML = `<!DOCTYPE html>
   let id = 0;
   const send = (method, params) =>
     host.postMessage({ jsonrpc: "2.0", method, params }, "*");
-  // Solo escuchamos al frame que nos montó: cualquier otro puede inyectar un
-  // tool-result falso y el usuario vería datos que no vinieron de FreeTicket.
+  // We listen only to the frame that mounted us: any other one could inject a
+  // fake tool-result and the user would see data that did not come from FreeTicket.
   const fromHost = (e) => e.source === host || e.source == null;
   const request = (method, params) =>
     new Promise((resolve) => {
@@ -141,10 +141,10 @@ const VIEW_HTML = `<!DOCTYPE html>
       host.postMessage({ jsonrpc: "2.0", id: rid, method, params }, "*");
     });
 
-  // El host manda sus variables CSS: adoptarlas mantiene el view integrado al
-  // tema del chat en vez de imponerle el nuestro. Solo se aceptan las del
-  // contrato de la extensión (--color-* / --font-*): lo de marca (--ft) queda
-  // fuera del alcance del host por diseño, no por olvido.
+  // The host sends its CSS variables: adopting them keeps the view integrated
+  // with the chat theme instead of imposing ours. Only the ones in the
+  // extension contract are accepted (--color-* / --font-*): the brand ones
+  // (--ft) are out of the host's reach by design, not by oversight.
   const HOST_VAR = /^--(color|font)-/;
   const applyTheme = (ctx) => {
     const vars = ctx && ctx.styles && ctx.styles.variables;
@@ -152,8 +152,8 @@ const VIEW_HTML = `<!DOCTYPE html>
       if (v && HOST_VAR.test(k)) document.documentElement.style.setProperty(k, v);
     }
     if (ctx && ctx.theme) {
-      // data-theme + color-scheme: sin lo segundo, light-dark() sigue el tema
-      // del SO y el view queda claro dentro de un chat oscuro.
+      // data-theme + color-scheme: without the second, light-dark() follows the
+      // OS theme and the view renders light inside a dark chat.
       document.documentElement.dataset.theme = ctx.theme;
       document.documentElement.style.colorScheme = ctx.theme;
     }
@@ -164,7 +164,7 @@ const VIEW_HTML = `<!DOCTYPE html>
   let money = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
   const setLocale = (loc) => {
     try { money = new Intl.NumberFormat(loc, { maximumFractionDigits: 0 }); }
-    catch { /* locale inválido del host: nos quedamos con es-CO */ }
+    catch { /* invalid locale from the host: we keep es-CO */ }
   };
   const isNum = (v) => typeof v === "number" && Number.isFinite(v);
   const label = (k) =>
@@ -173,9 +173,9 @@ const VIEW_HTML = `<!DOCTYPE html>
   function cell(key, v) {
     if (v === null || v === undefined) return '<span class="muted">—</span>';
     if (isNum(v)) return MONEY.test(key) ? money.format(v) : String(v);
-    if (typeof v === "boolean") return v ? "sí" : "no";
+    if (typeof v === "boolean") return v ? "yes" : "no";
     if (typeof v === "object") {
-      // { id, name } y compañía: mostrar lo legible, no el JSON entero.
+      // { id, name } and friends: show the readable part, not the whole JSON.
       const s = v.name || v.label || v.reference || v.startsAt;
       return s ? esc(String(s)) : esc(JSON.stringify(v));
     }
@@ -204,7 +204,7 @@ const VIEW_HTML = `<!DOCTYPE html>
       '<div class="scroll"><table><thead><tr>' + head + "</tr></thead><tbody>" +
       body + "</tbody></table></div>" +
       (rows.length > shown.length
-        ? '<footer class="muted">' + (rows.length - shown.length) + " filas más</footer>"
+        ? '<footer class="muted">' + (rows.length - shown.length) + " more rows</footer>"
         : "")
     );
   }
@@ -241,12 +241,12 @@ const VIEW_HTML = `<!DOCTYPE html>
 
     if (Array.isArray(data)) {
       const rows = data.filter((r) => r && typeof r === "object");
-      sub.textContent = data.length + (data.length === 1 ? " resultado" : " resultados");
+      sub.textContent = data.length + (data.length === 1 ? " result" : " results");
       root.innerHTML = rows.length
         ? table(rows)
         : data.length
           ? "<pre>" + esc(JSON.stringify(data, null, 2)) + "</pre>"
-          : '<p class="muted">Sin resultados.</p>';
+          : '<p class="muted">No results.</p>';
     } else if (data && typeof data === "object") {
       sub.textContent = "";
       root.innerHTML = tiles(data);
@@ -276,8 +276,8 @@ const VIEW_HTML = `<!DOCTYPE html>
     if (m.method === "ui/notifications/tool-result") render(m.params);
     if (m.method === "ui/notifications/host-context-changed") applyTheme(m.params);
     if (m.method === "ui/notifications/tool-input")
-      document.getElementById("sub").textContent = "consultando…";
-    // Shutdown ordenado: el host espera respuesta antes de desmontar el iframe.
+      document.getElementById("sub").textContent = "querying…";
+    // Orderly shutdown: the host waits for a reply before unmounting the iframe.
     if (m.method === "ui/resource-teardown")
       host.postMessage({ jsonrpc: "2.0", id: m.id, result: {} }, "*");
   });
@@ -299,9 +299,9 @@ const VIEW_HTML = `<!DOCTYPE html>
 </html>`;
 
 /**
- * Registra el view. Un solo recurso para todos los tools con UI: el HTML decide
- * el render por la forma del payload (array → tabla, objeto → tiles), así no
- * hay una plantilla por reporte que mantener.
+ * Registers the view. One resource for every tool with UI: the HTML picks the
+ * render from the shape of the payload (array → table, object → tiles), so
+ * there is no per-report template to maintain.
  */
 export function registerUi(server: McpServer): void {
 	server.registerResource(
@@ -309,9 +309,9 @@ export function registerUi(server: McpServer): void {
 		UI_URI,
 		{
 			description:
-				"Vista interactiva de FreeTicket: tabla para listados, tiles para KPIs.",
+				"Interactive FreeTicket view: a table for lists, tiles for KPIs.",
 			mimeType: UI_MIME,
-			// Sin dominios externos: el HTML es autocontenido, no pide red.
+			// No external domains: the HTML is self-contained, it asks for no network.
 			_meta: { ui: { csp: {}, prefersBorder: true } },
 		},
 		async () => ({

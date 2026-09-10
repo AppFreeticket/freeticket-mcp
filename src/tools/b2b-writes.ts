@@ -44,26 +44,26 @@ import {
 const destructive = { destructiveHint: true, idempotentHint: false } as const;
 /** Creates/publish: no borran datos, pero mutan. */
 const mutating = { destructiveHint: false, idempotentHint: false } as const;
-/** Recuérdaselo al agente en la descripción, no solo en la annotation. */
-const CONFIRM = " ⚠️ Irreversible: confirmá con el humano antes de ejecutar.";
+/** Remind the agent in the description, not only in the annotation. */
+const CONFIRM = " ⚠️ Irreversible: confirm with the human before running it.";
 
 /**
- * Ola B: writes del contrato B2B /api/v1 (un tool = un operationId).
+ * Wave B: writes of the B2B /api/v1 contract (one tool = one operationId).
  *
- * Completa desde el contrato 1.5.0: los updates que faltaban (event_dates_*,
- * ticket_types_update, plans_update, venues_update) ya declaran requestBody en
- * el spec, así que sus schemas salen del contrato y no de la imaginación.
+ * Complete as of contract 1.5.0: the updates that were missing (event_dates_*,
+ * ticket_types_update, plans_update, venues_update) now declare a requestBody
+ * in the spec, so their schemas come from the contract and not from guesswork.
  */
 export function registerB2bWriteTools(server: McpServer, client: Client): void {
-	// ── Eventos ──────────────────────────────────────────────────────────────
+	// ── Events ───────────────────────────────────────────────────────────────
 	server.tool(
 		"events_create",
-		"Crea un evento con sus fechas (POST /events).",
+		"Creates an event with its dates (POST /events).",
 		{
-			name: z.string().describe("Nombre del evento"),
+			name: z.string().describe("Event name"),
 			slug: z.string().describe("Slug único (URL-friendly)"),
 			description: z.string().optional(),
-			venueId: z.string().nullish().describe("Id del venue"),
+			venueId: z.string().nullish().describe("Venue id"),
 			dates: z
 				.array(
 					z.object({
@@ -72,7 +72,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 						timezone: z.string().describe("Ej: America/Bogota"),
 					}),
 				)
-				.describe("Al menos una fecha/función"),
+				.describe("At least one date"),
 		},
 		mutating,
 		async (body) => run(postEvents({ body, client })),
@@ -81,7 +81,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"events_update",
 		"Actualiza campos de un evento (PATCH /events/{id}).",
 		{
-			id: z.string().describe("Id del evento"),
+			id: z.string().describe("Event id"),
 			name: z.string().optional(),
 			description: z.string().nullish(),
 			venueId: z.string().nullish(),
@@ -94,28 +94,28 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	server.tool(
 		"events_publish",
 		"Publica un evento en borrador (POST /events/{id}/publish).",
-		{ id: z.string().describe("Id del evento") },
+		{ id: z.string().describe("Event id") },
 		mutating,
 		async ({ id }) => run(postEventsIdPublish({ path: { id }, client })),
 	);
 	server.tool(
 		"events_delete",
 		`Elimina un evento (DELETE /events/{id}).${CONFIRM}`,
-		{ id: z.string().describe("Id del evento") },
+		{ id: z.string().describe("Event id") },
 		destructive,
 		async ({ id }) => run(deleteEventsId({ path: { id }, client })),
 	);
 	server.tool(
 		"event_dates_create",
-		"Agrega una fecha/función a un evento (POST /events/{id}/dates).",
+		"Adds a date to an event (POST /events/{id}/dates).",
 		{
-			eventId: z.string().describe("Id del evento"),
+			eventId: z.string().describe("Event id"),
 			startsAt: z.string().describe("Inicio (ISO 8601)"),
 			timezone: z
 				.string()
 				.default("America/Bogota")
 				.describe("Ej: America/Bogota"),
-			label: z.string().max(200).nullish().describe("Etiqueta de la función"),
+			label: z.string().max(200).nullish().describe("Date label"),
 			endsAt: z.string().nullish().describe("Fin (ISO 8601)"),
 			doorsOpenAt: z
 				.string()
@@ -129,10 +129,10 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"event_dates_update",
-		"Actualiza una fecha/función (PATCH /events/{id}/dates/{dateId}).",
+		"Updates a date (PATCH /events/{id}/dates/{dateId}).",
 		{
-			eventId: z.string().describe("Id del evento"),
-			dateId: z.string().describe("Id de la fecha"),
+			eventId: z.string().describe("Event id"),
+			dateId: z.string().describe("Date id"),
 			startsAt: z.string().optional().describe("Inicio (ISO 8601)"),
 			endsAt: z.string().nullish().describe("Fin (ISO 8601)"),
 			doorsOpenAt: z
@@ -155,10 +155,10 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"event_dates_delete",
-		`Elimina una fecha/función de un evento (DELETE /events/{id}/dates/{dateId}).${CONFIRM}`,
+		`Deletes a date from an event (DELETE /events/{id}/dates/{dateId}).${CONFIRM}`,
 		{
-			eventId: z.string().describe("Id del evento"),
-			dateId: z.string().describe("Id de la fecha"),
+			eventId: z.string().describe("Event id"),
+			dateId: z.string().describe("Date id"),
 		},
 		destructive,
 		async ({ eventId, dateId }) =>
@@ -168,19 +168,19 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	// ── Ticket types ─────────────────────────────────────────────────────────
 	server.tool(
 		"ticket_types_create",
-		"Crea un tipo de ticket para una fecha (POST /ticket-types).",
+		"Creates a ticket type for a date (POST /ticket-types).",
 		{
-			eventDateId: z.string().describe("Id de la fecha de evento"),
+			eventDateId: z.string().describe("Event date id"),
 			name: z.string(),
 			description: z.string().optional(),
-			price: z.number().describe("Precio en la moneda dada"),
+			price: z.number().describe("Price in the given currency"),
 			currency: z.string().describe("Ej: COP"),
 			capacity: z.number().int().describe("Stock total"),
 			maxPerOrder: z.number().int().describe("Máximo por orden"),
 			isVisible: z.boolean(),
 			organizerAbsorbsFee: z
 				.boolean()
-				.describe("El organizador absorbe la comisión"),
+				.describe("The organizer absorbs the fee"),
 		},
 		mutating,
 		async (body) => run(postTicketTypes({ body, client })),
@@ -189,7 +189,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"ticket_types_update",
 		"Actualiza un tipo de ticket — precio, stock, visibilidad (PATCH /ticket-types/{id}).",
 		{
-			id: z.string().describe("Id del tipo de ticket"),
+			id: z.string().describe("Ticket type id"),
 			name: z.string().optional(),
 			description: z.string().nullish(),
 			price: z.number().min(0).optional(),
@@ -206,7 +206,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	server.tool(
 		"ticket_types_delete",
 		`Elimina un tipo de ticket (DELETE /ticket-types/{id}).${CONFIRM}`,
-		{ id: z.string().describe("Id del tipo de ticket") },
+		{ id: z.string().describe("Ticket type id") },
 		destructive,
 		async ({ id }) => run(deleteTicketTypesId({ path: { id }, client })),
 	);
@@ -214,7 +214,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	// ── Ventas y tickets ─────────────────────────────────────────────────────
 	server.tool(
 		"sales_create",
-		"Crea una venta u orden programática — cortesías (comp) o venta directa (POST /sales).",
+		"Creates a programmatic sale or order — comps or a direct sale (POST /sales).",
 		{
 			buyer: z.object({
 				name: z.string(),
@@ -228,9 +228,9 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 						quantity: z.number().int().positive(),
 					}),
 				)
-				.describe("Ítems de la orden"),
+				.describe("Order items"),
 			channel: z.enum(["WEB", "MOBILE", "POS", "ADMIN"]),
-			comp: z.boolean().describe("true = cortesía (sin cobro)"),
+			comp: z.boolean().describe("true = comp (no charge)"),
 			notes: z.string().optional(),
 		},
 		mutating,
@@ -238,15 +238,15 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"sales_cancel",
-		`Cancela una venta (POST /sales/{id}/cancel).${CONFIRM}`,
+		`Cancels a sale (POST /sales/{id}/cancel).${CONFIRM}`,
 		{
-			id: z.string().describe("Id de la venta"),
+			id: z.string().describe("Sale id"),
 			acknowledge_open_payment: z
 				.boolean()
 				.optional()
 				.describe(
-					"Confirma cancelar aunque el pago siga abierto en la pasarela " +
-						"(la API lo exige para no dejar un cobro huérfano).",
+					"Confirms cancelling even though the payment is still open at the " +
+						"gateway (the API demands it so no charge is orphaned).",
 				),
 		},
 		destructive,
@@ -255,14 +255,14 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"sales_refund",
-		`Reembolsa una venta (POST /sales/{id}/refund).${CONFIRM}`,
+		`Refunds a sale (POST /sales/{id}/refund).${CONFIRM}`,
 		{
-			id: z.string().describe("Id de la venta"),
+			id: z.string().describe("Sale id"),
 			acknowledge_manual: z
 				.boolean()
 				.optional()
 				.describe(
-					"Confirma que la plata se devuelve a mano por fuera de la pasarela.",
+					"Confirms the money is returned by hand, outside the gateway.",
 				),
 		},
 		destructive,
@@ -271,16 +271,16 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"tickets_checkin",
-		"Registra el ingreso (check-in) de un ticket por su código QR (POST /tickets/{code}/checkin).",
-		{ code: z.string().describe("Código QR del ticket") },
+		"Checks a ticket in by its QR code (POST /tickets/{code}/checkin).",
+		{ code: z.string().describe("Ticket QR code") },
 		mutating,
 		async ({ code }) =>
 			run(postTicketsTicketCodeCheckin({ path: { ticketCode: code }, client })),
 	);
 	server.tool(
 		"tickets_resend",
-		"Reenvía el QR/email de un ticket al comprador (POST /tickets/{code}/resend).",
-		{ code: z.string().describe("Código QR del ticket") },
+		"Resends a ticket QR and email to the buyer (POST /tickets/{code}/resend).",
+		{ code: z.string().describe("Ticket QR code") },
 		mutating,
 		async ({ code }) =>
 			run(postTicketsTicketCodeResend({ path: { ticketCode: code }, client })),
@@ -307,7 +307,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 				.int()
 				.min(0)
 				.default(0)
-				.describe("Orden en el listado de planes"),
+				.describe("Sort order in the plan list"),
 		},
 		mutating,
 		async (body) => run(postMembershipPlans({ body, client })),
@@ -316,7 +316,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"plans_update",
 		"Actualiza un plan de membresía (PATCH /membership-plans/{id}).",
 		{
-			id: z.string().describe("Id del plan"),
+			id: z.string().describe("Plan id"),
 			name: z.string().optional(),
 			description: z.string().nullish(),
 			price: z.number().min(0).optional(),
@@ -339,14 +339,14 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	server.tool(
 		"plans_delete",
 		`Elimina un plan de membresía (DELETE /membership-plans/{id}).${CONFIRM}`,
-		{ id: z.string().describe("Id del plan") },
+		{ id: z.string().describe("Plan id") },
 		destructive,
 		async ({ id }) => run(deleteMembershipPlansId({ path: { id }, client })),
 	);
 	server.tool(
 		"subscriptions_cancel",
-		`Cancela la suscripción de un miembro (POST /subscriptions/{id}/cancel).${CONFIRM}`,
-		{ id: z.string().describe("Id de la suscripción") },
+		`Cancels a member subscription (POST /subscriptions/{id}/cancel).${CONFIRM}`,
+		{ id: z.string().describe("Subscription id") },
 		destructive,
 		async ({ id }) => run(postSubscriptionsIdCancel({ path: { id }, client })),
 	);
@@ -371,7 +371,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"venues_update",
 		"Actualiza un venue (PATCH /venues/{id}).",
 		{
-			id: z.string().describe("Id del venue"),
+			id: z.string().describe("Venue id"),
 			name: z.string().optional(),
 			address: z.string().optional(),
 			city: z.string().optional(),
@@ -388,22 +388,22 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	server.tool(
 		"venues_delete",
 		`Elimina un venue (DELETE /venues/{id}).${CONFIRM}`,
-		{ id: z.string().describe("Id del venue") },
+		{ id: z.string().describe("Venue id") },
 		destructive,
 		async ({ id }) => run(deleteVenuesId({ path: { id }, client })),
 	);
 	server.tool(
 		"staff_create",
-		"Invita a un miembro del staff (POST /staff).",
+		"Invites a staff member (POST /staff).",
 		{ name: z.string(), email: z.string().email() },
 		mutating,
 		async (body) => run(postStaff({ body, client })),
 	);
 	server.tool(
 		"staff_update_role",
-		"Cambia el rol de un miembro del staff (PATCH /staff/{id}/role).",
+		"Changes a staff member role (PATCH /staff/{id}/role).",
 		{
-			id: z.string().describe("Id del miembro"),
+			id: z.string().describe("Member id"),
 			role: z.enum(["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]),
 		},
 		mutating,
@@ -416,12 +416,12 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"discounts_create",
 		"Crea un cupón/descuento (POST /discounts).",
 		{
-			code: z.string().describe("Código del cupón"),
+			code: z.string().describe("Coupon code"),
 			type: z.enum(["PERCENT", "FIXED"]),
 			value: z.number().describe("Porcentaje o monto fijo según type"),
 			eventId: z.string().nullish().describe("Limitar a un evento"),
 			maxUses: z.number().int().nullish().describe("Usos máximos"),
-			startsAt: z.string().nullish().describe("Vigente desde (ISO 8601)"),
+			startsAt: z.string().nullish().describe("Valid from (ISO 8601)"),
 			endsAt: z.string().nullish().describe("Vigente hasta (ISO 8601)"),
 		},
 		mutating,
@@ -431,7 +431,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"discounts_update",
 		"Actualiza un cupón/descuento (PATCH /discounts/{id}).",
 		{
-			id: z.string().describe("Id del cupón"),
+			id: z.string().describe("Coupon id"),
 			active: z.boolean().optional(),
 			value: z.number().optional(),
 			maxUses: z.number().int().nullish(),
@@ -445,19 +445,19 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	server.tool(
 		"discounts_delete",
 		`Elimina un cupón/descuento (DELETE /discounts/{id}).${CONFIRM}`,
-		{ id: z.string().describe("Id del cupón") },
+		{ id: z.string().describe("Coupon id") },
 		destructive,
 		async ({ id }) => run(deleteDiscountsId({ path: { id }, client })),
 	);
 	server.tool(
 		"webhooks_create",
-		"Registra un webhook para eventos de venta (POST /webhooks).",
+		"Registers a webhook for sale events (POST /webhooks).",
 		{
-			url: z.string().url().describe("Endpoint que recibe los eventos"),
+			url: z.string().url().describe("Endpoint that receives the events"),
 			events: z
 				.array(z.enum(["sale.confirmed", "sale.refunded"]))
-				.describe("Eventos a los que suscribirse"),
-			secret: z.string().optional().describe("Secreto para firmar el payload"),
+				.describe("Events to subscribe to"),
+			secret: z.string().optional().describe("Secret used to sign the payload"),
 		},
 		mutating,
 		async (body) => run(postWebhooks({ body, client })),
@@ -465,23 +465,23 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	server.tool(
 		"webhooks_delete",
 		`Elimina un webhook (DELETE /webhooks/{id}).${CONFIRM}`,
-		{ id: z.string().describe("Id del webhook") },
+		{ id: z.string().describe("Webhook id") },
 		destructive,
 		async ({ id }) => run(deleteWebhooksId({ path: { id }, client })),
 	);
 
 	// ── Área de socios y contenido (contrato 1.7.0) ──────────────────────────
-	// Hablan en nombre del comprador: API key enterprise + su session token
-	// (X-Customer-Session). Con estos, el agente cierra el circuito del área de
-	// socios: alta y baja de membresía, perfil y cancelación de la propia compra.
+	// These speak on behalf of the buyer: an enterprise API key plus their
+	// session token (X-Customer-Session). With them the agent closes the members
+	// area loop: subscribing and cancelling, profile, and cancelling own purchase.
 	const customerSession = z
 		.string()
-		.describe("Session token del comprador (header X-Customer-Session)");
+		.describe("Buyer session token (X-Customer-Session header)");
 
 	server.tool(
 		"customer_ticket_cancel",
-		`Cancela la propia compra del comprador, solo si todavía no fue pagada (POST /customer/tickets/{id}/cancel).${CONFIRM}`,
-		{ id: z.string().describe("Id de la entrada"), customerSession },
+		`Cancels a purchase made by the buyer, only while it is still unpaid (POST /customer/tickets/{id}/cancel).${CONFIRM}`,
+		{ id: z.string().describe("Ticket id"), customerSession },
 		destructive,
 		async ({ id, customerSession }) =>
 			run(
@@ -494,10 +494,10 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"customer_subscribe",
-		"Inicia el alta de una membresía y devuelve la URL de pago — el agente " +
-			"nunca toca el cobro (POST /customer/subscriptions).",
+		"Starts a membership subscription and returns the payment URL — the agent " +
+			"never handles the charge (POST /customer/subscriptions).",
 		{
-			planId: z.string().describe("Id de un plan de membresía activo"),
+			planId: z.string().describe("Id of an active membership plan"),
 			customerSession,
 		},
 		mutating,
@@ -512,7 +512,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"customer_subscription_cancel",
-		`Cancela la membresía del propio comprador (POST /customer/subscriptions/cancel).${CONFIRM}`,
+		`Cancels the membership held by the buyer (POST /customer/subscriptions/cancel).${CONFIRM}`,
 		{ customerSession },
 		destructive,
 		async ({ customerSession }) =>
@@ -525,8 +525,8 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"customer_profile_update",
-		"Edita el perfil del comprador: nombre y teléfono (PATCH /customer/profile). " +
-			"phone en null o vacío borra el teléfono.",
+		"Edits the buyer profile: name and phone (PATCH /customer/profile). " +
+			"A null or empty phone clears it.",
 		{
 			name: z.string().min(1).max(120).optional(),
 			phone: z.string().max(30).nullish(),
@@ -544,7 +544,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"customer_logout",
-		"Cierra la sesión de comprador del SSO headless (POST /customer/logout).",
+		"Closes the headless SSO buyer session (POST /customer/logout).",
 		{ customerSession },
 		mutating,
 		async ({ customerSession }) =>
@@ -557,16 +557,18 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"content_playback_token",
-		"Token firmado para reproducir un video (1 h) o una transmisión (30 min) " +
-			"(POST /content/playback-token). El contenido `memberOnly` exige además " +
-			"el session token de un comprador con membresía vigente.",
+		"Signed token to play a video (1 h) or a live stream (30 min) " +
+			"(POST /content/playback-token). `memberOnly` content additionally " +
+			"requires the session token of a buyer with an active membership.",
 		{
-			kind: z.enum(["video", "live"]).describe("Tipo de contenido"),
-			id: z.string().describe("Id del video o de la transmisión"),
+			kind: z.enum(["video", "live"]).describe("Content kind"),
+			id: z.string().describe("Video or live stream id"),
 			customerSession: z
 				.string()
 				.optional()
-				.describe("Session token del comprador — obligatorio si es memberOnly"),
+				.describe(
+					"Buyer session token — required when the content is memberOnly",
+				),
 		},
 		mutating,
 		async ({ customerSession, ...body }) =>

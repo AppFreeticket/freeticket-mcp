@@ -1,11 +1,12 @@
-# Agentes del repo `mcp`
+# Agents for the `mcp` repo
 
-Subagentes de Claude Code para construir y mantener el servidor MCP de FreeTicket.
+Claude Code subagents for building and maintaining FreeTicket's MCP server.
 
-| Agente | Cuándo usarlo |
+| Agent | When to use it |
 |---|---|
-| [`mcp-tool-author`](./mcp-tool-author.md) | Agregar un tool nuevo a partir de una operación del contrato OpenAPI. |
-| [`mcp-reviewer`](./mcp-reviewer.md) | Revisar un cambio en `src/` antes de mergear: schemas, errores, seguridad. |
+| [`mcp-tool-author`](./mcp-tool-author.md) | Add a new tool from an operation the OpenAPI contract already exposes. |
+| [`mcp-reviewer`](./mcp-reviewer.md) | Review a change under `src/` before merging: schemas, errors, security. |
 
-Para sincronizar el cliente con el contrato del backend, usá el agente
-`contract-sync` del paraguas `ai-native` (un nivel arriba).
+To synchronize the clients with the backend's contracts, use the `contract-sync`
+agent from the `ai-native` umbrella (one level up). To request an endpoint no
+contract exposes yet, use its `endpoint-requester`.

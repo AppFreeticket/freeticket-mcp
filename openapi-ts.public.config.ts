@@ -1,7 +1,8 @@
 import { defineConfig } from "@hey-api/openapi-ts";
 
-// Cliente tipado del contrato público B2C (/api/public, public-openapi.json).
-// Tercer linaje semver, sin auth. src/public-client/ es generado — no se edita.
+// Typed client for the public B2C contract (/api/public, public-openapi.json).
+// A third semver lineage, no auth. src/public-client/ is generated — never
+// hand-edited.
 export default defineConfig({
 	input: "public-openapi.json",
 	output: "src/public-client",

@@ -1,7 +1,8 @@
 import { defineConfig } from "@hey-api/openapi-ts";
 
-// Cliente tipado del contrato superadmin (/api/admin, admin-openapi.json).
-// Linaje semver separado del B2B. src/admin-client/ es generado — no se edita.
+// Typed client for the superadmin contract (/api/admin, admin-openapi.json).
+// Its semver lineage is separate from B2B. src/admin-client/ is generated —
+// never hand-edited.
 export default defineConfig({
 	input: "admin-openapi.json",
 	output: "src/admin-client",

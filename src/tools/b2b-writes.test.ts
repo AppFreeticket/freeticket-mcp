@@ -13,17 +13,17 @@ interface Registered {
 function registered(): Record<string, Registered> {
 	const server = new McpServer({ name: "t", version: "0.0.0" });
 	registerB2bWriteTools(server, stub);
-	// ponytail: _registeredTools es interno del SDK; si cambia, este test avisa.
+	// ponytail: _registeredTools is SDK-internal; if it changes, this test says so.
 	return (server as unknown as { _registeredTools: Record<string, Registered> })
 		._registeredTools;
 }
 
 /**
- * Los writes que borran, cancelan o reembolsan son la superficie donde un
- * error del agente no se deshace. El gate de confirmación del host cuelga de
- * `destructiveHint`, y el recordatorio en la descripción es lo único que ve el
- * modelo. Antes nada verificaba ninguno de los dos: un refactor podía dejar un
- * delete sin annotation y ningún test se enteraba (issue #15).
+ * Writes that delete, cancel or refund are the surface where an agent mistake
+ * does not undo itself. The host confirmation gate hangs off `destructiveHint`,
+ * and the reminder in the description is the only part the model sees. Nothing
+ * used to verify either one: a refactor could leave a delete with no annotation
+ * and no test would notice (issue #15).
  */
 const DESTRUCTIVE = [
 	"events_delete",
@@ -41,30 +41,30 @@ const DESTRUCTIVE = [
 describe("writes destructivos", () => {
 	const tools = registered();
 
-	it("los destructivos existen y están anotados como tales", () => {
+	it("destructive tools exist and are annotated as such", () => {
 		for (const name of DESTRUCTIVE) {
-			expect(tools[name], `falta el tool ${name}`).toBeDefined();
+			expect(tools[name], `missing tool ${name}`).toBeDefined();
 			expect(
 				tools[name].annotations?.destructiveHint,
-				`${name} sin destructiveHint: el host no va a pedir confirmación`,
+				`${name} has no destructiveHint: the host will not ask for confirmation`,
 			).toBe(true);
 		}
 	});
 
-	it("los destructivos avisan también en la descripción", () => {
+	it("destructive tools also warn in the description", () => {
 		for (const name of DESTRUCTIVE) {
 			expect(
 				tools[name].description,
-				`${name} sin el aviso de irreversible en la descripción`,
+				`${name} is missing the irreversible warning in its description`,
 			).toContain("Irreversible");
 		}
 	});
 
-	it("ningún write queda sin annotations", () => {
+	it("no write is left without annotations", () => {
 		for (const [name, tool] of Object.entries(tools)) {
 			expect(
 				tool.annotations?.destructiveHint,
-				`${name} sin annotations`,
+				`${name} has no annotations`,
 			).toBeDefined();
 		}
 	});

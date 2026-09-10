@@ -1,8 +1,8 @@
 import { defineConfig } from "@hey-api/openapi-ts";
 
-// Cliente tipado generado desde el contrato commiteado (openapi.json).
-// src/client/ es generado — nunca se edita a mano. Lo sincroniza el agente
-// `contract-sync` del paraguas ai-native cuando el backend cambia /api/v1.
+// Typed client generated from the committed contract (openapi.json).
+// src/client/ is generated — never hand-edited. The ai-native umbrella's
+// `contract-sync` agent syncs it when the backend changes /api/v1.
 export default defineConfig({
 	input: "openapi.json",
 	output: "src/client",

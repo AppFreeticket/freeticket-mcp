@@ -1,31 +1,32 @@
 /**
- * Request handler HTTP del FreeTicket MCP — compartido entre el entrypoint
- * standalone (src/http.ts, `createServer` + listen) y la Vercel Function
- * (api/server.ts, que lo default-exporta).
+ * HTTP request handler for the FreeTicket MCP — shared between the standalone
+ * entrypoint (src/http.ts, `createServer` + listen) and the Vercel Function
+ * (api/server.ts, which default-exports it).
  *
- * Auth — dos capas coherentes con el flujo OAuth que exige claude.ai (Add
+ * Auth — two layers consistent with the OAuth flow claude.ai requires (Add
  * custom connector):
  *   POST /mcp          requiere Bearer. Acepta (a) un access token OAuth emitido
  *                      por este mismo server (`ftmcp_…`, credenciales selladas) o
- *                      (b) una FT API key cruda + headers `X-Workspace-Id` /
- *                      `X-Admin-Session` (interim, para curl y clientes propios).
- *                      Sin Bearer → 401 + WWW-Authenticate, que es lo que dispara
- *                      el flujo OAuth en claude.ai.
- *   POST /mcp/public   anónimo: solo tools públicos B2C (el comprador no tiene
+ *                      (b) a raw FT API key + `X-Workspace-Id` /
+ *                      `X-Admin-Session` headers (interim, for curl and your
+ *                      own clients). No Bearer → 401 + WWW-Authenticate, which
+ *                      is what triggers the OAuth flow in claude.ai.
+ *   POST /mcp/public   anonymous: public B2C tools only (the buyer has no
  *                      cuenta). Para agentes compradores.
  *
  * OAuth 2.1 embebido (ver src/oauth.ts): discovery RFC 8414/9728, registro
- * dinámico RFC 7591, /authorize con página de consentimiento + PKCE, /token con
- * refresh. Tokens stateless sellados con MCP_TOKEN_SECRET — sin base de datos.
+ * RFC 7591 dynamic registration, /authorize with a consent page + PKCE, /token
+ * with refresh. Stateless tokens sealed with MCP_TOKEN_SECRET — no database.
  *
  * Env:
- *   FT_API_URL        base de la API B2B/admin (default https://admin.appfreeticket.com)
- *   MCP_PUBLIC_URL    URL pública del endpoint /mcp (para issuer y `resource`);
- *                     sin ella se deriva de Host + X-Forwarded-Proto
- *   MCP_TOKEN_SECRET  secreto que sella los tokens; sin él se genera uno efímero
- *                     por proceso (los tokens mueren al reiniciar — solo dev)
- *   FT_OAUTH_ISSUER   delega a un authorization server externo (p. ej. cuando
- *                     free-admin publique el suyo); apaga el AS embebido
+ *   FT_API_URL        B2B/admin API base (default https://admin.appfreeticket.com)
+ *   MCP_PUBLIC_URL    public URL of the /mcp endpoint (for the issuer and
+ *                     `resource`); without it, derived from Host + X-Forwarded-Proto
+ *   MCP_TOKEN_SECRET  secret that seals the tokens; without it an ephemeral one
+ *                     is generated per process (tokens die on restart — dev only)
+ *   FT_OAUTH_ISSUER   delegates to an external authorization server (for
+ *                     instance once free-admin publishes its own); turns the
+ *                     embedded AS off
  */
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -59,12 +60,12 @@ const TOKEN_SECRET =
 	process.env.MCP_TOKEN_SECRET ??
 	(() => {
 		process.stderr.write(
-			"MCP_TOKEN_SECRET no seteado: secreto efímero, los tokens no sobreviven un reinicio\n",
+			"MCP_TOKEN_SECRET not set: ephemeral secret, tokens do not survive a restart\n",
 		);
 		return randomBytes(32).toString("hex");
 	})();
 
-/** Credenciales del request: access token sellado o API key cruda (interim). */
+/** Request credentials: a sealed access token, or a raw API key (interim). */
 function credsFromRequest(headers: IncomingMessage["headers"]): Creds | null {
 	const auth = (headers.authorization as string) ?? "";
 	const bearer = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
@@ -90,8 +91,9 @@ function html(res: ServerResponse, body: string): void {
 }
 
 /**
- * Body del request. En Node puro se lee del stream; en Vercel el runtime ya
- * consumió el stream y deja el resultado parseado (objeto o string) en req.body.
+ * The request body. On plain Node it is read from the stream; on Vercel the
+ * runtime already consumed the stream and leaves the parsed result (an object
+ * or a string) in req.body.
  */
 async function readBody(req: IncomingMessage): Promise<unknown> {
 	const pre = (req as IncomingMessage & { body?: unknown }).body;
@@ -105,7 +107,7 @@ async function readBody(req: IncomingMessage): Promise<unknown> {
 	return raw || undefined;
 }
 
-/** Normaliza un body form-urlencoded que puede llegar crudo o ya parseado. */
+/** Normalizes a form-urlencoded body that may arrive raw or already parsed. */
 export function asForm(body: unknown): URLSearchParams {
 	if (typeof body === "string") return new URLSearchParams(body);
 	const params = new URLSearchParams();
@@ -117,12 +119,12 @@ export function asForm(body: unknown): URLSearchParams {
 	return params;
 }
 
-/** Normaliza un body JSON que puede llegar crudo o ya parseado. */
+/** Normalizes a JSON body that may arrive raw or already parsed. */
 function asJson(body: unknown): unknown {
 	return typeof body === "string" && body ? JSON.parse(body) : body;
 }
 
-/** Valida credenciales contra free-admin antes de acuñar el código. */
+/** Validates credentials against free-admin before minting the code. */
 async function validateCreds(creds: {
 	apiKey: string;
 	workspaceId: string;
@@ -181,8 +183,9 @@ function redirectWithCode(
 }
 
 /**
- * Arranca el device flow (RFC 8628) contra free-admin — el mismo backend que
- * `ft login`. Si falla (backend viejo, red), el consent cae al form manual.
+ * Starts the device flow (RFC 8628) against free-admin — the same backend as
+ * `ft login`. If it fails (old backend, network), the consent page falls back
+ * to the manual form.
  */
 async function startDeviceFlow(): Promise<DeviceStart | undefined> {
 	const r = await fetch(`${API_URL}/api/v1/auth/device/code`, {
@@ -253,7 +256,7 @@ export async function handleHttp(
 	}
 
 	try {
-		// Discovery RFC 9728 — claude.ai puede pedirla con sufijo (/…/mcp).
+		// RFC 9728 discovery — claude.ai may request it with a suffix (/…/mcp).
 		if (
 			req.method === "GET" &&
 			url.pathname.startsWith("/.well-known/oauth-protected-resource")
@@ -266,7 +269,7 @@ export async function handleHttp(
 			});
 		}
 
-		// Discovery RFC 8414 del AS embebido (apagado si se delega con FT_OAUTH_ISSUER).
+		// RFC 8414 discovery for the embedded AS (off when delegating via FT_OAUTH_ISSUER).
 		if (
 			req.method === "GET" &&
 			!EXTERNAL_ISSUER &&
@@ -276,8 +279,8 @@ export async function handleHttp(
 			return json(res, 200, authServerMetadata(origin));
 		}
 
-		// RFC 7591: registro dinámico. Stateless — sin registro persistido; la
-		// seguridad real la dan PKCE + validación de redirect_uri en /authorize.
+		// RFC 7591: dynamic registration. Stateless — nothing is persisted; the
+		// real security comes from PKCE plus redirect_uri validation in /authorize.
 		if (
 			req.method === "POST" &&
 			url.pathname === "/register" &&
@@ -313,14 +316,14 @@ export async function handleHttp(
 					error: "invalid_request",
 					error_description: "PKCE requerido",
 				});
-			// Camino principal: login con la sesión de free-admin (device flow).
+			// Primary path: login with the free-admin session (device flow).
 			const device = await startDeviceFlow();
 			return html(res, consentPage(url.searchParams, { device }));
 		}
 
-		// Polling del device flow desde la página de consentimiento. Stateless:
-		// el device_code vive en el browser; acá solo se canjea contra free-admin
-		// y se acuña el authorization code sellado.
+		// Device flow polling from the consent page. Stateless: the device_code
+		// lives in the browser; here it is only redeemed against free-admin and
+		// the sealed authorization code is minted.
 		if (
 			req.method === "POST" &&
 			url.pathname === "/device-token" &&
@@ -340,7 +343,7 @@ export async function handleHttp(
 				return json(res, 400, { error: "invalid_request" });
 			const state = body.state || null;
 
-			// Segunda fase: el usuario eligió workspace para una key ya canjeada.
+			// Second phase: the user picked a workspace for an already-redeemed key.
 			if (body.pending) {
 				const p = open(body.pending, TOKEN_SECRET, PENDING_PREFIX);
 				if (!p)
@@ -384,7 +387,7 @@ export async function handleHttp(
 				access_token: string;
 				workspaces: { id: string; name: string }[];
 			};
-			// Un solo workspace (el caso típico): directo de vuelta al cliente MCP.
+			// A single workspace (the typical case): straight back to the MCP client.
 			if (grant.workspaces.length <= 1) {
 				const code = mintCode(
 					{ apiKey: grant.access_token, workspaceId: grant.workspaces[0]?.id },
@@ -395,7 +398,7 @@ export async function handleHttp(
 					redirect: redirectWithCode(redirectUri, code, state),
 				});
 			}
-			// Varios: la página muestra el picker; la key viaja sellada (ftp_).
+			// Several: the page shows the picker; the key travels sealed (ftp_).
 			return json(res, 200, {
 				workspaces: grant.workspaces.map((w) => ({ id: w.id, name: w.name })),
 				pending: seal(
@@ -406,7 +409,7 @@ export async function handleHttp(
 			});
 		}
 
-		// Submit del consentimiento → authorization code sellado.
+		// Consent submit → sealed authorization code.
 		if (
 			req.method === "POST" &&
 			url.pathname === "/authorize" &&
@@ -433,7 +436,7 @@ export async function handleHttp(
 			return;
 		}
 
-		// Token endpoint: authorization_code (con PKCE) y refresh_token.
+		// Token endpoint: authorization_code (with PKCE) and refresh_token.
 		if (
 			req.method === "POST" &&
 			url.pathname === "/token" &&
@@ -483,7 +486,7 @@ export async function handleHttp(
 			return json(res, 200, { name: "freeticket-mcp", status: "ok" });
 		}
 
-		// Favicon — el de free-admin (misma marca en toda la superficie FreeTicket).
+		// Favicon — free-admin's (one brand across the whole FreeTicket surface).
 		if (
 			req.method === "GET" &&
 			(url.pathname === "/favicon.svg" || url.pathname === "/favicon.ico")
@@ -496,7 +499,7 @@ export async function handleHttp(
 			return;
 		}
 
-		// MCP anónimo: solo tools públicos B2C (agentes compradores, sin cuenta).
+		// Anonymous MCP: public B2C tools only (buyer agents, with no account).
 		if (url.pathname === "/mcp/public") {
 			return await handleMcp(req, res, { apiUrl: API_URL });
 		}
@@ -506,8 +509,8 @@ export async function handleHttp(
 			return;
 		}
 
-		// /mcp autenticado. El 401 + WWW-Authenticate (RFC 9728) es lo que le dice
-		// a claude.ai "acá se entra por OAuth" y dispara el flujo del connector.
+		// Authenticated /mcp. The 401 + WWW-Authenticate (RFC 9728) is what tells
+		// claude.ai "you get in through OAuth" and fires the connector flow.
 		const creds = credsFromRequest(req.headers);
 		if (!creds) {
 			res.writeHead(401, {

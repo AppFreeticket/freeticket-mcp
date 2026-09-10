@@ -6,14 +6,14 @@ import { buildServer } from "./server";
 import { UI_MIME, UI_PROTOCOL, UI_URI } from "./ui";
 
 /**
- * Contrato de la extensión MCP Apps: recurso `ui://` + tools que lo apuntan por
- * `_meta.ui.resourceUri`. Si una de las dos mitades se cae, el host no dibuja
- * nada y no hay error visible — por eso se testea el cableado.
+ * The MCP Apps extension contract: a `ui://` resource plus the tools pointing
+ * at it through `_meta.ui.resourceUri`. If either half breaks, the host draws
+ * nothing and there is no visible error — which is why the wiring is tested.
  *
- * El view además se monta de verdad (jsdom): es ~150 líneas de JS dentro de un
- * template literal que ni tsc ni biome miran, y renderiza payloads arbitrarios
- * de la API. Un test de strings no habría visto un escape roto ni una marca
- * pisada por el tema del host.
+ * The view is also genuinely mounted (jsdom): it is ~150 lines of JS inside a
+ * template literal that neither tsc nor biome looks at, and it renders
+ * arbitrary API payloads. A string test would not have caught a broken escape
+ * or branding overridden by the host theme.
  */
 function internals(server: McpServer) {
 	return server as unknown as {
@@ -65,7 +65,7 @@ describe("MCP Apps wiring", () => {
 		])
 			expect(html).toContain(m);
 		expect(html).toContain(UI_PROTOCOL);
-		// Autocontenido: sin red, el CSP deny-by-default del host no lo rompe.
+		// Self-contained: no network, so the host's deny-by-default CSP cannot break it.
 		expect(html).not.toMatch(/<script[^>]+src=/);
 		expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)/);
 	});
@@ -73,14 +73,14 @@ describe("MCP Apps wiring", () => {
 	it("points every list/report tool at that resource", () => {
 		const tools = internals(server)._registeredTools;
 		const withUi = new Set(uiTools().map(([n]) => n));
-		// Los listados y reportes se ven mejor como tabla/KPIs; sin `_meta.ui`
-		// salen como un volcado de JSON y nadie se entera de que les falta.
+		// Lists and reports read better as a table or KPIs; without `_meta.ui`
+		// they come out as a JSON dump and nobody notices what is missing.
 		const byName = Object.keys(tools).filter((n) =>
 			/_list$|^reports_(summary|by_event|timeseries|inventory|financials)$|^reconciliation$/.test(
 				n,
 			),
 		);
-		// Los listados admin no siguen el sufijo `_list`: van por nombre.
+		// The admin lists do not follow the `_list` suffix: they go by name.
 		const expected = [
 			...byName,
 			"admin_workspaces",
@@ -96,8 +96,9 @@ describe("MCP Apps wiring", () => {
 
 	it("keeps detail/write tools out of the view", () => {
 		const withUi = new Set(uiTools().map(([n]) => n));
-		// Un objeto suelto o un ack de write no gana nada con la tabla, y el view
-		// gratis en un delete confunde: el host lo dibuja como si hubiera datos.
+		// A lone object or a write acknowledgement gains nothing from the table,
+		// and a free view on a delete misleads: the host draws it as if there
+		// were data.
 		for (const n of [
 			"events_get",
 			"sales_get",
@@ -118,7 +119,7 @@ describe("MCP Apps wiring", () => {
 	});
 });
 
-/** Monta el view real en jsdom con un `window.parent` falso que graba lo enviado. */
+/** Mounts the real view in jsdom with a fake `window.parent` that records what is sent. */
 async function mount() {
 	const html = await viewHtml();
 	const sent: Record<string, unknown>[] = [];
@@ -129,7 +130,7 @@ async function mount() {
 		value: parent,
 		configurable: true,
 	});
-	// jsdom no trae ResizeObserver y el view lo usa para reportar su alto.
+	// jsdom has no ResizeObserver and the view uses it to report its height.
 	(window as unknown as { ResizeObserver: unknown }).ResizeObserver = class {
 		observe() {}
 		disconnect() {}
@@ -141,14 +142,14 @@ async function mount() {
 		.replace("</head>", "")
 		.replace("<body>", "<body-marker>")
 		.replace(/<script>[\s\S]*<\/script>/, "");
-	// El <body> lo arma jsdom aparte: reinyectamos su contenido y corremos el
-	// script como lo haría el navegador, una vez que el DOM ya existe.
+	// jsdom builds the <body> separately: we reinject its content and run the
+	// script the way the browser would, once the DOM already exists.
 	const body = html.match(/<body>([\s\S]*?)<script>/)?.[1] ?? "";
 	document.body.innerHTML = body;
 	const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? "";
 	new Function(script)();
 
-	/** Empuja un mensaje del host, como haría el iframe padre. */
+	/** Pushes a message from the host, the way the parent iframe would. */
 	const post = (data: unknown, source: unknown = parent) => {
 		const ev = new MessageEvent("message", { data });
 		Object.defineProperty(ev, "source", { value: source });
@@ -192,11 +193,11 @@ describe("MCP Apps view — render", () => {
 		const table = document.querySelector("table");
 		expect(table).toBeTruthy();
 		expect(document.querySelectorAll("tbody tr")).toHaveLength(2);
-		expect(document.getElementById("sub")?.textContent).toBe("2 resultados");
-		// camelCase → etiqueta legible, y el importe formateado, no el número crudo.
+		expect(document.getElementById("sub")?.textContent).toBe("2 results");
+		// camelCase → a readable label, and the amount formatted, not the raw number.
 		expect(table?.textContent).toContain("gross Amount");
 		expect(table?.textContent).toContain("1.250.000");
-		// Estado terminal marcado como pill de marca.
+		// A terminal status marked as a brand pill.
 		expect(document.querySelector(".pill.ok")?.textContent).toBe("PUBLISHED");
 	});
 
@@ -257,7 +258,7 @@ describe("MCP Apps view — render", () => {
 	});
 });
 
-describe("MCP Apps view — la marca sigue siendo nuestra", () => {
+describe("MCP Apps view — the branding stays ours", () => {
 	beforeEach(() => {
 		document.documentElement.innerHTML = "";
 	});
@@ -290,9 +291,9 @@ describe("MCP Apps view — la marca sigue siendo nuestra", () => {
 		const root = document.documentElement;
 		expect(root.style.getPropertyValue("--color-text-primary")).toBe("#eee");
 		expect(root.style.getPropertyValue("--font-sans")).toBe("Comic Sans MS");
-		// El host puede pintar el chat; el acento de FreeTicket no se toca.
+		// The host may paint the chat; FreeTicket's accent is untouchable.
 		expect(root.style.getPropertyValue("--ft")).toBe("");
-		// Tema: data-theme Y color-scheme, si no light-dark() sigue al SO.
+		// Theme: data-theme AND color-scheme, otherwise light-dark() follows the OS.
 		expect(root.dataset.theme).toBe("dark");
 		expect(root.style.colorScheme).toBe("dark");
 	});
