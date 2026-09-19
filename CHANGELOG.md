@@ -5,6 +5,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+### Added
+- `GET /.well-known/openai-apps-challenge` serves the OpenAI plugin directory's
+  domain-verification token as plain text, read from `OPENAI_APPS_CHALLENGE`
+  and trimmed (a value pasted into a dashboard field usually arrives with a
+  trailing newline, and the portal compares bytes). The token lives in the
+  deployment, never in the repo: a committed challenge is one anybody can serve
+  from a fork. With nothing configured the path answers 404 naming the variable
+  to set, rather than inventing a value that would verify and prove nothing.
+
 ### Changed
 - **Event lists render as cards, not as a table.** The view picked its render
   from the payload shape alone, so `public_events_list` came out as a grid of

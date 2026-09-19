@@ -101,6 +101,23 @@ cold start), `FT_API_URL` (optional, defaults to production), `MCP_PUBLIC_URL`
 (optional — derived from the Host header). The resulting connector URL is
 `https://<project>.vercel.app/mcp`.
 
+### Domain verification (OpenAI plugin directory)
+
+The submission portal issues a token and fetches it back as plain text from
+`/.well-known/openai-apps-challenge`. The server hands back whatever is in
+`OPENAI_APPS_CHALLENGE`, trimmed:
+
+```bash
+vercel env add OPENAI_APPS_CHALLENGE production   # paste the portal's token
+vercel --prod
+curl https://mcp.appfreeticket.com/.well-known/openai-apps-challenge
+```
+
+The token belongs to the deployment, not to the repo — a committed one is a
+verification anybody can serve from a fork. Unset, the path answers 404 and
+names the variable rather than inventing a value that would pass and prove
+nothing.
+
 ## Tools
 
 **B2B `/api/v1`** (one tool = one contract operation). Destructive writes
