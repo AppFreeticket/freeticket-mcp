@@ -5,6 +5,7 @@ import {
 	resolveWorkspaceTargets,
 	runAcrossWorkspaces,
 	runWorkspaceList,
+	splitLimit,
 } from "./workspaces";
 
 const ws = (
@@ -124,9 +125,12 @@ describe("workspace ids that do not resolve (#13)", () => {
 	};
 
 	it("reports them as an error instead of dropping them silently", async () => {
-		const res = await runWorkspaceList(ctx, ["a", "ws_typo"], async () => ({
-			data: { data: [{ id: "row1" }] },
-		}));
+		const res = await runWorkspaceList(
+			ctx,
+			["a", "ws_typo"],
+			undefined,
+			async () => ({ data: { data: [{ id: "row1" }] } }),
+		);
 		const payload = JSON.parse(res.content[0].text) as {
 			data: unknown[];
 			errors: { workspaceId: string; error: { code: string } }[];
@@ -140,10 +144,122 @@ describe("workspace ids that do not resolve (#13)", () => {
 	});
 
 	it('"all" no inventa ids no resueltos', async () => {
-		const res = await runWorkspaceList(ctx, "all", async () => ({
+		const res = await runWorkspaceList(ctx, "all", undefined, async () => ({
 			data: { data: [] },
 		}));
 		const payload = JSON.parse(res.content[0].text) as { errors: unknown[] };
 		expect(payload.errors).toHaveLength(0);
+	});
+});
+
+describe("every workspace is the default, not one", () => {
+	const two = [ws("a", "A"), ws("b", "B")];
+	// The session client as the pinned path uses it: its header is whatever the
+	// session was built with, not one the fan-out set.
+	const sessionClient = {
+		getConfig: () => ({ headers: new Headers() }),
+	} as unknown as Client;
+	const base = {
+		client: sessionClient,
+		creds: { apiUrl: "http://localhost", apiKey: "k" },
+		resolveWorkspaces: () => Promise.resolve(two),
+	};
+	/** A list fn that reports which workspace (and limit) it was called with. */
+	const probe = () =>
+		vi.fn(async (client: Client, limit: string | undefined) => ({
+			data: {
+				data: [{ id: `row-${workspaceIdOf(client) ?? "session"}`, limit }],
+			},
+		}));
+
+	it("fans out across every reachable workspace with no `workspace` argument", async () => {
+		const fn = probe();
+		const res = await runWorkspaceList(base, undefined, undefined, fn);
+		const payload = JSON.parse(res.content[0].text) as {
+			data: { workspaceId: string }[];
+		};
+		expect(payload.data.map((r) => r.workspaceId).sort()).toEqual(["a", "b"]);
+	});
+
+	it("a pinned session stays on its workspace", async () => {
+		const fn = probe();
+		const res = await runWorkspaceList(
+			{ ...base, creds: { ...base.creds, workspaceId: "a" } },
+			undefined,
+			undefined,
+			fn,
+		);
+		// The session client, untouched: no fan-out, no workspace tags.
+		expect(fn).toHaveBeenCalledTimes(1);
+		const payload = JSON.parse(res.content[0].text) as {
+			data: { workspaceId?: string }[];
+		};
+		expect(payload.data[0].workspaceId).toBeUndefined();
+	});
+
+	it("one reachable workspace keeps the single-workspace path (and its `page`)", async () => {
+		const fn = vi.fn(async () => ({
+			data: { data: [{ id: "row1" }], page: { hasMore: false } },
+		}));
+		const res = await runWorkspaceList(
+			{ ...base, resolveWorkspaces: () => Promise.resolve([ws("a", "A")]) },
+			undefined,
+			undefined,
+			fn,
+		);
+		const payload = JSON.parse(res.content[0].text) as {
+			page?: unknown;
+			errors?: unknown;
+		};
+		expect(payload.page).toEqual({ hasMore: false });
+		expect(payload.errors).toBeUndefined();
+	});
+
+	it("an unreachable /me falls back to the session, it does not invent an empty list", async () => {
+		const fn = vi.fn(async () => ({ data: { data: [{ id: "row1" }] } }));
+		const res = await runWorkspaceList(
+			{ ...base, resolveWorkspaces: () => Promise.resolve([]) },
+			undefined,
+			undefined,
+			fn,
+		);
+		expect(fn).toHaveBeenCalledTimes(1);
+		const payload = JSON.parse(res.content[0].text) as { data: unknown[] };
+		expect(payload.data).toHaveLength(1);
+	});
+});
+
+describe("splitLimit", () => {
+	it("spreads the asked-for limit across the workspaces queried", () => {
+		expect(splitLimit("20", 4)).toBe("5");
+		// Rounds up: nobody gets a limit of zero.
+		expect(splitLimit("3", 4)).toBe("1");
+	});
+
+	it("leaves a single target, an absent limit or a nonsense one alone", () => {
+		expect(splitLimit("20", 1)).toBe("20");
+		expect(splitLimit(undefined, 4)).toBeUndefined();
+		expect(splitLimit("abc", 4)).toBe("abc");
+	});
+
+	it("trims the aggregate back to the limit the caller asked for", async () => {
+		const three = [ws("a", "A"), ws("b", "B"), ws("c", "C")];
+		const res = await runWorkspaceList(
+			{
+				client: {} as Client,
+				creds: { apiUrl: "http://localhost", apiKey: "k" },
+				resolveWorkspaces: () => Promise.resolve(three),
+			},
+			undefined,
+			"4",
+			// limit 4 over 3 workspaces = 2 each = 6 rows before trimming.
+			async (_c, limit) => ({
+				data: {
+					data: Array.from({ length: Number(limit) }, (_, i) => ({ i })),
+				},
+			}),
+		);
+		const payload = JSON.parse(res.content[0].text) as { data: unknown[] };
+		expect(payload.data).toHaveLength(4);
 	});
 });

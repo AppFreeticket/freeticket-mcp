@@ -9,7 +9,8 @@
  * Config (env > ~/.freeticket/config.json > default):
  *   FT_API_URL        API base (default https://admin.appfreeticket.com)
  *   FT_API_KEY        B2B credential (or the session saved by `ft login`)
- *   FT_WORKSPACE_ID   active workspace (X-Workspace-Id header)
+ *   FT_WORKSPACE_ID   pin every call to one workspace (X-Workspace-Id header);
+ *                     unset, the reads widen to every workspace the key reaches
  *   FT_ADMIN_SESSION  SUPER_ADMIN session — enables the admin_* tools (/api/admin)
  *
  * For the remote HTTP server (claude.ai, connectors), see `src/http.ts`.

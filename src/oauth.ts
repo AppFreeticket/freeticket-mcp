@@ -46,12 +46,9 @@ export interface Sealed {
 export const ACCESS_PREFIX = "ftmcp_";
 export const REFRESH_PREFIX = "ftr_";
 export const CODE_PREFIX = "ftc_";
-/** API key ya acuñada por device flow, esperando elección de workspace. */
-export const PENDING_PREFIX = "ftp_";
 export const ACCESS_TTL = 30 * 24 * 3600;
 export const REFRESH_TTL = 90 * 24 * 3600;
 export const CODE_TTL = 300;
-export const PENDING_TTL = 600;
 
 /** Respuesta de POST /auth/device/code de free-admin (contrato B2B). */
 export interface DeviceStart {
@@ -168,7 +165,7 @@ export function consentPage(
     ${!device && error ? `<div class="err">${esc(error)}</div>` : ""}
     <label>API key B2B <small>(genera una con <code>ft login</code> o en el panel)</small></label>
     <input type="password" name="api_key" autocomplete="off">
-    <label>Workspace ID <small>(opcional)</small></label>
+    <label>Workspace ID <small>(opcional — solo si quieres atar esta conexión a un único workspace; en blanco los lee todos)</small></label>
     <input type="text" name="workspace_id" autocomplete="off">
     <label>Sesión superadmin <small>(opcional — cookie <code>better-auth.session_token</code>, habilita los tools admin)</small></label>
     <input type="password" name="admin_session" autocomplete="off">
@@ -182,7 +179,6 @@ export function consentPage(
     <div class="code">${esc(device.user_code)}</div>
     <a class="btn" id="go" href="${esc(device.verification_uri_complete)}" target="_blank" rel="noopener">Continuar con FreeTicket</a>
     <p class="status" id="status">Esperando aprobación…</p>
-    <div id="picker"></div>
     <details><summary>Opciones avanzadas</summary>${manualForm}</details>
     <script>
     (() => {
@@ -195,7 +191,6 @@ export function consentPage(
 				st: params.get("state") ?? "",
 			})};
       const status = document.getElementById("status");
-      const picker = document.getElementById("picker");
       const deadline = Date.now() + cfg.exp * 1000;
       let iv = cfg.iv;
       const post = (body) =>
@@ -209,22 +204,11 @@ export function consentPage(
         if (j.error) { status.textContent = j.error; status.classList.add("bad"); return true; }
         return false;
       };
-      const choose = (j) => {
-        status.textContent = "Elige el espacio de trabajo a conectar:";
-        picker.innerHTML = "";
-        for (const w of j.workspaces) {
-          const b = document.createElement("button");
-          b.type = "button"; b.className = "ws"; b.textContent = w.name;
-          b.onclick = () => post({ pending: j.pending, workspace_id: w.id }).then(finish);
-          picker.appendChild(b);
-        }
-      };
       const poll = async () => {
         if (Date.now() > deadline) { status.textContent = "El código expiró. Recarga la página para reintentar."; status.classList.add("bad"); return; }
         try {
           const j = await post({ device_code: cfg.dc });
           if (finish(j)) return;
-          if (j.workspaces) return choose(j);
           if (j.slow) iv += 5;
         } catch {}
         setTimeout(poll, iv * 1000);
@@ -269,7 +253,6 @@ export function consentPage(
     font-size:.95rem;cursor:pointer;display:block;text-align:center;text-decoration:none}
   button:hover,.btn:hover{filter:brightness(.95)}
   button.secondary{background:var(--input-background);color:var(--foreground);border:1px solid var(--border)}
-  button.ws{margin-top:.5rem}
   .err{border:1px solid var(--destructive);color:var(--destructive);
     border-radius:var(--radius-button);padding:.6rem .7rem;font-size:.85rem;margin-bottom:.5rem}
   .code{font-family:ui-monospace,monospace;font-size:1.3rem;font-weight:600;letter-spacing:.15em;

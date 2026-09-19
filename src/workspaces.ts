@@ -5,11 +5,16 @@ import type { WorkspaceAccess } from "./client/types.gen";
 
 /**
  * Global workspace mode (gap #3): a fan-out in the client, not aggregation in
- * the server. The read tools that return lists accept an optional `workspace`
- * parameter — absent = current behaviour (one workspace, the session's). The
- * set of workspaces ALWAYS comes from GET /me, never from ids the client asks
- * for without validating against that list. Writes do not take this parameter:
- * they stay scoped to one explicit workspace.
+ * the server. **Every workspace the credential reaches is the default**: a
+ * session is not pinned to one tenant unless somebody pinned it on purpose
+ * (`X-Workspace-Id`, `FT_WORKSPACE_ID`, or the workspace field of the manual
+ * consent form). The read tools that list still accept `workspace` to narrow
+ * it back down to a subset, or to one, which is what deep pagination needs.
+ *
+ * The set of workspaces ALWAYS comes from GET /me, never from ids the client
+ * asks for without validating against that list. Writes do not take this
+ * parameter: with no pin they land on the account's default workspace, which
+ * is what the contract does when the header is absent.
  */
 
 /** Cap on parallel requests per fan-out — it does not flood the API. */
@@ -33,9 +38,14 @@ export interface WorkspaceFanOutResult<T> {
 	errors: WorkspaceFanOutError[];
 }
 
-/** The common shape of the listing read tools: `{ data: T[], page }`. */
+/**
+ * The common shape of the listing read tools: `{ data: T[], page }`. It gets
+ * the limit already resolved for the call it is about to make — the caller
+ * must not read it off its own closure, or the split below does nothing.
+ */
 type ListFn<T> = (
 	client: Client,
+	limit: string | undefined,
 ) => Promise<{ data?: { data: T[] }; error?: unknown }>;
 
 /**
@@ -93,6 +103,7 @@ export async function runAcrossWorkspaces<T>(
 	creds: Creds,
 	targets: WorkspaceAccess[],
 	fn: ListFn<T>,
+	limit?: string,
 ): Promise<WorkspaceFanOutResult<T>> {
 	const rows: WorkspaceRow<T>[] = [];
 	const errors: WorkspaceFanOutError[] = [];
@@ -102,7 +113,10 @@ export async function runAcrossWorkspaces<T>(
 		while (cursor < targets.length) {
 			const ws = targets[cursor++];
 			try {
-				const r = await fn(makeB2bClient({ ...creds, workspaceId: ws.id }));
+				const r = await fn(
+					makeB2bClient({ ...creds, workspaceId: ws.id }),
+					limit,
+				);
 				if (r.error !== undefined) {
 					errors.push({
 						workspaceId: ws.id,
@@ -179,32 +193,90 @@ export interface WorkspaceListContext {
 }
 
 /**
- * The entry point the listing read tools use. Without `workspace`, it calls
- * once with the session client (current behaviour, no extra request to /me).
- * With `workspace`, it resolves targets against /me and fans out, aggregating
- * and tagging the rows.
+ * Spreads the caller's `limit` across the workspaces about to be queried, so a
+ * fan-out returns roughly what the agent asked for instead of `limit` rows per
+ * tenant. It rounds up (nobody gets a limit of 0) and the surplus is trimmed
+ * off the aggregate afterwards. A `limit` the contract would reject is passed
+ * through untouched — that 422 belongs to the API, not to this function.
+ */
+export function splitLimit(
+	limit: string | undefined,
+	targets: number,
+): string | undefined {
+	if (limit === undefined || targets <= 1) return limit;
+	const n = Number(limit);
+	if (!Number.isFinite(n) || n <= 0) return limit;
+	return String(Math.max(1, Math.ceil(n / targets)));
+}
+
+/**
+ * The entry point the listing read tools use.
+ *
+ * `workspace` absent is **not** "one workspace" any more: an unpinned session
+ * reads every workspace its credential reaches, because that is what somebody
+ * who just logged in expects to see. It narrows back down in three ways, and
+ * only then does the single-workspace path run (the one that still carries
+ * `page`, so deep pagination needs one of them):
+ *
+ * - the tool is called with `workspace: [id]`;
+ * - the session is pinned (`X-Workspace-Id`, `FT_WORKSPACE_ID`, consent form);
+ * - the credential only reaches one workspace anyway.
+ *
+ * A fan-out answers `{ data, errors }` and no `page`: there is no single
+ * cursor that means anything across tenants. That is a property of the
+ * fan-out, not an oversight — see the tool descriptions.
  */
 export async function runWorkspaceList<T>(
 	ctx: WorkspaceListContext,
 	workspace: string | string[] | undefined,
+	limit: string | undefined,
 	fn: ListFn<T>,
 ): Promise<{
 	content: { type: "text"; text: string }[];
 	structuredContent?: { data: unknown };
 	isError?: boolean;
 }> {
+	// An explicitly pinned session keeps meaning one workspace: whoever set the
+	// header asked for that tenant and nothing else.
+	const requested = workspace ?? (ctx.creds.workspaceId ? undefined : "all");
 	const targets = await resolveWorkspaceTargets(
 		ctx.resolveWorkspaces,
-		workspace,
+		requested,
 	);
-	if (!targets) return run(fn(ctx.client));
+	// Pinned session, or a tool that takes no `workspace`: nothing to fan out.
+	if (!targets) return run(fn(ctx.client, limit));
+	// The implicit default is the only branch allowed to collapse back to the
+	// single-workspace path. It does so when there is nothing to aggregate —
+	// one reachable workspace, or none because /me could not answer (it
+	// swallows its own errors, and an unreachable /me must not read as "you
+	// have no data"). An *explicit* `workspace` keeps fan-out semantics even
+	// for one id, so unresolved ids still travel back as errors (#13).
+	if (workspace === undefined && targets.length <= 1) {
+		const only = targets[0];
+		return run(
+			fn(
+				only
+					? makeB2bClient({ ...ctx.creds, workspaceId: only.id })
+					: ctx.client,
+				limit,
+			),
+		);
+	}
 	// The requested ids resolveWorkspaceTargets filtered out as unreachable.
 	const found = new Set(targets.map((t) => t.id));
 	const unresolved = Array.isArray(workspace)
 		? workspace.filter((id) => !found.has(id))
 		: [];
-	return fanOutContent(
-		await runAcrossWorkspaces(ctx.creds, targets, fn),
-		unresolved,
+	const result = await runAcrossWorkspaces(
+		ctx.creds,
+		targets,
+		fn,
+		splitLimit(limit, targets.length),
 	);
+	// Rounding up gives each workspace at least one row, so the aggregate can
+	// overshoot what was asked for. Trim it back.
+	const max = Number(limit);
+	if (Number.isFinite(max) && max > 0 && result.rows.length > max)
+		result.rows = result.rows.slice(0, max);
+	return fanOutContent(result, unresolved);
 }

@@ -6,6 +6,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 ## [Unreleased]
 
 ### Changed
+- **Connecting your account connects all of your workspaces.** The consent page
+  used to end on a picker when the account reached more than one workspace —
+  "choose the one this connection is about" — and the chosen id was sealed into
+  the token, so every read afterwards saw a single tenant. The picker is gone:
+  the token seals no workspace, and the read tools that list widen to every
+  workspace the credential reaches, each row tagged with `workspaceId` /
+  `workspaceName`. `workspace` is still there, but it now *narrows* rather than
+  widens, and `limit` is split across the workspaces queried so a fan-out
+  returns what was asked for instead of `limit` rows per tenant.
+- A session pinned on purpose keeps its old behaviour, and pinning is what deep
+  pagination needs: a fan-out carries no `page`, because no single cursor means
+  anything across tenants. Pin with the `X-Workspace-Id` header, the
+  `FT_WORKSPACE_ID` env var, or the workspace field of the consent page's
+  advanced form. Writes are unchanged: with nothing pinned they land on the
+  account's default workspace, which is what `/api/v1` does when the header is
+  absent.
+- `staff_list` widens the same way, through the contract's own `workspaceIds`
+  (one call, rows tagged by the backend) rather than a fan-out — so it is
+  capped at the 25 workspaces the contract accepts.
+- `reports_summary` still refuses to aggregate (KPIs are an object, not rows),
+  but it now takes a single `workspace` id, so an agent can ask for a tenant
+  that is not the account's default one.
 - **Event lists render as cards, not as a table.** The view picked its render
   from the payload shape alone, so `public_events_list` came out as a grid of
   whatever keys the API serialised first — the cover URL as a text column and

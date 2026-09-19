@@ -42,8 +42,6 @@ import {
 	consentPage,
 	type DeviceStart,
 	open,
-	PENDING_PREFIX,
-	PENDING_TTL,
 	pkceMatches,
 	REFRESH_PREFIX,
 	REFRESH_TTL,
@@ -331,8 +329,6 @@ export async function handleHttp(
 		) {
 			const body = (asJson(await readBody(req)) ?? {}) as {
 				device_code?: string;
-				pending?: string;
-				workspace_id?: string;
 				redirect_uri?: string;
 				code_challenge?: string;
 				state?: string;
@@ -342,23 +338,6 @@ export async function handleHttp(
 			if (!validRedirect(redirectUri) || !challenge)
 				return json(res, 400, { error: "invalid_request" });
 			const state = body.state || null;
-
-			// Second phase: the user picked a workspace for an already-redeemed key.
-			if (body.pending) {
-				const p = open(body.pending, TOKEN_SECRET, PENDING_PREFIX);
-				if (!p)
-					return json(res, 400, {
-						error: "El código expiró. Recarga la página.",
-					});
-				const code = mintCode(
-					{ apiKey: p.k, workspaceId: body.workspace_id },
-					challenge,
-					redirectUri,
-				);
-				return json(res, 200, {
-					redirect: redirectWithCode(redirectUri, code, state),
-				});
-			}
 
 			if (!body.device_code)
 				return json(res, 400, { error: "invalid_request" });
@@ -387,25 +366,21 @@ export async function handleHttp(
 				access_token: string;
 				workspaces: { id: string; name: string }[];
 			};
-			// A single workspace (the typical case): straight back to the MCP client.
-			if (grant.workspaces.length <= 1) {
-				const code = mintCode(
-					{ apiKey: grant.access_token, workspaceId: grant.workspaces[0]?.id },
-					challenge,
-					redirectUri,
-				);
-				return json(res, 200, {
-					redirect: redirectWithCode(redirectUri, code, state),
-				});
-			}
-			// Several: the page shows the picker; the key travels sealed (ftp_).
+			// The token seals NO workspace. Logging in used to end on a picker —
+			// "choose the one workspace this connection is about" — and everything
+			// downstream then read that one tenant. Connecting your account means
+			// connecting your account: the reads widen to every workspace the key
+			// reaches, and the writes land on the account's default one, which is
+			// what /api/v1 already does when X-Workspace-Id is absent. To bind a
+			// connection to a single tenant, use the advanced form's workspace
+			// field (or X-Workspace-Id / FT_WORKSPACE_ID over stdio).
+			const code = mintCode(
+				{ apiKey: grant.access_token },
+				challenge,
+				redirectUri,
+			);
 			return json(res, 200, {
-				workspaces: grant.workspaces.map((w) => ({ id: w.id, name: w.name })),
-				pending: seal(
-					{ k: grant.access_token, exp: Date.now() / 1000 + PENDING_TTL },
-					TOKEN_SECRET,
-					PENDING_PREFIX,
-				),
+				redirect: redirectWithCode(redirectUri, code, state),
 			});
 		}
 
