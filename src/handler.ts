@@ -27,6 +27,10 @@
  *   FT_OAUTH_ISSUER   delegates to an external authorization server (for
  *                     instance once free-admin publishes its own); turns the
  *                     embedded AS off
+ *   OPENAI_APPS_CHALLENGE
+ *                     domain-verification token issued by the OpenAI plugin
+ *                     submission portal, served as plain text at
+ *                     /.well-known/openai-apps-challenge. Unset → that path 404s
  */
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -56,6 +60,13 @@ const API_URL = normalizeApiUrl(
 	process.env.FT_API_URL ?? "https://admin.appfreeticket.com",
 );
 const EXTERNAL_ISSUER = process.env.FT_OAUTH_ISSUER?.replace(/\/$/, "");
+/**
+ * Domain-verification token for the OpenAI plugin directory, served verbatim at
+ * /.well-known/openai-apps-challenge. Trimmed because a value pasted into a
+ * dashboard field arrives with a trailing newline more often than not, and the
+ * portal compares the bytes.
+ */
+const OPENAI_APPS_CHALLENGE = process.env.OPENAI_APPS_CHALLENGE?.trim();
 const TOKEN_SECRET =
 	process.env.MCP_TOKEN_SECRET ??
 	(() => {
@@ -256,6 +267,31 @@ export async function handleHttp(
 	}
 
 	try {
+		// Domain verification for the OpenAI plugin directory: the submission
+		// portal issues a token and then fetches it back from this exact path, as
+		// plain text and nothing else. The value lives in the deployment config,
+		// never in the repo — a committed challenge is one anybody can serve from
+		// a fork of it. Unset, this answers 404 and says what to set: inventing a
+		// token would hand the portal a verification that passes and proves
+		// nothing.
+		if (
+			req.method === "GET" &&
+			url.pathname === "/.well-known/openai-apps-challenge"
+		) {
+			if (!OPENAI_APPS_CHALLENGE)
+				return json(res, 404, {
+					error: {
+						code: "challenge_not_configured",
+						message:
+							"Set OPENAI_APPS_CHALLENGE in the deployment to the token the OpenAI submission portal issued for this domain.",
+						retryable: false,
+					},
+				});
+			res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
+			res.end(OPENAI_APPS_CHALLENGE);
+			return;
+		}
+
 		// RFC 9728 discovery — claude.ai may request it with a suffix (/…/mcp).
 		if (
 			req.method === "GET" &&
