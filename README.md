@@ -62,10 +62,11 @@ headers). Steps:
    Secret: leave empty (it uses dynamic client registration, RFC 7591).
 3. Connecting opens the consent page: the **"Continue with FreeTicket"** button
    signs you into free-admin with your usual account and asks for approval
-   (device flow, RFC 8628 — the same backend as `ft login`). No keys to paste;
-   with several workspaces, you pick which one to connect. Under "Advanced
-   options" there is still the manual form (an API key for CI, the superadmin
-   cookie for the `admin_*` tools).
+   (device flow, RFC 8628 — the same backend as `ft login`). No keys to paste,
+   and no workspace to pick: the connection reaches **every workspace your
+   account does**. Under "Advanced options" there is still the manual form (an
+   API key for CI, the superadmin cookie for the `admin_*` tools, and a
+   workspace field if you want this connection tied to a single tenant).
 4. Credentials are sealed (AES-256-GCM, `MCP_TOKEN_SECRET`) inside the issued
    token — the server persists nothing: no database, multi-tenant safe.
 
@@ -78,7 +79,7 @@ an external AS (for instance, once `free-admin` publishes its own).
 ```bash
 curl -X POST http://localhost:3333/mcp \
   -H 'authorization: Bearer ft_live_...' \      # raw API key
-  -H 'x-workspace-id: ws_...' \                 # optional
+  -H 'x-workspace-id: ws_...' \                 # optional — pins it to one workspace
   -H 'x-admin-session: <cookie>' \              # optional — enables admin_*
   -H 'content-type: application/json' \
   -H 'accept: application/json, text/event-stream' \

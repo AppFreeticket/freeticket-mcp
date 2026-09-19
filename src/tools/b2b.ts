@@ -1,7 +1,7 @@
 import type { Client } from "@hey-api/client-fetch";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { type Creds, run } from "../api";
+import { type Creds, makeB2bClient, run } from "../api";
 import {
 	getApiKeys,
 	getContentLives,
@@ -64,11 +64,11 @@ const saleStatus = z
 	.describe("Sale status");
 
 /**
- * Global mode (gap #3): optional on the read tools that list.
- * Absent = current behaviour (the session's active workspace only).
- * "all", or a list of ids, aggregates several workspaces — every row is
- * tagged with workspaceId/workspaceName. The set of valid ids always comes
- * from GET /me, never from whatever the client asks for unvalidated.
+ * Global mode (gap #3) is the **default** on the read tools that list: a
+ * session that nobody pinned reads every workspace its credential reaches, and
+ * `workspace` only narrows it back down. Aggregated rows are tagged with
+ * workspaceId/workspaceName. The set of valid ids always comes from GET /me,
+ * never from whatever the client asks for unvalidated — see ../workspaces.ts.
  */
 /**
  * #8: `events_list` used to return the whole event — a long description and
@@ -104,10 +104,11 @@ const workspaceParam = z
 	.union([z.literal("all"), z.array(z.string())])
 	.optional()
 	.describe(
-		'Global mode: "all" aggregates every workspace the session can reach, ' +
-			"or a list of ids aggregates only those. Absent = the active workspace " +
-			"only (current behaviour). Every row of the result is tagged with " +
-			"workspaceId/workspaceName.",
+		"Which workspaces to read. **Absent already means every workspace the " +
+			'session reaches** — pass a list of ids (or "all", which is the same ' +
+			"thing said out loud) only to narrow it down. Aggregated rows are " +
+			"tagged with workspaceId/workspaceName and carry no pagination cursor: " +
+			"to page deep, name one workspace.",
 	);
 
 /**
@@ -202,8 +203,8 @@ export function registerB2bTools(
 			workspace: workspaceParam,
 		},
 		async ({ workspace, verbose, ...q }) =>
-			runWorkspaceList(ctx, workspace, async (c) => {
-				const res = await getEvents({ query: q, client: c });
+			runWorkspaceList(ctx, workspace, q.limit, async (c, limit) => {
+				const res = await getEvents({ query: { ...q, limit }, client: c });
 				if (verbose || res.error !== undefined || !res.data) return res;
 				return {
 					...res,
@@ -236,8 +237,8 @@ export function registerB2bTools(
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getTicketTypes({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getTicketTypes({ query: { ...q, limit }, client: c }),
 			),
 	);
 	server.tool(
@@ -267,8 +268,8 @@ export function registerB2bTools(
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getSales({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getSales({ query: { ...q, limit }, client: c }),
 			),
 	);
 	server.tool(
@@ -297,8 +298,8 @@ export function registerB2bTools(
 		"Membership plans (GET /membership-plans). `workspace` turns on global mode.",
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getMembershipPlans({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getMembershipPlans({ query: { ...q, limit }, client: c }),
 			),
 	);
 	server.tool(
@@ -326,8 +327,8 @@ export function registerB2bTools(
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getDiscounts({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getDiscounts({ query: { ...q, limit }, client: c }),
 			),
 	);
 	uiTool(
@@ -336,8 +337,8 @@ export function registerB2bTools(
 		"Registered webhooks (GET /webhooks). `workspace` turns on global mode.",
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getWebhooks({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getWebhooks({ query: { ...q, limit }, client: c }),
 			),
 	);
 
@@ -347,8 +348,8 @@ export function registerB2bTools(
 		"Workspace venues (GET /venues). `workspace` turns on global mode.",
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getVenues({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getVenues({ query: { ...q, limit }, client: c }),
 			),
 	);
 	server.tool(
@@ -360,16 +361,23 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"staff_list",
-		"Workspace staff (GET /staff). `workspace` turns on global mode: unlike " +
-			"the rest, here the contract resolves it with `workspaceIds` (one single " +
-			"call, rows tagged by the backend), not a fan-out.",
+		"Staff of every workspace the session reaches (GET /staff). Unlike the " +
+			"rest, here the contract resolves it with `workspaceIds` (one single " +
+			"call, rows tagged by the backend), not a fan-out — so it is capped at " +
+			"the 25 workspaces the contract accepts. `workspace` narrows it to a " +
+			"subset; a pinned session stays on its own workspace.",
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) => {
-			if (!workspace) return run(getStaff({ query: q, client }));
+			// A pinned session means that workspace and no other.
+			if (!workspace && creds.workspaceId)
+				return run(getStaff({ query: q, client }));
 			const ids =
-				workspace === "all"
+				workspace === undefined || workspace === "all"
 					? (await ctx.resolveWorkspaces()).map((w) => w.id)
 					: workspace;
+			// Nothing to widen to (an unreachable /me answers []): the plain call,
+			// never an empty list built out of a failure.
+			if (ids.length === 0) return run(getStaff({ query: q, client }));
 			return run(
 				getStaff({
 					query: { ...q, workspaceIds: ids.slice(0, 25).join(",") },
@@ -382,12 +390,27 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"reports_summary",
-		"KPIs for the active workspace (GET /reports/summary). The only report " +
-			"without `workspace`: these are an object, not rows, and adding up KPIs " +
-			"across different tenants means nothing. To compare workspaces use " +
-			"`reports_by_event` or `reports_financials` with `workspace`.",
-		{ period: z.enum(["7d", "30d", "90d", "1y"]).optional() },
-		async (q) => run(getReportsSummary({ query: q, client })),
+		"KPIs of one workspace (GET /reports/summary). The only report that does " +
+			"not widen to every workspace: these are an object, not rows, and adding " +
+			"up KPIs across tenants means nothing. Without `workspace` it answers " +
+			"for the account's default one — call it once per id to compare, or use " +
+			"`reports_by_event` / `reports_financials`, which do aggregate rows.",
+		{
+			period: z.enum(["7d", "30d", "90d", "1y"]).optional(),
+			workspace: z
+				.string()
+				.optional()
+				.describe("Id of the workspace to report on (one, never a list)"),
+		},
+		async ({ workspace, ...q }) =>
+			run(
+				getReportsSummary({
+					query: q,
+					client: workspace
+						? makeB2bClient({ ...creds, workspaceId: workspace })
+						: client,
+				}),
+			),
 	);
 	uiTool(
 		server,
@@ -401,8 +424,8 @@ export function registerB2bTools(
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getReportsByEvent({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getReportsByEvent({ query: { ...q, limit }, client: c }),
 			),
 	);
 	uiTool(
@@ -417,8 +440,8 @@ export function registerB2bTools(
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getReportsTimeseries({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getReportsTimeseries({ query: { ...q, limit }, client: c }),
 			),
 	);
 	uiTool(
@@ -438,8 +461,8 @@ export function registerB2bTools(
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getReportsInventory({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getReportsInventory({ query: { ...q, limit }, client: c }),
 			),
 	);
 	uiTool(
@@ -466,8 +489,8 @@ export function registerB2bTools(
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getReportsReconciliation({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getReportsReconciliation({ query: { ...q, limit }, client: c }),
 			),
 	);
 
@@ -538,8 +561,8 @@ export function registerB2bTools(
 			workspace: workspaceParam,
 		},
 		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, (c) =>
-				getReportsFinancials({ query: q, client: c }),
+			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
+				getReportsFinancials({ query: { ...q, limit }, client: c }),
 			),
 	);
 	uiTool(

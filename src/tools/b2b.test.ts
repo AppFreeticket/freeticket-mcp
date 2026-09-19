@@ -36,7 +36,7 @@ function inputKeys(server: McpServer, tool: string): string[] {
 }
 
 describe("workspace on reports (#7)", () => {
-	it("row-shaped reports accept workspace; summary does not", () => {
+	it("row-shaped reports aggregate across workspaces; summary takes one id", () => {
 		const server = new McpServer({ name: "t", version: "0.0.0" });
 		registerB2bTools(server, stub, stubCreds);
 		for (const tool of [
@@ -48,11 +48,28 @@ describe("workspace on reports (#7)", () => {
 		]) {
 			expect(inputKeys(server, tool)).toContain("workspace");
 		}
-		// KPIs son un objeto: sumarlos entre tenants no significa nada. La
-		// absence is deliberate and the tool description explains it.
-		expect(inputKeys(server, "reports_summary")).not.toContain("workspace");
+		// KPIs are an object: adding them up across tenants means nothing, so
+		// this one never widens. It still takes a workspace — a single id, so the
+		// agent can ask for a tenant that is not the account's default one.
+		expect(inputKeys(server, "reports_summary")).toContain("workspace");
+		expect(summaryWorkspaceAcceptsAList(server)).toBe(false);
 	});
 });
+
+/** Does `reports_summary` accept a list of ids (it must not)? */
+function summaryWorkspaceAcceptsAList(server: McpServer): boolean {
+	const schema = (
+		server as unknown as {
+			_registeredTools: Record<
+				string,
+				{ inputSchema?: { shape?: Record<string, { safeParse?: unknown }> } }
+			>;
+		}
+	)._registeredTools.reports_summary?.inputSchema?.shape?.workspace as
+		| { safeParse: (v: unknown) => { success: boolean } }
+		| undefined;
+	return schema?.safeParse(["a", "b"]).success === true;
+}
 
 describe("vista corta de events_list (#8)", () => {
 	it("trims description and images, keeping what identifies the event", () => {
