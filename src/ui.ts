@@ -110,6 +110,18 @@ const VIEW_HTML = `<!DOCTYPE html>
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
   .foot { margin: 2px 0 0; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+  .meters { display: grid; gap: 9px; }
+  .meter {
+    border: 1px solid var(--color-border-primary); border-radius: 8px;
+    padding: 9px 11px; background: var(--color-background-secondary);
+  }
+  .bar-head { margin: 0 0 4px; display: flex; justify-content: space-between; gap: 10px; }
+  .bar {
+    height: 6px; border-radius: 999px; overflow: hidden; margin: 2px 0 6px;
+    background: var(--color-background-primary);
+  }
+  .bar span { display: block; height: 100%; background: var(--ft); }
+  .bar-row { display: flex; justify-content: space-between; gap: 10px; }
   .scroll { overflow-x: auto; border: 1px solid var(--color-border-primary); border-radius: 8px; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; }
   th, td {
@@ -206,9 +218,36 @@ const VIEW_HTML = `<!DOCTYPE html>
   const esc = (s) =>
     s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
+  // The standard: a list is shown in the order a person reads it, not in the
+  // order the API serialised it. What is named here comes first, in this order;
+  // everything else keeps its relative place behind it.
+  const RANK = [
+    "eventName", "ticketTypeName", "name", "title", "label",
+    "buyerName", "customerName", "customerEmail", "buyerEmail",
+    "reference", "ticketCode", "status", "eventStatus", "saleStatus",
+    "startsAt", "nextDate", "checkedInAt", "confirmedAt", "createdAt",
+    "city", "capacity", "sold", "reserved", "available", "quantity",
+    "ticketsSold", "salesCount", "revenue", "total", "buyerTotal", "price",
+    "currency",
+  ];
+  // Ids, urls and long prose are never the answer to the question that was
+  // asked; they push the name of the thing off the right edge of the frame.
+  // Case-sensitive on purpose: /id$/i would also eat a column named valid.
+  const NOISE = /^id$|Id$|[Uu]rl$|[Tt]oken$|^description$|^timezone$|^channel$/;
+  const rank = (k) => {
+    const i = RANK.indexOf(k);
+    return i < 0 ? RANK.length : i;
+  };
+  function columns(rows) {
+    const all = [...new Set(rows.flatMap((r) => Object.keys(r)))];
+    const keep = all.filter((k) => !NOISE.test(k));
+    // A row made of nothing but ids still has to render something.
+    return (keep.length ? keep : all).sort((a, b) => rank(a) - rank(b)).slice(0, 8);
+  }
+
   function table(rows) {
     const shown = rows.slice(0, 50);
-    const cols = [...new Set(shown.flatMap((r) => Object.keys(r)))].slice(0, 9);
+    const cols = columns(shown);
     const head = cols.map((c) => "<th>" + esc(label(c)) + "</th>").join("");
     const body = shown
       .map((r) =>
@@ -294,6 +333,51 @@ const VIEW_HTML = `<!DOCTYPE html>
     );
   }
 
+  // Capacity is not a row of numbers either: sold — or checked in — against
+  // capacity is a bar, and the bar answers at a glance the only question
+  // anybody asks of that row.
+  const FILL_KEYS = ["checkedIn", "checkedInCount", "attendees", "sold"];
+  const isCapacity = (r) =>
+    isNum(r.capacity) && FILL_KEYS.some((k) => isNum(r[k]));
+
+  function meters(rows) {
+    const shown = rows.slice(0, 30);
+    const html = shown.map((r) => {
+      const title = String(
+        first(r, ["ticketTypeName", "eventName", "name", "label"]) ?? "—",
+      );
+      const at = when(first(r, DATE_KEYS));
+      const bars = FILL_KEYS.filter((k) => isNum(r[k])).slice(0, 2).map((k) => {
+        const pct = r.capacity > 0
+          ? Math.min(100, Math.round((r[k] / r.capacity) * 100)) : 0;
+        return (
+          '<p class="meta bar-row"><span>' + esc(label(k)) + "</span><span>" +
+          money.format(r[k]) + " / " + money.format(r.capacity) +
+          " \u00b7 " + pct + "%</span></p>" +
+          '<div class="bar"><span style="width:' + pct + '%"></span></div>'
+        );
+      }).join("");
+      return (
+        '<div class="meter"><p class="bar-head"><b>' + esc(title) + "</b>" +
+        (at ? '<span class="muted">' + esc(at) + "</span>" : "") +
+        "</p>" + bars + "</div>"
+      );
+    }).join("");
+    return (
+      '<div class="meters">' + html + "</div>" +
+      (rows.length > shown.length
+        ? '<footer class="muted">' + (rows.length - shown.length) + " more</footer>"
+        : "")
+    );
+  }
+
+  /** The render is picked from what the rows ARE, never from what they cost. */
+  function rowsView(rows) {
+    if (rows.every(isEvent)) return cards(rows);
+    if (rows.every(isCapacity)) return meters(rows);
+    return table(rows);
+  }
+
   function tiles(obj) {
     const entries = Object.entries(obj).filter(
       ([, v]) => v === null || typeof v !== "object",
@@ -328,7 +412,7 @@ const VIEW_HTML = `<!DOCTYPE html>
       const rows = data.filter((r) => r && typeof r === "object");
       sub.textContent = data.length + (data.length === 1 ? " result" : " results");
       root.innerHTML = rows.length
-        ? (rows.every(isEvent) ? cards(rows) : table(rows))
+        ? rowsView(rows)
         : data.length
           ? "<pre>" + esc(JSON.stringify(data, null, 2)) + "</pre>"
           : '<p class="muted">No results.</p>';

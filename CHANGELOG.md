@@ -17,6 +17,17 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 - The view resource declares `img-src: https:` — the only remote thing it loads
   is an event cover, and those live on each organizer's storage domain. A cover
   the host refuses drops out and the card stays.
+- **The table now orders its columns by what a person reads first**, not by the
+  order the API serialised the object. A ranked list of field names puts the
+  event, the ticket type, the buyer and the reference ahead of the numbers, and
+  ids, urls and long prose never take a column at all — they were what pushed
+  the name of the thing off the right edge. A row made of nothing but ids still
+  renders. Every list gains this at once: sales, staff, subscribers, discounts.
+- **Capacity rows render as bars**: any row with a `capacity` and a `sold` —
+  `reports_inventory`, ticket types — becomes one meter per event/ticket type
+  with the percentage, instead of four number columns to compare by eye. The
+  meter also reads `checkedIn`/`attendees` and draws it first, which is the
+  number the door asks for; no endpoint serves it yet (ledger: attendance).
 
 ## [0.14.0] - 2026-09-02
 

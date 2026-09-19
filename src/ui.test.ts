@@ -256,6 +256,84 @@ describe("MCP Apps view — render", () => {
 		expect(document.querySelector("img")).toBeNull();
 	});
 
+	it("orders table columns by what a person reads first", async () => {
+		const { post } = await mount();
+		// A sale as the API serialises it: the id first, the buyer buried.
+		post(
+			toolResult([
+				{
+					id: "sale_1",
+					organizationId: "org_1",
+					channel: "WEB",
+					total: 78330,
+					currency: "COP",
+					buyerName: "Ana",
+					status: "CONFIRMED",
+					reference: "FT-991",
+				},
+			]),
+		);
+		const heads = [...document.querySelectorAll("th")].map(
+			(h) => h.textContent,
+		);
+		// Ids and internals are noise; the buyer and the reference are the answer.
+		expect(heads).not.toContain("id");
+		expect(heads).not.toContain("organization Id");
+		expect(heads.slice(0, 3)).toEqual(["buyer Name", "reference", "status"]);
+	});
+
+	it("still renders a row that is nothing but ids", async () => {
+		const { post } = await mount();
+		post(toolResult([{ id: "1", eventId: "e1" }]));
+		expect(document.querySelectorAll("tbody tr")).toHaveLength(1);
+		expect(document.querySelectorAll("th")).toHaveLength(2);
+	});
+
+	it("renders capacity rows as bars, not as four number columns", async () => {
+		const { post } = await mount();
+		post(
+			toolResult([
+				{
+					eventId: "e1",
+					eventName: "Gabo en Chapinero",
+					ticketTypeName: "General",
+					startsAt: "2026-09-19T19:00:00-05:00",
+					capacity: 500,
+					sold: 440,
+					reserved: 0,
+					available: 60,
+					checkedIn: 312,
+				},
+			]),
+		);
+		expect(document.querySelector("table")).toBeNull();
+		const meter = document.querySelector(".meter");
+		expect(meter?.querySelector("b")?.textContent).toBe("General");
+		// Checked in first: at the door that is the number being asked for.
+		const bars = [...document.querySelectorAll(".meter .meta")].map(
+			(p) => p.textContent,
+		);
+		expect(bars[0]).toContain("checked In");
+		expect(bars[0]).toContain("312 / 500");
+		expect(bars[0]).toContain("62%");
+		expect(bars[1]).toContain("sold");
+		expect(document.querySelector(".bar span")?.getAttribute("style")).toBe(
+			"width:62%",
+		);
+	});
+
+	it("never draws a bar past 100% or divides by a zero capacity", async () => {
+		const { post } = await mount();
+		post(toolResult([{ name: "A", capacity: 0, sold: 5 }]));
+		expect(document.querySelector(".bar span")?.getAttribute("style")).toBe(
+			"width:0%",
+		);
+		post(toolResult([{ name: "B", capacity: 10, sold: 25 }]));
+		expect(document.querySelector(".bar span")?.getAttribute("style")).toBe(
+			"width:100%",
+		);
+	});
+
 	it("renders a single object as KPI tiles", async () => {
 		const { post } = await mount();
 		post(toolResult({ ticketsSold: 412, revenue: 8300000, nested: { a: 1 } }));
