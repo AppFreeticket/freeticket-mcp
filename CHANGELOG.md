@@ -3,6 +3,21 @@
 All notable changes to `@freeticket/mcp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: semver.
 
+## [Unreleased]
+
+### Changed
+- **Event lists render as cards, not as a table.** The view picked its render
+  from the payload shape alone, so `public_events_list` came out as a grid of
+  whatever keys the API serialised first — the cover URL as a text column and
+  the event name scrolled off screen. Rows that look like an event (a name plus
+  a slug, cover, city or date) now render as a card: cover, name, city · date,
+  price from in the event currency. Everything else keeps the table. The price
+  and date are read from a list of field names, because production has served
+  `buyerTotalFrom` where the committed contract says `priceFrom`.
+- The view resource declares `img-src: https:` — the only remote thing it loads
+  is an event cover, and those live on each organizer's storage domain. A cover
+  the host refuses drops out and the card stays.
+
 ## [0.14.0] - 2026-09-02
 
 Brings all three contracts in line with what free-admin already serves: B2B

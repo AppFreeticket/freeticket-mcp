@@ -65,9 +65,13 @@ describe("MCP Apps wiring", () => {
 		])
 			expect(html).toContain(m);
 		expect(html).toContain(UI_PROTOCOL);
-		// Self-contained: no network, so the host's deny-by-default CSP cannot break it.
+		// Self-contained: the markup pulls nothing from the network, so the host's
+		// deny-by-default CSP cannot break it. The only remote thing the view ever
+		// loads is an event cover, and that URL comes from the payload at runtime.
 		expect(html).not.toMatch(/<script[^>]+src=/);
-		expect(html).not.toMatch(/https?:\/\/(?!www\.w3\.org)/);
+		expect(html).not.toMatch(
+			/<(link|img|iframe|source)[^>]+(src|href)="https?:/,
+		);
 	});
 
 	it("points every list/report tool at that resource", () => {
@@ -111,11 +115,13 @@ describe("MCP Apps wiring", () => {
 			expect(withUi.has(n)).toBe(false);
 	});
 
-	it("declares no external CSP origins (the view asks for no network)", () => {
+	it("declares only the CSP the event covers need", () => {
 		const res = internals(server)._registeredResources[UI_URI];
 		const meta = (res.metadata as { _meta?: { ui?: Record<string, unknown> } })
 			?._meta?.ui;
-		expect(meta?.csp).toEqual({});
+		// Images only: no connect-src, no script-src. A view that could call out
+		// would be a way to leak the payload the host just handed it.
+		expect(meta?.csp).toEqual({ "img-src": ["https:"] });
 	});
 });
 
@@ -199,6 +205,55 @@ describe("MCP Apps view — render", () => {
 		expect(table?.textContent).toContain("1.250.000");
 		// A terminal status marked as a brand pill.
 		expect(document.querySelector(".pill.ok")?.textContent).toBe("PUBLISHED");
+	});
+
+	it("renders an event list as cards, not as a table", async () => {
+		const { post } = await mount();
+		post(
+			toolResult([
+				{
+					slug: "gabo-chapinero",
+					name: "El comediante Gabo",
+					description: "Stand up en Chapinero",
+					coverImageUrl: "https://cdn.example.com/gabo.jpg",
+					city: "Bogotá",
+					nextDate: "2026-09-19T19:00:00-05:00",
+					priceFrom: 78330,
+					currency: "COP",
+				},
+			]),
+		);
+		expect(document.querySelector("table")).toBeNull();
+		const card = document.querySelector(".card");
+		expect(card?.querySelector("h3")?.textContent).toBe("El comediante Gabo");
+		expect(card?.querySelector(".cover img")?.getAttribute("src")).toBe(
+			"https://cdn.example.com/gabo.jpg",
+		);
+		expect(card?.querySelector(".meta")?.textContent).toContain("Bogotá");
+		// Price from, in the event currency — not a raw number in a column.
+		expect(card?.querySelector(".pill.ok")?.textContent).toContain("78.330");
+	});
+
+	it("keeps a cover the host refuses from leaving a hole", async () => {
+		const { post } = await mount();
+		post(
+			toolResult([{ slug: "s", name: "E", coverImageUrl: "http://x/y.jpg" }]),
+		);
+		const img = document.querySelector(".cover img") as HTMLImageElement;
+		img.onerror?.(new Event("error"));
+		expect(document.querySelector(".cover")).toBeNull();
+		expect(document.querySelector(".card h3")?.textContent).toBe("E");
+	});
+
+	it("refuses a cover that is not http(s)", async () => {
+		const { post } = await mount();
+		post(
+			toolResult([
+				{ slug: "s", name: "E", coverImageUrl: "javascript:alert(1)" },
+			]),
+		);
+		expect(document.querySelector(".card")).toBeTruthy();
+		expect(document.querySelector("img")).toBeNull();
 	});
 
 	it("renders a single object as KPI tiles", async () => {

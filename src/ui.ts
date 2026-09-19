@@ -95,6 +95,21 @@ const VIEW_HTML = `<!DOCTYPE html>
   }
   .tile dt { margin: 0 0 2px; font-size: 11px; color: var(--color-text-secondary); }
   .tile dd { margin: 0; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .card {
+    border: 1px solid var(--color-border-primary); border-radius: 10px; overflow: hidden;
+    background: var(--color-background-secondary); display: flex; flex-direction: column;
+  }
+  .cover { aspect-ratio: 16 / 9; background: var(--color-background-primary); }
+  .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cbody { padding: 9px 11px; display: grid; gap: 4px; }
+  .cbody h3 { margin: 0; font-size: 13px; line-height: 1.3; letter-spacing: -0.01em; }
+  .meta { margin: 0; font-size: 11px; color: var(--color-text-secondary); }
+  .desc {
+    margin: 0; font-size: 11px; color: var(--color-text-secondary);
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .foot { margin: 2px 0 0; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
   .scroll { overflow-x: auto; border: 1px solid var(--color-border-primary); border-radius: 8px; }
   table { border-collapse: collapse; width: 100%; font-size: 12px; }
   th, td {
@@ -161,10 +176,13 @@ const VIEW_HTML = `<!DOCTYPE html>
   };
 
   const MONEY = /amount|gross|net|total|price|fee|facial|gmf|revenue|subtotal/i;
-  let money = new Intl.NumberFormat("es-CO", { maximumFractionDigits: 0 });
+  let locale = "es-CO";
+  let money = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
   const setLocale = (loc) => {
-    try { money = new Intl.NumberFormat(loc, { maximumFractionDigits: 0 }); }
-    catch { /* invalid locale from the host: we keep es-CO */ }
+    try {
+      money = new Intl.NumberFormat(loc, { maximumFractionDigits: 0 });
+      locale = loc;
+    } catch { /* invalid locale from the host: we keep es-CO */ }
   };
   const isNum = (v) => typeof v === "number" && Number.isFinite(v);
   const label = (k) =>
@@ -209,6 +227,73 @@ const VIEW_HTML = `<!DOCTYPE html>
     );
   }
 
+  // An event is a poster, not a row: a name, a cover, a date, a price from.
+  // Through the generic table the name ends up off screen behind a cover URL
+  // while the first columns are whatever the API happened to serialise first.
+  const EVENT_KEYS = ["coverImageUrl", "nextDate", "slug", "city"];
+  const isEvent = (r) =>
+    typeof (r.name ?? r.title) === "string" && EVENT_KEYS.some((k) => k in r);
+  const first = (r, keys) => {
+    for (const k of keys)
+      if (r[k] !== null && r[k] !== undefined && r[k] !== "") return r[k];
+  };
+  // The contract says priceFrom/nextDate; production has served other names for
+  // the same thing, so the card reads a list instead of one key.
+  const PRICE_KEYS = ["priceFrom", "buyerTotalFrom", "minPrice", "price"];
+  const DATE_KEYS = ["nextDate", "startsAt", "startDate", "date"];
+  const COVER_KEYS = ["coverImageUrl", "imageUrl", "cover"];
+
+  const when = (v) => {
+    const d = new Date(v);
+    if (!v || Number.isNaN(d.getTime())) return "";
+    try {
+      return new Intl.DateTimeFormat(locale, {
+        weekday: "short", day: "numeric", month: "short",
+        hour: "numeric", minute: "2-digit",
+      }).format(d);
+    } catch { return String(v); }
+  };
+  const priceFrom = (r) => {
+    const v = first(r, PRICE_KEYS);
+    if (!isNum(v)) return "";
+    try {
+      return new Intl.NumberFormat(locale, {
+        style: "currency", currency: r.currency || "COP", maximumFractionDigits: 0,
+      }).format(v);
+    } catch { return money.format(v) + (r.currency ? " " + r.currency : ""); }
+  };
+
+  function cards(rows) {
+    const shown = rows.slice(0, 24);
+    const html = shown.map((r) => {
+      const url = String(first(r, COVER_KEYS) || "");
+      // Only http(s): a javascript: or data: src from the API is not a cover.
+      const cover = url.startsWith("https://") || url.startsWith("http://")
+        ? '<div class="cover"><img alt="" loading="lazy" src="' + esc(url) + '"></div>'
+        : "";
+      const meta = [r.city, when(first(r, DATE_KEYS))].filter(Boolean).map(String);
+      const money_ = priceFrom(r);
+      const status = typeof r.status === "string" ? r.status : "";
+      return (
+        '<article class="card">' + cover + '<div class="cbody">' +
+        "<h3>" + esc(String(r.name ?? r.title)) + "</h3>" +
+        (meta.length ? '<p class="meta">' + esc(meta.join(" \u00b7 ")) + "</p>" : "") +
+        (r.description ? '<p class="desc">' + esc(String(r.description)) + "</p>" : "") +
+        '<p class="foot">' +
+        (money_ ? '<span class="pill ok">From ' + esc(money_) + "</span>" : "") +
+        (status ? '<span class="pill">' + esc(status) + "</span>" : "") +
+        (r.slug ? '<span class="muted">' + esc(String(r.slug)) + "</span>" : "") +
+        "</p></div></article>"
+      );
+    }).join("");
+    return (
+      '<div class="cards">' + html + "</div>" +
+      (rows.length > shown.length
+        ? '<footer class="muted">' + (rows.length - shown.length) + " more</footer>"
+        : "")
+    );
+  }
+
   function tiles(obj) {
     const entries = Object.entries(obj).filter(
       ([, v]) => v === null || typeof v !== "object",
@@ -243,7 +328,7 @@ const VIEW_HTML = `<!DOCTYPE html>
       const rows = data.filter((r) => r && typeof r === "object");
       sub.textContent = data.length + (data.length === 1 ? " result" : " results");
       root.innerHTML = rows.length
-        ? table(rows)
+        ? (rows.every(isEvent) ? cards(rows) : table(rows))
         : data.length
           ? "<pre>" + esc(JSON.stringify(data, null, 2)) + "</pre>"
           : '<p class="muted">No results.</p>';
@@ -255,6 +340,9 @@ const VIEW_HTML = `<!DOCTYPE html>
       root.innerHTML = "<pre>" + esc(String(data ?? "")) + "</pre>";
     }
     foot.textContent = "";
+    // A cover the host cannot load (CSP, dead link) drops out; the card stays.
+    for (const img of root.querySelectorAll("img"))
+      img.onerror = () => { const c = img.closest(".cover"); if (c) c.remove(); size(); };
     size();
   }
 
@@ -311,8 +399,10 @@ export function registerUi(server: McpServer): void {
 			description:
 				"Interactive FreeTicket view: a table for lists, tiles for KPIs.",
 			mimeType: UI_MIME,
-			// No external domains: the HTML is self-contained, it asks for no network.
-			_meta: { ui: { csp: {}, prefersBorder: true } },
+			// The HTML asks for no network; the event covers do. They live on each
+			// organizer's storage domain, hence the scheme instead of an origin.
+			// ponytail: pin the bucket origin if a host rejects the wildcard.
+			_meta: { ui: { csp: { "img-src": ["https:"] }, prefersBorder: true } },
 		},
 		async () => ({
 			contents: [{ uri: UI_URI, mimeType: UI_MIME, text: VIEW_HTML }],
