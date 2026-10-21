@@ -22,6 +22,9 @@ import type {
 	DeleteMembershipPlansIdData,
 	DeleteMembershipPlansIdError,
 	DeleteMembershipPlansIdResponse,
+	DeleteStaffIdData,
+	DeleteStaffIdError,
+	DeleteStaffIdResponse,
 	DeleteTicketTypesIdData,
 	DeleteTicketTypesIdError,
 	DeleteTicketTypesIdResponse,
@@ -52,9 +55,18 @@ import type {
 	GetCustomerMembershipError,
 	GetCustomerMembershipResponse,
 	GetCustomerMeResponse,
+	GetCustomerOrdersData,
+	GetCustomerOrdersError,
+	GetCustomerOrdersIdData,
+	GetCustomerOrdersIdError,
+	GetCustomerOrdersIdResponse,
+	GetCustomerOrdersResponse,
 	GetCustomerProfileData,
 	GetCustomerProfileError,
 	GetCustomerProfileResponse,
+	GetCustomerPurchaseSessionsIdData,
+	GetCustomerPurchaseSessionsIdError,
+	GetCustomerPurchaseSessionsIdResponse,
 	GetCustomerTicketsData,
 	GetCustomerTicketsError,
 	GetCustomerTicketsIdData,
@@ -117,6 +129,9 @@ import type {
 	GetReportsTimeseriesResponse,
 	GetSalesData,
 	GetSalesError,
+	GetSalesIdAttemptsData,
+	GetSalesIdAttemptsError,
+	GetSalesIdAttemptsResponse,
 	GetSalesIdData,
 	GetSalesIdError,
 	GetSalesIdResponse,
@@ -126,13 +141,19 @@ import type {
 	GetSalesResponse,
 	GetSettlementsData,
 	GetSettlementsError,
+	GetSettlementsIdData,
 	GetSettlementsIdDocumentData,
 	GetSettlementsIdDocumentError,
+	GetSettlementsIdError,
 	GetSettlementsIdProofsFileNameData,
 	GetSettlementsIdProofsFileNameError,
+	GetSettlementsIdResponse,
 	GetSettlementsResponse,
 	GetStaffData,
 	GetStaffError,
+	GetStaffIdData,
+	GetStaffIdError,
+	GetStaffIdResponse,
 	GetStaffResponse,
 	GetTicketsTicketCodeAccessData,
 	GetTicketsTicketCodeAccessError,
@@ -170,12 +191,18 @@ import type {
 	PatchStaffIdRoleData,
 	PatchStaffIdRoleError,
 	PatchStaffIdRoleResponse,
+	PatchTicketsTicketCodeData,
+	PatchTicketsTicketCodeError,
+	PatchTicketsTicketCodeResponse,
 	PatchTicketTypesIdData,
 	PatchTicketTypesIdError,
 	PatchTicketTypesIdResponse,
 	PatchVenuesIdData,
 	PatchVenuesIdError,
 	PatchVenuesIdResponse,
+	PatchWebhooksIdData,
+	PatchWebhooksIdError,
+	PatchWebhooksIdResponse,
 	PostApiCustomerAuthEnterpriseExchangeData,
 	PostApiCustomerAuthEnterpriseExchangeResponse,
 	PostApiKeysData,
@@ -187,12 +214,45 @@ import type {
 	PostAuthDeviceTokenData,
 	PostAuthDeviceTokenError,
 	PostAuthDeviceTokenResponse,
+	PostAuthSignupData,
+	PostAuthSignupError,
+	PostAuthSignupResponse,
 	PostContentPlaybackTokenData,
 	PostContentPlaybackTokenError,
 	PostContentPlaybackTokenResponse,
+	PostContentPostsData,
+	PostContentPostsError,
+	PostContentPostsResponse,
+	PostCustomerAuthRequestData,
+	PostCustomerAuthRequestError,
+	PostCustomerAuthRequestResponse,
+	PostCustomerAuthVerifyData,
+	PostCustomerAuthVerifyError,
+	PostCustomerAuthVerifyResponse,
 	PostCustomerLogoutData,
 	PostCustomerLogoutError,
 	PostCustomerLogoutResponse,
+	PostCustomerOrdersData,
+	PostCustomerOrdersError,
+	PostCustomerOrdersIdPaymentCardData,
+	PostCustomerOrdersIdPaymentCardError,
+	PostCustomerOrdersIdPaymentCardResponse,
+	PostCustomerOrdersIdPaymentData,
+	PostCustomerOrdersIdPaymentError,
+	PostCustomerOrdersIdPaymentPseData,
+	PostCustomerOrdersIdPaymentPseError,
+	PostCustomerOrdersIdPaymentPseResponse,
+	PostCustomerOrdersIdPaymentResponse,
+	PostCustomerOrdersIdReleaseData,
+	PostCustomerOrdersIdReleaseError,
+	PostCustomerOrdersIdReleaseResponse,
+	PostCustomerOrdersResponse,
+	PostCustomerPurchaseSessionsData,
+	PostCustomerPurchaseSessionsError,
+	PostCustomerPurchaseSessionsIdReleaseData,
+	PostCustomerPurchaseSessionsIdReleaseError,
+	PostCustomerPurchaseSessionsIdReleaseResponse,
+	PostCustomerPurchaseSessionsResponse,
 	PostCustomerSubscriptionsCancelData,
 	PostCustomerSubscriptionsCancelError,
 	PostCustomerSubscriptionsCancelResponse,
@@ -207,6 +267,9 @@ import type {
 	PostDiscountsResponse,
 	PostEventsData,
 	PostEventsError,
+	PostEventsIdCancelData,
+	PostEventsIdCancelError,
+	PostEventsIdCancelResponse,
 	PostEventsIdDatesData,
 	PostEventsIdDatesError,
 	PostEventsIdDatesResponse,
@@ -247,6 +310,9 @@ import type {
 	PostWebhooksData,
 	PostWebhooksError,
 	PostWebhooksResponse,
+	PostWorkspacesData,
+	PostWorkspacesError,
+	PostWorkspacesResponse,
 } from "./types.gen";
 
 export type Options<
@@ -267,8 +333,8 @@ export type Options<
 };
 
 /**
- * Listar fechas de un evento
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * List an event's dates
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getEventsIdDates = <ThrowOnError extends boolean = false>(
 	options: Options<GetEventsIdDatesData, ThrowOnError>,
@@ -294,8 +360,8 @@ export const getEventsIdDates = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Agregar fecha a un evento
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Add a date to an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postEventsIdDates = <ThrowOnError extends boolean = false>(
 	options: Options<PostEventsIdDatesData, ThrowOnError>,
@@ -325,53 +391,15 @@ export const postEventsIdDates = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Inicia el Device Authorization Grant (RFC 8628)
- * Endpoint público (sin auth): bootstrap de credenciales del Device Authorization Grant (RFC 8628).
+ * List the organization's published videos
+ * Only published videos that have finished processing (READY) in the active workspace. Does not include the playback id: to play one, request a token from `POST /content/playback-token`.
  */
-export const postAuthDeviceCode = <ThrowOnError extends boolean = false>(
-	options?: Options<PostAuthDeviceCodeData, ThrowOnError>,
-) => {
-	return (options?.client ?? _heyApiClient).post<
-		PostAuthDeviceCodeResponse,
-		PostAuthDeviceCodeError,
-		ThrowOnError
-	>({
-		url: "/auth/device/code",
-		...options,
-	});
-};
-
-/**
- * Poll del CLI: canjea el device_code por una API key al aprobar
- * Endpoint público (sin auth): bootstrap de credenciales del Device Authorization Grant (RFC 8628).
- */
-export const postAuthDeviceToken = <ThrowOnError extends boolean = false>(
-	options: Options<PostAuthDeviceTokenData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostAuthDeviceTokenResponse,
-		PostAuthDeviceTokenError,
-		ThrowOnError
-	>({
-		url: "/auth/device/token",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Usuario autenticado, rol y workspaces accesibles
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
- */
-export const getMe = <ThrowOnError extends boolean = false>(
-	options?: Options<GetMeData, ThrowOnError>,
+export const getContentVideos = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentVideosData, ThrowOnError>,
 ) => {
 	return (options?.client ?? _heyApiClient).get<
-		GetMeResponse,
-		GetMeError,
+		GetContentVideosResponse,
+		GetContentVideosError,
 		ThrowOnError
 	>({
 		security: [
@@ -384,14 +412,14 @@ export const getMe = <ThrowOnError extends boolean = false>(
 				type: "apiKey",
 			},
 		],
-		url: "/me",
+		url: "/content/videos",
 		...options,
 	});
 };
 
 /**
- * Listar eventos del workspace
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`. Cada evento embebe `nextDate` (su función más próxima, o null), para no requerir `/events/{id}/dates` por evento al renderizar un catálogo.
+ * List workspace events
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Each event embeds `nextDate` (its next upcoming date, or null) and `artists` (the linked lineup, in the organizer's order), so rendering a catalog doesn't require `/events/{id}/dates` or one request per artist.
  */
 export const getEvents = <ThrowOnError extends boolean = false>(
 	options?: Options<GetEventsData, ThrowOnError>,
@@ -417,8 +445,8 @@ export const getEvents = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear evento
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Create an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postEvents = <ThrowOnError extends boolean = false>(
 	options: Options<PostEventsData, ThrowOnError>,
@@ -448,8 +476,125 @@ export const postEvents = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar (soft) evento
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Start the Device Authorization Grant (RFC 8628)
+ * Public endpoint (no auth): credential bootstrap for the Device Authorization Grant (RFC 8628).
+ */
+export const postAuthDeviceCode = <ThrowOnError extends boolean = false>(
+	options?: Options<PostAuthDeviceCodeData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).post<
+		PostAuthDeviceCodeResponse,
+		PostAuthDeviceCodeError,
+		ThrowOnError
+	>({
+		url: "/auth/device/code",
+		...options,
+	});
+};
+
+/**
+ * CLI poll: exchanges the device_code for an API key once approved
+ * Public endpoint (no auth): credential bootstrap for the Device Authorization Grant (RFC 8628).
+ */
+export const postAuthDeviceToken = <ThrowOnError extends boolean = false>(
+	options: Options<PostAuthDeviceTokenData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostAuthDeviceTokenResponse,
+		PostAuthDeviceTokenError,
+		ThrowOnError
+	>({
+		url: "/auth/device/token",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Headless sign-up: creates the unverified account and sends the email
+ * Public (no auth). Verify-first: no credential is issued. The optional `workspaceName` creates the first tenant in the same step (on the free Spark plan). Rate-limited per IP and per email.
+ */
+export const postAuthSignup = <ThrowOnError extends boolean = false>(
+	options: Options<PostAuthSignupData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostAuthSignupResponse,
+		PostAuthSignupError,
+		ThrowOnError
+	>({
+		url: "/auth/signup",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Create your own workspace/tenant (self-serve)
+ * Requires a valid API key — does NOT require an active workspace (`X-Workspace-Id` does not apply here: it is ignored if sent). The caller becomes ADMIN of the new workspace. If they already administer their own Organization (umbrella), another workspace is added there, subject to the plan quota (spark=1, star=3, icon=7); if they have no link at all, a new Organization is created on the free Spark plan. A user who is already a collaborator (staff) of someone else's workspace gets 409 `ALREADY_HAS_ACCESS`: ask an administrator to add them, instead of creating a tenant that would override their current access.
+ */
+export const postWorkspaces = <ThrowOnError extends boolean = false>(
+	options: Options<PostWorkspacesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostWorkspacesResponse,
+		PostWorkspacesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/workspaces",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Authenticated user, role and accessible workspaces
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. `activeWorkspaceId` is `null` and `workspaces` is `[]` when the credential is valid but the user does not have any workspace yet (just registered via POST /auth/signup, before POST /workspaces).
+ */
+export const getMe = <ThrowOnError extends boolean = false>(
+	options?: Options<GetMeData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetMeResponse,
+		GetMeError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/me",
+		...options,
+	});
+};
+
+/**
+ * Delete an event (soft delete)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const deleteEventsId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteEventsIdData, ThrowOnError>,
@@ -475,8 +620,8 @@ export const deleteEventsId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Obtener un evento
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Get an event
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getEventsId = <ThrowOnError extends boolean = false>(
 	options: Options<GetEventsIdData, ThrowOnError>,
@@ -502,8 +647,8 @@ export const getEventsId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar evento
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Update an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const patchEventsId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchEventsIdData, ThrowOnError>,
@@ -533,8 +678,18 @@ export const patchEventsId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Publicar evento
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Publish an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Publishes the event and its dates (cancelled dates stay cancelled unless the whole event was `CANCELLED`). Requires at least one future date (409 `CONFLICT`).
+ *
+ * Seated (seats.io) events are validated first:
+ * - 409 `SEATSIO_INVALID`: a seated date has no ticket type mapped to a chart category, or maps a category missing from the chart.
+ * - 409 `SEAT_MAP_CATEGORIES_UNCOVERED`: a chart category with seats on sale has no ticket type on that date and is not fully blocked (booked). `error.details.zones[]` lists each one (`dateLabel`, `categoryKey`, `categoryLabel`, `seats`). Create its ticket type or block those seats, then retry.
+ * - 503 `SEAT_MAP_UNVERIFIABLE` (retryable): seats.io could not be reached to verify the map.
+ *
+ * Paid events (any ticket type with price > 0) require the workspace identity verification to be approved:
+ * - 409 `IDENTITY_VERIFICATION_REQUIRED`: the event stays `DRAFT` and is queued; it publishes automatically within ~5 minutes of the verification being approved.
  */
 export const postEventsIdPublish = <ThrowOnError extends boolean = false>(
 	options: Options<PostEventsIdPublishData, ThrowOnError>,
@@ -560,8 +715,37 @@ export const postEventsIdPublish = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar fecha
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Cancel an event (keeps the record and its sales)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Sets the event and ALL its dates to `CANCELLED` and turns off the waiting room. Unlike `DELETE /events/{id}`, it PRESERVES the record: sales, issued tickets and the audit trail for refunds remain. Idempotent: cancelling an already-cancelled event returns 200 with no changes. Does not trigger refunds — use `POST /sales/{id}/refund` for that.
+ */
+export const postEventsIdCancel = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdCancelData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdCancelResponse,
+		PostEventsIdCancelError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/cancel",
+		...options,
+	});
+};
+
+/**
+ * Delete an event date
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const deleteEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteEventsIdDatesDateIdData, ThrowOnError>,
@@ -587,8 +771,8 @@ export const deleteEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar fecha
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Update an event date
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const patchEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchEventsIdDatesDateIdData, ThrowOnError>,
@@ -618,8 +802,8 @@ export const patchEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Listar tipos de ticket del workspace
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * List workspace ticket types
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getTicketTypes = <ThrowOnError extends boolean = false>(
 	options?: Options<GetTicketTypesData, ThrowOnError>,
@@ -645,8 +829,8 @@ export const getTicketTypes = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear tipo de ticket
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Create a ticket type
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postTicketTypes = <ThrowOnError extends boolean = false>(
 	options: Options<PostTicketTypesData, ThrowOnError>,
@@ -676,8 +860,8 @@ export const postTicketTypes = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar (soft) tipo de ticket
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Delete a ticket type (soft delete)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const deleteTicketTypesId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteTicketTypesIdData, ThrowOnError>,
@@ -703,8 +887,8 @@ export const deleteTicketTypesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Obtener un tipo de ticket
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Get a ticket type
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getTicketTypesId = <ThrowOnError extends boolean = false>(
 	options: Options<GetTicketTypesIdData, ThrowOnError>,
@@ -730,8 +914,8 @@ export const getTicketTypesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar tipo de ticket
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Update a ticket type
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const patchTicketTypesId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchTicketTypesIdData, ThrowOnError>,
@@ -761,8 +945,8 @@ export const patchTicketTypesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Listar ventas del workspace
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * List workspace sales
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getSales = <ThrowOnError extends boolean = false>(
 	options?: Options<GetSalesData, ThrowOnError>,
@@ -788,8 +972,10 @@ export const getSales = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear una venta/orden (cortesías y ventas programáticas)
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Create a sale/order (complimentary tickets and programmatic sales)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Accepts `Idempotency-Key`: retrying with the same key returns the sale created on the first attempt (a 201 response with the `Idempotent-Replay: true` header) instead of issuing another one. Recommended for any client that retries on its own.
  */
 export const postSales = <ThrowOnError extends boolean = false>(
 	options: Options<PostSalesData, ThrowOnError>,
@@ -819,8 +1005,8 @@ export const postSales = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Detalle de una venta con sus ítems
- * Rol mínimo: `STAFF`. Workspace activo vía header `X-Workspace-Id`.
+ * Get a sale with its items
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getSalesId = <ThrowOnError extends boolean = false>(
 	options: Options<GetSalesIdData, ThrowOnError>,
@@ -846,8 +1032,8 @@ export const getSalesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Cancelar una venta (bloqueada si el cobro sigue abierto)
- * Marca la venta como CANCELLED, libera su cupo y suelta las sillas numeradas asociadas. IMPORTANTE: una venta PENDING cobrada con Bold tiene un enlace de pago que puede seguir vivo — el API de Bold nunca marca sus enlaces como vencidos —, así que cancelarla podría dejar al comprador pagado y sin entrada. Antes de cancelar se relee el estado real del cobro: si Bold lo reporta aprobado, responde 409 SALE_PAID_AT_GATEWAY y NO se cancela en ningún caso (esa venta se confirma o se reembolsa). Si el cobro sigue abierto o el estado no se puede leer, responde 409 OPEN_PAYMENT_CONFIRMATION_REQUIRED: verifica en el panel de Bold y repite la llamada con {"acknowledge_open_payment": true} para asumir el riesgo de forma explícita. Las ventas de otras pasarelas y las que no tienen un pago iniciado se cancelan sin ese paso.
+ * Cancel a sale (blocked if someone already checked in or the payment is still open)
+ * Marks the sale as CANCELLED, releases its inventory and frees the associated numbered seats. IMPORTANT: a sale with tickets already used at the door is NOT cancelled: it responds 409 SALE_ALREADY_CHECKED_IN, because returning that inventory would put it back on sale with the person already inside. If the money must be returned, use POST /sales/{id}/refund. IMPORTANT: a PENDING sale charged through Bold has a payment link that may still be live — the Bold API never marks its links as expired —, so cancelling it could leave the buyer charged without a ticket. Before cancelling, the actual payment status is re-read: if Bold reports it approved, it responds 409 SALE_PAID_AT_GATEWAY and the sale is NOT cancelled under any circumstances (that sale gets confirmed or refunded). If the payment is still open or its status cannot be read, it responds 409 OPEN_PAYMENT_CONFIRMATION_REQUIRED: check the Bold dashboard and repeat the call with {"acknowledge_open_payment": true} to explicitly accept the risk. A sale charged with a Bold card terminal (counter sale) that still has a terminal charge in progress, or an approved charge not yet delivered, responds 409 TERMINAL_CHARGE_IN_PROGRESS and is not cancelled (the acknowledgement does not override it). Sales from other gateways and sales with no payment started are cancelled without that step.
  */
 export const postSalesIdCancel = <ThrowOnError extends boolean = false>(
 	options: Options<PostSalesIdCancelData, ThrowOnError>,
@@ -877,8 +1063,8 @@ export const postSalesIdCancel = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Reembolsar una venta (el movimiento de fondos depende de la pasarela)
- * Marca la venta como REFUNDED y libera las sillas numeradas asociadas. IMPORTANTE: que el dinero vuelva al comprador depende de la pasarela de pago y del medio usado. Solo las ventas cobradas con Wompi y TARJETA se anulan de verdad contra la pasarela de pago antes de marcarse. En cualquier otro caso este endpoint NO dispara el reembolso real: el dinero NO se devuelve automáticamente y un 200 confirma únicamente el cambio de estado contable. Esos reembolsos deben gestionarse por separado en el panel de la pasarela de pago. Los medios de Wompi sin devolución por API (PSE, Nequi, transferencia Bancolombia) responden 409: hay que devolver la plata en el panel de Wompi y repetir la llamada con {"acknowledge_manual": true} para reflejar el estado contable. Un 502 significa que la pasarela rechazó la anulación y la venta sigue CONFIRMED.
+ * Refund a sale (moving the funds depends on the payment gateway)
+ * Marks the sale as REFUNDED and releases the associated numbered seats. IMPORTANT: whether the money goes back to the buyer depends on the payment gateway and the payment method used. Sales charged through MercadoPago are fully refunded against the MercadoPago API (stable idempotency key per sale, so retries never refund twice) and marked only once MercadoPago confirms. A 503 GATEWAY_REFUND_PENDING means MercadoPago did not answer clearly: the sale stays CONFIRMED and repeating the same call is safe. Sales charged through Wompi by CARD are voided against the payment gateway before being marked. In every other case this endpoint does NOT trigger the actual refund: the money is NOT returned automatically and a 200 only confirms the accounting status change. Those refunds must be handled separately in the payment gateway's dashboard. PARTIAL REFUND BY TICKET: send `items` with the ids of the sale items to refund (the `id` field of GET /sales/{id}/tickets). Each item refunds its prorated share of the sale total (by item subtotal; shares always add up to the exact total). The refunded tickets are invalidated at the door and their quota returns to stock; when no live item remains the sale becomes REFUNDED. Only MercadoPago (or uncharged / cash sales) support partial refunds: Wompi and Bold answer 409 GATEWAY_REFUND_NOT_SUPPORTED. Items already checked in answer 409 ITEM_ALREADY_CHECKED_IN — also for a FULL refund (no `items`, or all of them): a sale with any checked-in ticket is never refunded whole; refund the unused tickets by item; items from another sale answer 422 ITEM_NOT_IN_SALE; a refund already in flight over the same items answers 409 REFUND_IN_PROGRESS (retry exactly the same items). `block_seats: true` (also valid for a full refund) keeps the refunded numbered seats OUT of sale: seats.io moves them from booked straight to a blocked status, never through free. The `refund` object in the response reports the refunded amount and what happened to the seats. Wompi payment methods without API refunds (PSE, Nequi, Bancolombia transfer) respond 409: return the money in the Wompi dashboard and repeat the call with {"acknowledge_manual": true} to reflect the accounting status. A 502 means the gateway rejected the void and the sale remains CONFIRMED.
  */
 export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
 	options: Options<PostSalesIdRefundData, ThrowOnError>,
@@ -908,8 +1094,8 @@ export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Listar planes de membresía del workspace
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * List the workspace's membership plans
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getMembershipPlans = <ThrowOnError extends boolean = false>(
 	options?: Options<GetMembershipPlansData, ThrowOnError>,
@@ -935,8 +1121,8 @@ export const getMembershipPlans = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear plan de membresía
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Create a membership plan
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postMembershipPlans = <ThrowOnError extends boolean = false>(
 	options: Options<PostMembershipPlansData, ThrowOnError>,
@@ -966,8 +1152,8 @@ export const postMembershipPlans = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar (soft) plan
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Delete a membership plan (soft delete)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const deleteMembershipPlansId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteMembershipPlansIdData, ThrowOnError>,
@@ -993,8 +1179,8 @@ export const deleteMembershipPlansId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Obtener un plan de membresía
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Get a membership plan
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getMembershipPlansId = <ThrowOnError extends boolean = false>(
 	options: Options<GetMembershipPlansIdData, ThrowOnError>,
@@ -1020,8 +1206,8 @@ export const getMembershipPlansId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar plan
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Update a membership plan
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const patchMembershipPlansId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchMembershipPlansIdData, ThrowOnError>,
@@ -1051,8 +1237,8 @@ export const patchMembershipPlansId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Listar venues del workspace
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * List workspace venues
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getVenues = <ThrowOnError extends boolean = false>(
 	options?: Options<GetVenuesData, ThrowOnError>,
@@ -1078,8 +1264,8 @@ export const getVenues = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear venue
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Create a venue
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postVenues = <ThrowOnError extends boolean = false>(
 	options: Options<PostVenuesData, ThrowOnError>,
@@ -1109,8 +1295,8 @@ export const postVenues = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar (soft) venue
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Delete a venue (soft delete)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const deleteVenuesId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteVenuesIdData, ThrowOnError>,
@@ -1136,8 +1322,8 @@ export const deleteVenuesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Obtener un venue
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Get a venue
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getVenuesId = <ThrowOnError extends boolean = false>(
 	options: Options<GetVenuesIdData, ThrowOnError>,
@@ -1163,8 +1349,8 @@ export const getVenuesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar venue
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Update a venue
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const patchVenuesId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchVenuesIdData, ThrowOnError>,
@@ -1194,8 +1380,8 @@ export const patchVenuesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Listar staff con acceso al workspace
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`. Con `?workspaceIds=` la paginación por cursor sigue siendo por usuario: `limit` cuenta personas, no filas.
+ * List staff with access to the workspace
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. With `?workspaceIds=`, cursor pagination is still per user: `limit` counts people, not rows.
  */
 export const getStaff = <ThrowOnError extends boolean = false>(
 	options?: Options<GetStaffData, ThrowOnError>,
@@ -1221,8 +1407,8 @@ export const getStaff = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear usuario staff en el workspace
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Create a staff user in the workspace
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postStaff = <ThrowOnError extends boolean = false>(
 	options: Options<PostStaffData, ThrowOnError>,
@@ -1252,8 +1438,64 @@ export const postStaff = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Cambiar rol de un usuario staff
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Revoke a staff member's access to this workspace
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Revokes access to THIS workspace: granted sections, ticket validation permissions, read-only events, membership, and the home workspace if it was this one. Terminates live sessions and invalidates the invitation QR code. It does NOT delete the account or its history: the person may belong to other workspaces. An `ADMIN` cannot revoke another admin (403) or themselves (409).
+ */
+export const deleteStaffId = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteStaffIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteStaffIdResponse,
+		DeleteStaffIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/staff/{id}",
+		...options,
+	});
+};
+
+/**
+ * Get a staff member
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const getStaffId = <ThrowOnError extends boolean = false>(
+	options: Options<GetStaffIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetStaffIdResponse,
+		GetStaffIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/staff/{id}",
+		...options,
+	});
+};
+
+/**
+ * Change a staff user's role
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const patchStaffIdRole = <ThrowOnError extends boolean = false>(
 	options: Options<PatchStaffIdRoleData, ThrowOnError>,
@@ -1283,8 +1525,8 @@ export const patchStaffIdRole = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * KPIs del workspace (revenue, tickets, ventas, membresías)
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Workspace KPIs (revenue, tickets, sales, memberships)
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getReportsSummary = <ThrowOnError extends boolean = false>(
 	options?: Options<GetReportsSummaryData, ThrowOnError>,
@@ -1310,8 +1552,8 @@ export const getReportsSummary = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Inventario agregado por evento/fecha/tipo (capacidad, vendidos, disponibles)
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Inventory aggregated by event/date/ticket type (capacity, sold, available)
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getReportsInventory = <ThrowOnError extends boolean = false>(
 	options?: Options<GetReportsInventoryData, ThrowOnError>,
@@ -1337,8 +1579,8 @@ export const getReportsInventory = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Conciliación financiera CFO (MP ↔ venta ↔ factura Siigo)
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * CFO financial reconciliation (MP ↔ sale ↔ Siigo invoice)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getReportsReconciliation = <ThrowOnError extends boolean = false>(
 	options: Options<GetReportsReconciliationData, ThrowOnError>,
@@ -1364,8 +1606,8 @@ export const getReportsReconciliation = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Export CSV de la conciliación financiera CFO
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * CSV export of the CFO financial reconciliation
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getReportsExportsReconciliation = <
 	ThrowOnError extends boolean = false,
@@ -1393,8 +1635,8 @@ export const getReportsExportsReconciliation = <
 };
 
 /**
- * Export de asistentes por ticket con filtros (máx 5000)
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Export attendees per ticket, with filters (max 5000)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getReportsExportsAttendees = <
 	ThrowOnError extends boolean = false,
@@ -1422,8 +1664,8 @@ export const getReportsExportsAttendees = <
 };
 
 /**
- * Export de compradores con filtros (máx 5000)
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Export buyers, with filters (max 5000)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getReportsExportsBuyers = <ThrowOnError extends boolean = false>(
 	options?: Options<GetReportsExportsBuyersData, ThrowOnError>,
@@ -1449,8 +1691,8 @@ export const getReportsExportsBuyers = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Export de suscriptores (máx 5000)
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Export subscribers (max 5000)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getReportsExportsSubscribers = <
 	ThrowOnError extends boolean = false,
@@ -1478,8 +1720,8 @@ export const getReportsExportsSubscribers = <
 };
 
 /**
- * KPIs de venta por evento del workspace
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Sales KPIs per workspace event
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getReportsByEvent = <ThrowOnError extends boolean = false>(
 	options?: Options<GetReportsByEventData, ThrowOnError>,
@@ -1505,8 +1747,8 @@ export const getReportsByEvent = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Serie temporal de ventas CONFIRMED por bucket (day|week|month)
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Time series of CONFIRMED sales per bucket (day|week|month)
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getReportsTimeseries = <ThrowOnError extends boolean = false>(
 	options: Options<GetReportsTimeseriesData, ThrowOnError>,
@@ -1532,8 +1774,8 @@ export const getReportsTimeseries = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Estado financiero por función: bruto, costos y neto a liquidar
- * Una fila por función (event_date) con el desglose financiero de sus ventas confirmadas — bruto cobrado, cargo de plataforma + IVA, valor facial, comisión de la pasarela (real en MercadoPago, estimada por tasa en Wompi o Bold), 4x1000 y neto a liquidar — más el estado de la liquidación asociada. Si wompiSalesWithoutRate > 0, la comisión de ventas de Wompi o Bold no se pudo estimar y el neto está inflado.
+ * Financial statement per event date: gross, costs, and net payable
+ * One row per event date (event_date) with the financial breakdown of its confirmed sales — gross collected, platform fee + VAT (IVA), face value, payment gateway fee (actual for MercadoPago, rate-estimated for Wompi or Bold), 4x1000 tax, and net payable — plus the status of the associated settlement. If wompiSalesWithoutRate > 0, the gateway fee for some Wompi or Bold sales could not be estimated and the net amount is overstated.
  */
 export const getReportsFinancials = <ThrowOnError extends boolean = false>(
 	options?: Options<GetReportsFinancialsData, ThrowOnError>,
@@ -1559,8 +1801,8 @@ export const getReportsFinancials = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Liquidaciones del workspace (pagos al organizador)
- * Lista las liquidaciones visibles para la organización (SENT, AWAITING_PAYMENT, PAID) con su id estándar, monto, evento/función y comprobantes. Los archivos se bajan con `GET /settlements/{id}/document` (PDF) y `GET /settlements/{id}/proofs/{fileName}` (comprobantes de la transferencia).
+ * Workspace settlements (payouts to the organizer)
+ * Lists the settlements visible to the organization (SENT, AWAITING_PAYMENT, PAID) with their standard id, amount, event/event date, and payment proofs. Download the files with `GET /settlements/{id}/document` (PDF) and `GET /settlements/{id}/proofs/{fileName}` (bank transfer proofs).
  */
 export const getSettlements = <ThrowOnError extends boolean = false>(
 	options?: Options<GetSettlementsData, ThrowOnError>,
@@ -1586,8 +1828,37 @@ export const getSettlements = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Descarga el PDF de una liquidación
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`. Los archivos viven en un bucket privado, así que la respuesta es un **302** hacia una URL firmada de 5 minutos (hay que seguir la redirección; el `storage_path` nunca se expone). Solo liquidaciones visibles para la organización (SENT, AWAITING_PAYMENT, PAID) y dentro del `event_scope` de la key.
+ * Get a settlement
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * The same resource the list returns, by id. Only settlements already sent to the organizer (`SENT`, `AWAITING_PAYMENT`, `PAID`): internal master statuses are not exposed. Download the files with `GET /settlements/{id}/document` and `GET /settlements/{id}/proofs/{fileName}`.
+ */
+export const getSettlementsId = <ThrowOnError extends boolean = false>(
+	options: Options<GetSettlementsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetSettlementsIdResponse,
+		GetSettlementsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/{id}",
+		...options,
+	});
+};
+
+/**
+ * Download a settlement PDF
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Files live in a private bucket, so the response is a **302** to a signed URL valid for 5 minutes (the client must follow the redirect; the `storage_path` is never exposed). Only settlements visible to the organization (SENT, AWAITING_PAYMENT, PAID) and within the key's `event_scope`.
  */
 export const getSettlementsIdDocument = <ThrowOnError extends boolean = false>(
 	options: Options<GetSettlementsIdDocumentData, ThrowOnError>,
@@ -1613,8 +1884,8 @@ export const getSettlementsIdDocument = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Descarga un comprobante de pago de una liquidación
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`. `fileName` es el mismo valor que devuelve `paymentProofs[].fileName` en `GET /settlements` (URL-encoded). Igual que `/document`, responde **302** hacia una URL firmada de 5 minutos del bucket privado.
+ * Download a settlement payment proof
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. `fileName` is the same value returned in `paymentProofs[].fileName` by `GET /settlements` (URL-encoded). Like `/document`, it responds with a **302** to a signed URL, valid for 5 minutes, in the private bucket.
  */
 export const getSettlementsIdProofsFileName = <
 	ThrowOnError extends boolean = false,
@@ -1642,8 +1913,8 @@ export const getSettlementsIdProofsFileName = <
 };
 
 /**
- * Listar cupones de descuento del workspace
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * List workspace discount codes
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getDiscounts = <ThrowOnError extends boolean = false>(
 	options?: Options<GetDiscountsData, ThrowOnError>,
@@ -1669,8 +1940,8 @@ export const getDiscounts = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear cupón de descuento
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Create a discount code
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postDiscounts = <ThrowOnError extends boolean = false>(
 	options: Options<PostDiscountsData, ThrowOnError>,
@@ -1700,8 +1971,8 @@ export const postDiscounts = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar (soft) cupón de descuento
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Delete a discount code (soft delete)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const deleteDiscountsId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteDiscountsIdData, ThrowOnError>,
@@ -1727,8 +1998,8 @@ export const deleteDiscountsId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Actualizar cupón de descuento
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Update a discount code
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const patchDiscountsId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchDiscountsIdData, ThrowOnError>,
@@ -1758,8 +2029,8 @@ export const patchDiscountsId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Listar webhooks del workspace
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * List workspace webhooks
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getWebhooks = <ThrowOnError extends boolean = false>(
 	options?: Options<GetWebhooksData, ThrowOnError>,
@@ -1785,8 +2056,8 @@ export const getWebhooks = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear webhook (devuelve el signingSecret una única vez)
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Create a webhook (returns the signingSecret only once)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postWebhooks = <ThrowOnError extends boolean = false>(
 	options: Options<PostWebhooksData, ThrowOnError>,
@@ -1816,8 +2087,8 @@ export const postWebhooks = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Eliminar un webhook del workspace
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Delete a workspace webhook
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const deleteWebhooksId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteWebhooksIdData, ThrowOnError>,
@@ -1843,8 +2114,41 @@ export const deleteWebhooksId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Listar suscriptores de un plan de membresía
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Edit a webhook without rotating its signing secret
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Changes `url`, `events` or `active` while keeping the `signingSecret`. It is the alternative to `DELETE` + `POST`, which rotates the secret and forces the integrator on the other end to reconfigure signature verification.
+ */
+export const patchWebhooksId = <ThrowOnError extends boolean = false>(
+	options: Options<PatchWebhooksIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchWebhooksIdResponse,
+		PatchWebhooksIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/webhooks/{id}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List subscribers of a membership plan
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getMembershipPlansIdSubscribers = <
 	ThrowOnError extends boolean = false,
@@ -1872,8 +2176,8 @@ export const getMembershipPlansIdSubscribers = <
 };
 
 /**
- * Cancelar una suscripción de membresía
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Cancel a membership subscription
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postSubscriptionsIdCancel = <ThrowOnError extends boolean = false>(
 	options: Options<PostSubscriptionsIdCancelData, ThrowOnError>,
@@ -1899,8 +2203,8 @@ export const postSubscriptionsIdCancel = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Tickets individuales de una venta
- * Rol mínimo: `STAFF`. Workspace activo vía header `X-Workspace-Id`.
+ * List the individual tickets of a sale
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getSalesIdTickets = <ThrowOnError extends boolean = false>(
 	options: Options<GetSalesIdTicketsData, ThrowOnError>,
@@ -1926,8 +2230,80 @@ export const getSalesIdTickets = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Registrar el ingreso (check-in) de un ticket en puerta
- * Rol mínimo: `STAFF`. Workspace activo vía header `X-Workspace-Id`.
+ * List a sale's payment attempt history
+ * Minimum role: `STAFF`. One event per payment movement reported by the gateway (approved, declined, or a later refund), ordered from newest to oldest. It exists to answer "why didn't this sale go through?" without leaving the API: `Sale.status` only reflects the final outcome, and from `GET /sales/{id}` a `CANCELLED`/`ABANDONED` sale with `confirmedAt: null` is indistinguishable from an order that simply expired — see the derived `failureReason`/`paymentStatus`/`declineCode` fields on `SaleDetail`.
+ */
+export const getSalesIdAttempts = <ThrowOnError extends boolean = false>(
+	options: Options<GetSalesIdAttemptsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetSalesIdAttemptsResponse,
+		GetSalesIdAttemptsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/attempts",
+		...options,
+	});
+};
+
+/**
+ * Reassign a sold ticket to another date or ticket type
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Moves an ALREADY SOLD ticket to another `ticketTypeId` and/or to the `eventDateId` date (at least one of the two is required). Intended for a postponement: moving buyers from the old date to the new one without refunding and reselling.
+ *
+ * With only `eventDateId`, the target ticket type is resolved by NAME (the same type the ticket had, on the new date); if the target date doesn't have exactly one type with that name, it responds 422 and you must pass an explicit `ticketTypeId`.
+ *
+ * It does NOT charge or refund the price difference if the new type costs something else: the ticket's `unitPrice`/`subtotal` keep the sale's ORIGINAL price. If money needs adjusting, use `POST /sales/{id}/refund` separately.
+ *
+ * It does NOT reissue the QR: `ticketCode` is always preserved (it is what the buyer already has printed, in Wallet and in their email).
+ *
+ * It does NOT notify the buyer. This endpoint only moves data; to resend the updated ticket use `POST /tickets/{ticketCode}/resend`, and for a bulk postponement notice, use the communications module.
+ *
+ * A ticket that is already checked in, or that belongs to a sale that is not CONFIRMED, responds 409 and is not reassigned. A ticket refunded by item (or whose seat was blocked after a refund) responds 409 `TICKET_REFUNDED`.
+ *
+ * NUMBERED SEATING (seats.io): if the target date has numbered seating, `seatLabel` is REQUIRED (409 `SEAT_REQUIRED` if missing) — the server never picks a seat on its own. The seat is validated and booked in seats.io before moving the ticket; if it is no longer available, it responds 409 `SEAT_UNAVAILABLE` without changing anything. If the ticket held a numbered seat on the source date, that seat is released after the move is confirmed.
+ */
+export const patchTicketsTicketCode = <ThrowOnError extends boolean = false>(
+	options: Options<PatchTicketsTicketCodeData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchTicketsTicketCodeResponse,
+		PatchTicketsTicketCodeError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/tickets/{ticketCode}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Check in a ticket at the door
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postTicketsTicketCodeCheckin = <
 	ThrowOnError extends boolean = false,
@@ -1951,12 +2327,16 @@ export const postTicketsTicketCodeCheckin = <
 		],
 		url: "/tickets/{ticketCode}/checkin",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
 /**
- * Consultar la validez de un ticket sin consumirlo
- * Rol mínimo: `STAFF`. Workspace activo vía header `X-Workspace-Id`.
+ * Check a ticket's validity without consuming it
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getTicketsTicketCodeAccess = <
 	ThrowOnError extends boolean = false,
@@ -1984,8 +2364,8 @@ export const getTicketsTicketCodeAccess = <
 };
 
 /**
- * Listar mis API keys
- * Lista las API keys del usuario autenticado (nunca el hash ni el secreto en claro).
+ * List my API keys
+ * Lists the authenticated user's API keys (never the hash or the plaintext secret).
  */
 export const getApiKeys = <ThrowOnError extends boolean = false>(
 	options?: Options<GetApiKeysData, ThrowOnError>,
@@ -2011,8 +2391,8 @@ export const getApiKeys = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Mintear una API key (devuelve el plano una única vez)
- * Crea una API key de servicio para el usuario autenticado. scope="read" (default) solo permite GET/HEAD; scope="write" habilita mutaciones según el rol del usuario. El secreto en claro solo aparece en esta respuesta.
+ * Mint an API key (returns the plaintext exactly once)
+ * Creates a service API key for the authenticated user. scope="read" (default) only allows GET/HEAD; scope="write" enables mutations according to the user role. The plaintext secret only appears in this response.
  */
 export const postApiKeys = <ThrowOnError extends boolean = false>(
 	options: Options<PostApiKeysData, ThrowOnError>,
@@ -2042,8 +2422,8 @@ export const postApiKeys = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Revocar una de mis API keys
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Revoke one of my API keys
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const deleteApiKeysId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteApiKeysIdData, ThrowOnError>,
@@ -2069,8 +2449,50 @@ export const deleteApiKeysId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Identidad del comprador autenticado (SSO headless)
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session` con el session_token obtenido en el canje del SSO headless.
+ * Request an access code to sign in (or create an account)
+ * Public endpoint (no auth): credential bootstrap for the Device Authorization Grant (RFC 8628).
+ */
+export const postCustomerAuthRequest = <ThrowOnError extends boolean = false>(
+	options: Options<PostCustomerAuthRequestData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerAuthRequestResponse,
+		PostCustomerAuthRequestError,
+		ThrowOnError
+	>({
+		url: "/customer/auth/request",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Exchange the access code for a buyer session
+ * Public endpoint (no auth): credential bootstrap for the Device Authorization Grant (RFC 8628).
+ */
+export const postCustomerAuthVerify = <ThrowOnError extends boolean = false>(
+	options: Options<PostCustomerAuthVerifyData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerAuthVerifyResponse,
+		PostCustomerAuthVerifyError,
+		ThrowOnError
+	>({
+		url: "/customer/auth/verify",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Authenticated buyer identity
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: if sent, it must be an enterprise service key (403 otherwise); without a key, it responds the same for the buyer acting on their own.
  */
 export const getCustomerMe = <ThrowOnError extends boolean = false>(
 	options?: Options<GetCustomerMeData, ThrowOnError>,
@@ -2096,8 +2518,8 @@ export const getCustomerMe = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Entradas del comprador en el alcance de la key (SSO headless)
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Devuelve solo ventas CONFIRMED, matcheadas por cuenta del comprador o correo de compra, de eventos que el workspace pineado a la key puede leer: los propios Y aquellos donde figura como artista vinculado.
+ * Buyer's tickets
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, results are additionally scoped to the workspace pinned to the key (its own events AND those where it is listed as a linked artist); without a key, returns ALL of the buyer's tickets, not limited to any workspace. Only CONFIRMED sales, matched by the buyer's account or purchase email.
  */
 export const getCustomerTickets = <ThrowOnError extends boolean = false>(
 	options?: Options<GetCustomerTicketsData, ThrowOnError>,
@@ -2123,8 +2545,8 @@ export const getCustomerTickets = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Detalle de una entrada del comprador (deep link)
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. `{id}` acepta el id de la venta o su `reference`. Devuelve 404 si la entrada no es del comprador de la sesión o cae fuera del alcance del workspace de la key.
+ * Detail of a buyer's ticket (deep link)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, results are additionally scoped to the workspace pinned to the key; without a key, any of the buyer's own tickets is visible, not limited to a workspace. `{id}` accepts the sale id or its `reference`. Returns 404 if the ticket does not belong to the session's buyer or falls outside the scope.
  */
 export const getCustomerTicketsId = <ThrowOnError extends boolean = false>(
 	options: Options<GetCustomerTicketsIdData, ThrowOnError>,
@@ -2150,8 +2572,8 @@ export const getCustomerTicketsId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Cancelar la propia compra (solo si aún no fue pagada)
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Solo cancela ventas PENDING (libera cupo y sillas). Una venta CONFIRMED responde 409 con código `REFUND_REQUIRED`: el reembolso lo gestiona el organizador. `{id}` acepta el id de la venta o su `reference`.
+ * Cancel the buyer's own purchase (only if not yet paid)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (see /customer/tickets). Only cancels PENDING sales (releases inventory and seats). A CONFIRMED sale responds 409 with code `REFUND_REQUIRED`: refunds are handled by the organizer. `{id}` accepts the sale id or its `reference`.
  */
 export const postCustomerTicketsIdCancel = <
 	ThrowOnError extends boolean = false,
@@ -2179,8 +2601,8 @@ export const postCustomerTicketsIdCancel = <
 };
 
 /**
- * Cerrar la sesión de comprador (SSO headless)
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Borra la sesión del comprador: el `session_token` deja de servir en el acto. Idempotente.
+ * Sign out the buyer session
+ * Revokes the session presented in `X-Customer-Session`: the token stops working immediately. Idempotent. The enterprise service API key is OPTIONAL: if sent, it must be an enterprise service key.
  */
 export const postCustomerLogout = <ThrowOnError extends boolean = false>(
 	options?: Options<PostCustomerLogoutData, ThrowOnError>,
@@ -2206,8 +2628,8 @@ export const postCustomerLogout = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Canjear el one-time token del SSO headless por un session token
- * Server-to-server: exige una API key de servicio enterprise (Bearer o x-api-key). Canjea el one-time token entregado por /api/customer-auth/enterprise-return (single-use, TTL 60s) por el session token del comprador. Body plano, sin envoltura { data }.
+ * Exchange the headless SSO one-time token for a session token
+ * Server-to-server: requires an enterprise service API key (Bearer or x-api-key). Exchanges the one-time token issued by /api/customer-auth/enterprise-return (single-use, 60 s TTL) for the buyer's session token. Plain body, no { data } envelope.
  */
 export const postApiCustomerAuthEnterpriseExchange = <
 	ThrowOnError extends boolean = false,
@@ -2239,8 +2661,8 @@ export const postApiCustomerAuthEnterpriseExchange = <
 };
 
 /**
- * Estado de membresía del comprador en el workspace de la key
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. `active` es true solo con membresía ACTIVE y vigente. Si no hay ninguna vigente, `membership` trae la más reciente (vencida, cancelada o pendiente de pago) para que la landing elija el CTA; `null` = nunca fue miembro de este workspace.
+ * Buyer membership status in a workspace
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the workspace is the one pinned to it (`workspaceId` is ignored); without a key, `workspaceId` is REQUIRED (422 if missing). `active` is true only with an ACTIVE, unexpired membership. If none is current, `membership` returns the most recent one (expired, cancelled or pending payment) so the landing page can choose the CTA; `null` = never a member of that workspace.
  */
 export const getCustomerMembership = <ThrowOnError extends boolean = false>(
 	options?: Options<GetCustomerMembershipData, ThrowOnError>,
@@ -2266,8 +2688,8 @@ export const getCustomerMembership = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Iniciar el alta de una membresía (devuelve la URL de pago)
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Valida que el plan pertenezca al workspace de la key y que el comprador pueda adquirirlo, y devuelve la URL del checkout de membresía del host canónico (el cobro lo cierra la plataforma). Al volver, releer `GET /customer/membership`.
+ * Start a membership sign-up (returns the payment URL)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the plan must belong to the workspace pinned to it; without a key, any active plan by its id (the plan itself determines the sign-up workspace). Validates that the buyer can acquire it and returns the membership checkout URL on the canonical host (the platform completes the charge). On return, re-read `GET /customer/membership`.
  */
 export const postCustomerSubscriptions = <ThrowOnError extends boolean = false>(
 	options: Options<PostCustomerSubscriptionsData, ThrowOnError>,
@@ -2297,15 +2719,15 @@ export const postCustomerSubscriptions = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Cancelar la propia membresía (SSO headless)
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. La membresía se resuelve por la sesión del comprador y el workspace de la key (no se acepta ningún id). Cancela primero el cobro recurrente en el proveedor y después marca la membresía como CANCELLED. Idempotente.
+ * Cancel the buyer's own membership
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the workspace is the one pinned to it (any `workspaceId` in the body is ignored); without a key, `workspaceId` is REQUIRED in the body (422 if missing). The membership is ALWAYS resolved from the buyer session (a CustomerMembership id is never accepted). It first cancels the recurring charge at the provider and then marks the membership as CANCELLED. Idempotent.
  */
 export const postCustomerSubscriptionsCancel = <
 	ThrowOnError extends boolean = false,
 >(
-	options?: Options<PostCustomerSubscriptionsCancelData, ThrowOnError>,
+	options: Options<PostCustomerSubscriptionsCancelData, ThrowOnError>,
 ) => {
-	return (options?.client ?? _heyApiClient).post<
+	return (options.client ?? _heyApiClient).post<
 		PostCustomerSubscriptionsCancelResponse,
 		PostCustomerSubscriptionsCancelError,
 		ThrowOnError
@@ -2322,12 +2744,16 @@ export const postCustomerSubscriptionsCancel = <
 		],
 		url: "/customer/subscriptions/cancel",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
 /**
- * Perfil del comprador (nombre y teléfono)
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session`.
+ * Buyer profile (name and phone)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (issue #673): this endpoint is scoped only by the session's `customer.id`, so it behaves identically with or without a key.
  */
 export const getCustomerProfile = <ThrowOnError extends boolean = false>(
 	options?: Options<GetCustomerProfileData, ThrowOnError>,
@@ -2353,8 +2779,8 @@ export const getCustomerProfile = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Editar el perfil del comprador
- * Requiere API key de servicio enterprise Y el header `X-Customer-Session`. Edita solo al comprador de la sesión: nombre y teléfono. El correo no se edita (es la identidad de la cuenta). Campos ausentes no se tocan.
+ * Update the buyer profile
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. Only updates the session's buyer: name and phone. The email cannot be changed (it is the account identity). Omitted fields are left untouched.
  */
 export const patchCustomerProfile = <ThrowOnError extends boolean = false>(
 	options: Options<PatchCustomerProfileData, ThrowOnError>,
@@ -2384,15 +2810,17 @@ export const patchCustomerProfile = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Listar los videos publicados de la organización
- * Solo videos publicados y con procesamiento terminado (READY) del workspace activo. No incluye el playback id: para reproducir hay que pedir un token en `POST /content/playback-token`.
+ * Open the purchase session (only one live per buyer)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, the event date must belong to the workspace pinned to it; otherwise 404). Opens THE buyer purchase session: there is ONLY one live per buyer across any tab or device, and the latest wins — the previous one becomes `superseded` (it can no longer create an order or start a new payment) and its seats.io hold is released, unless it backs a live sale. On seated event dates the server ISSUES the `holdToken` (mount the chart with `session: "manual"`) and sets `seatsDeadline`: each session gets up to 3 minutes and the budget is 3 attempts (9 CUMULATIVE minutes) per buyer and event date, summing all of their sessions within a 30-minute window, and it only runs while no order has been created. Once exhausted, it responds 429 with `error.code` `SEAT_BUDGET_EXHAUSTED`, `error.details.reason` `seat_budget_exhausted` and `error.details.retryAfterSeconds` (10-minute cooldown; also in the `Retry-After` header). If the SAME browser (`deviceKey`) reopens the SAME event date with its session alive, it gets that same session with 200 instead of 201. Only event dates on sale: published event and current event date (otherwise 404). Limits: 10 creations per minute per buyer, 30 per minute per IP when called without an API key, and a global ceiling per event date (429 `RATE_LIMITED`). Once the session is created, `POST /customer/orders` and the payment POSTs carry the `X-Purchase-Session: <id>` header; when the clock runs out, call `POST /customer/purchase-sessions/{id}/release`.
  */
-export const getContentVideos = <ThrowOnError extends boolean = false>(
-	options?: Options<GetContentVideosData, ThrowOnError>,
+export const postCustomerPurchaseSessions = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerPurchaseSessionsData, ThrowOnError>,
 ) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetContentVideosResponse,
-		GetContentVideosError,
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerPurchaseSessionsResponse,
+		PostCustomerPurchaseSessionsError,
 		ThrowOnError
 	>({
 		security: [
@@ -2405,14 +2833,76 @@ export const getContentVideos = <ThrowOnError extends boolean = false>(
 				type: "apiKey",
 			},
 		],
-		url: "/content/videos",
+		url: "/customer/purchase-sessions",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Purchase session status
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. Returns the status of one of THE buyer's purchase sessions: `live` (this tab can create the order), `superseded` (another tab or device replaced it: stop offering the map and the payment), `expired` (the map clock ran out or it was released) or `converted` (it already created its order: `orderId`). A session whose `seatsDeadline` has passed is reported as `expired` immediately. Designed to be polled every ~10 s. Another buyer's session is 404.
+ */
+export const getCustomerPurchaseSessionsId = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetCustomerPurchaseSessionsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCustomerPurchaseSessionsIdResponse,
+		GetCustomerPurchaseSessionsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/purchase-sessions/{id}",
 		...options,
 	});
 };
 
 /**
- * Listar el feed de comunidad de la organización
- * Publicaciones del workspace activo, de la más reciente a la más vieja, sin borradas ni programadas a futuro. Un post con `locked: true` llega redactado (`content`, `imageUrl`, `videoId`, `eventId` y `link` en null, `commentsCount` en 0): es contenido reservado a miembros y la key no representa a un comprador con membresía vigente. No incluye `likes_count` (solo visible para el dueño del workspace) ni el autor interno de la publicación.
+ * Release the seats of a purchase session
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. Marks the session `expired` and releases in seats.io the seats held with its `holdToken`. Idempotent: repeating it changes nothing. It NEVER releases a token that backs a live sale (pending payment or confirmed) nor that of a `converted` session: those seats belong to the order. Call it when the map clock runs out. Another buyer's session is 404.
+ */
+export const postCustomerPurchaseSessionsIdRelease = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerPurchaseSessionsIdReleaseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerPurchaseSessionsIdReleaseResponse,
+		PostCustomerPurchaseSessionsIdReleaseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/purchase-sessions/{id}/release",
+		...options,
+	});
+};
+
+/**
+ * List the organization's community feed
+ * Posts from the active workspace, newest first, excluding deleted posts and posts scheduled for the future. A post with `locked: true` arrives redacted (`content`, `imageUrl`, `videoId`, `eventId` and `link` set to null, `commentsCount` set to 0): it is members-only content and the key does not represent a buyer with a current membership. Does not include `likes_count` (only visible to the workspace owner) or the post's internal author.
  */
 export const getContentPosts = <ThrowOnError extends boolean = false>(
 	options?: Options<GetContentPostsData, ThrowOnError>,
@@ -2438,8 +2928,39 @@ export const getContentPosts = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Listar las transmisiones de la organización
- * Transmisiones del workspace activo, de la más reciente a la más vieja. `status: ACTIVE` es la que está al aire. No incluye la clave RTMP ni los playback ids.
+ * Publish community content (including articles)
+ * Creates a community post. `type=ARTICLE` requires `title` and `body` (Markdown) and builds a slug unique per organization (manual via `slug`, or derived from `title` if omitted); `type=TEXT`/`IMAGE` require `content` or `imageUrl`, same as the dashboard composer. Unlike the dashboard, this path does NOT resolve the link's Open Graph snapshot (`link` is always null in the response). Minimum role ADMIN, like every other `POST` in `/api/v1`. If the workspace has the `community_v2` flag enabled, publishing enqueues a notification to members in the same transaction; with a future `publishedAt`, the notification goes out when the post is published. The response does not change.
+ */
+export const postContentPosts = <ThrowOnError extends boolean = false>(
+	options: Options<PostContentPostsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentPostsResponse,
+		PostContentPostsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/posts",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List the organization's live streams
+ * Live streams from the active workspace, newest first. `status: ACTIVE` is the one on air. Does not include the RTMP key or the playback ids.
  */
 export const getContentLives = <ThrowOnError extends boolean = false>(
 	options?: Options<GetContentLivesData, ThrowOnError>,
@@ -2465,8 +2986,8 @@ export const getContentLives = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Estado de una transmisión
- * Rol mínimo: `VIEWER`. Workspace activo vía header `X-Workspace-Id`.
+ * Live stream status
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
 export const getContentLivesId = <ThrowOnError extends boolean = false>(
 	options: Options<GetContentLivesIdData, ThrowOnError>,
@@ -2492,8 +3013,8 @@ export const getContentLivesId = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Token firmado para reproducir un video o una transmisión
- * Requiere API key de servicio enterprise. El contenido `memberOnly` exige además el header `X-Customer-Session` de un comprador con membresía vigente en la organización de la key (si no, 403 `MEMBERSHIP_REQUIRED`). El contenido de otra organización responde 404. Tokens de vida corta: 30 minutos en vivo, 1 hora en video.
+ * Signed token to play a video or a live stream
+ * Requires an enterprise service API key. `memberOnly` content additionally requires the `X-Customer-Session` header of a buyer with a current membership in the key's organization (otherwise 403 `MEMBERSHIP_REQUIRED`). Content from another organization responds 404. Short-lived tokens: 30 minutes for live streams, 1 hour for videos.
  */
 export const postContentPlaybackToken = <ThrowOnError extends boolean = false>(
 	options: Options<PostContentPlaybackTokenData, ThrowOnError>,
@@ -2523,8 +3044,8 @@ export const postContentPlaybackToken = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Reenviar el correo de confirmación con el ticket
- * Rol mínimo: `ADMIN`. Workspace activo vía header `X-Workspace-Id`.
+ * Resend the confirmation email with the ticket
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
 export const postTicketsTicketCodeResend = <
 	ThrowOnError extends boolean = false,
@@ -2547,6 +3068,211 @@ export const postTicketsTicketCodeResend = <
 			},
 		],
 		url: "/tickets/{ticketCode}/resend",
+		...options,
+	});
+};
+
+/**
+ * The purchase the buyer left unfinished for this event date
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, results are additionally scoped to the workspace pinned to it; without a key, any of the buyer's own unfinished purchases is visible. Returns the PENDING sale whose inventory hold is STILL ALIVE that the buyer has for that event date —with its seats, its total and when it expires—, or `order: null` if there is none. This is what lets reloading the checkout, or coming back from signing in, RESUME the purchase instead of starting from scratch: the seats remain held in that person's name. If `paymentOpened` is true the payment is already open and `POST /customer/orders/{id}/payment` returns the SAME signed configuration; to discard it and pick other seats, use `POST /customer/orders/{id}/release`.
+ */
+export const getCustomerOrders = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerOrdersData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerOrdersResponse,
+		GetCustomerOrdersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders",
+		...options,
+	});
+};
+
+/**
+ * Create the ticket reservation (step 1 of the headless purchase)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the date and the ticket type must belong to the workspace pinned to it (anything else is 404); without a key, it is enough for the ticket type to exist and be on sale (same eligibility as the first-party checkout). Reserves inventory and creates the PENDING sale with the SAME rules as the first-party checkout (stock under lock, seats validated against seats.io, per-buyer limit, presale, memberships and virtual queue turn). The buyer email comes from the session, never from the body. Rejections carry a stable `reason` in `error.details.reason` (`sold_out`, `queue_turn_required`, `seats_not_held`, `members_only`, `members_only_withdrawn` — a members-only ticket whose artist withdrew the permission or left the lineup: it is no longer sold even to members —, …). With `pending_sale_in_progress` the inventory is taken by a half-paid purchase FROM THE SAME buyer: `error.details.pendingSaleId` and `pendingReference` identify it, and the right step is to reopen its payment with `POST /customer/orders/{pendingSaleId}/payment` (idempotent) instead of reserving again. If `free` is true the sale is already confirmed and `/payment` must NOT be called. Next step: `POST /customer/orders/{id}/payment`.
+ */
+export const postCustomerOrders = <ThrowOnError extends boolean = false>(
+	options: Options<PostCustomerOrdersData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersResponse,
+		PostCustomerOrdersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Open payment for a reservation (Bold or MercadoPago, depending on the event)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). The payment rail is chosen on the SERVER: Bold-eligible events (legend plan + allowlist) return the SIGNED configuration of the embedded Bold Payment Button (`apiKey` + `renderMode: "embedded"` + `integritySignature`, …), which the landing page mounts with `new BoldCheckout({...})`; all others return `publicKey` + `amount` + `currency` + `reference` + `payerEmail` to mount the MercadoPago Payment Brick (`POST .../payment/card` to charge, `POST .../payment/pse` for PSE). The landing page tells the rails apart by the SHAPE of the response (`apiKey`/`renderMode` ⇒ Bold, `publicKey` ⇒ MercadoPago), never by a separate flag. The sale must belong to the session buyer (and, with a key, to the workspace pinned to it): anything else is 404. Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, or (Bold only) the event has no legend plan or a payment attempt is already in flight with another gateway. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
+ */
+export const postCustomerOrdersIdPayment = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdPaymentData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdPaymentResponse,
+		PostCustomerOrdersIdPaymentError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/payment",
+		...options,
+	});
+};
+
+/**
+ * Charge with the MercadoPago Payment Brick token
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Receives the token the Payment Brick produced on the landing page's domain and charges through the Orders API using the sale amount (never one sent by the client); `payer.email` travels in the body but is ignored — the payer is ALWAYS the sale's. `status` is `approved`, `pending` (normal, may require additional authentication from the bank) or `rejected` (business decline; the reason is in `message`) — all three are returned with 200. With `rejected`, `saleAlive` tells what happened to the purchase: `false` = it was cancelled and a new one must be started; `true` = this payment was declined but the purchase is still pending because another payment is in progress on it (do not start a new purchase: wait and check the order). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, the event only charges through Bold, or MercadoPago returned an error that cannot be classified as a decline. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 attempts per minute per buyer (429 with `Retry-After`).
+ */
+export const postCustomerOrdersIdPaymentCard = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdPaymentCardData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdPaymentCardResponse,
+		PostCustomerOrdersIdPaymentCardError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/payment/card",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Open a PSE payment through MercadoPago (redirect)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Creates a MercadoPago preference restricted to PSE and returns `redirectUrl` (`init_point`): the landing page must REDIRECT the browser there, not mount it in an iframe. The buyer picks their bank and confirms the transfer inside MercadoPago; on return, they land on `GET /api/mp/return` (our domain), which issues a 302 to the `returnUrl` sent in `POST /customer/orders` — the landing page must call `GET /customer/orders/{id}` for the authoritative status, never infer it from the return URL. The sale is confirmed by webhook when the bank settles the payment (asynchronous: it may take a while). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, or the event only charges through Bold. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
+ */
+export const postCustomerOrdersIdPaymentPse = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdPaymentPseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdPaymentPseResponse,
+		PostCustomerOrdersIdPaymentPseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/payment/pse",
+		...options,
+	});
+};
+
+/**
+ * Release a reservation the buyer will not pay for
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Abandons the PENDING sale and returns its inventory (and its seats) to stock, so the buyer can start over without waiting for the reservation to expire. It is the counterpart of `pending_sale_in_progress`: when `POST /customer/orders` rejects with that `reason`, the landing page can offer *continue paying* (`/payment`, idempotent) or *start over* (this route). It ONLY releases with evidence that nobody started the payment: if Bold reports any transaction, if a provider response is already stored, or if the payment goes through a rail we cannot query, it responds 409 with `details.reason` = `payment_in_flight` and the sale is left intact. If the gateway does not respond, 503 (`gateway_unreachable`): retry later. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 calls per minute per buyer.
+ */
+export const postCustomerOrdersIdRelease = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdReleaseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdReleaseResponse,
+		PostCustomerOrdersIdReleaseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/release",
+		...options,
+	});
+};
+
+/**
+ * Status of a headless purchase (and its tickets, once paid)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). `{id}` accepts the `reference` (FT-…) or the sale id. If the sale is still PENDING and its payment goes through Bold, the authoritative payment status is re-read from Bold; between re-reads it responds with the internal status, which the webhook keeps up to date. `status` is `approved`, `pending` or `rejected`; `pending` is a NORMAL state (asynchronous payment methods take time) and the landing page must retry. `tickets` —with each ticket's `ticketCode`— is only present when `status` is `approved`. The purchase must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. The route MAY rate-limit polling and respond 429: honor `Retry-After` and apply backoff. Polling every ~2 s fits comfortably, but do not treat any threshold as a guarantee.
+ */
+export const getCustomerOrdersId = <ThrowOnError extends boolean = false>(
+	options: Options<GetCustomerOrdersIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCustomerOrdersIdResponse,
+		GetCustomerOrdersIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}",
 		...options,
 	});
 };

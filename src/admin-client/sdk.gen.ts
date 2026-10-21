@@ -10,6 +10,9 @@ import type {
 	DeleteTokensIdData,
 	DeleteTokensIdError,
 	DeleteTokensIdResponse,
+	DeleteWorkspacesIdData,
+	DeleteWorkspacesIdError,
+	DeleteWorkspacesIdResponse,
 	GetAuditLogData,
 	GetAuditLogError,
 	GetAuditLogResponse,
@@ -38,6 +41,9 @@ import type {
 	GetWorkspacesError,
 	GetWorkspacesIdData,
 	GetWorkspacesIdError,
+	GetWorkspacesIdPlanData,
+	GetWorkspacesIdPlanError,
+	GetWorkspacesIdPlanResponse,
 	GetWorkspacesIdResponse,
 	GetWorkspacesResponse,
 	PatchPlatformPlansIdData,
@@ -172,6 +178,30 @@ export const postWorkspaces = <ThrowOnError extends boolean = false>(
 };
 
 /**
+ * Dar de baja un tenant (soft delete)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Puebla `deletedAt`; NUNCA borra la fila ni datos relacionados (ventas, compradores, tickets) — la trazabilidad de facturación electrónica exige conservarlos. Requiere que el tenant esté YA suspendido (`POST /workspaces/{id}/suspend`) y que no tenga ninguna venta `CONFIRMED` (409 en ambos casos, sin override). Es idempotente: repetir la baja sobre un tenant ya borrado devuelve su estado actual sin re-evaluar esos guards. FUERA DE ALCANCE: no cancela suscripciones de Stripe, no borra ni anonimiza datos de compradores, y no es una baja de cumplimiento (GDPR/derecho al olvido) — eso requiere una superficie propia.
+ */
+export const deleteWorkspacesId = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteWorkspacesIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteWorkspacesIdResponse,
+		DeleteWorkspacesIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/workspaces/{id}",
+		...options,
+	});
+};
+
+/**
  * Detalle de un tenant
  * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
  */
@@ -220,6 +250,30 @@ export const patchWorkspacesId = <ThrowOnError extends boolean = false>(
 			"Content-Type": "application/json",
 			...options?.headers,
 		},
+	});
+};
+
+/**
+ * Plan y suscripción vigentes del tenant
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. El plan se hereda de la Organization (umbrella) del workspace, no vive suelto en él: `orgId` indica bajo qué organización vive la suscripción. `planSlug`/`planName` son `null` cuando el tenant nunca contrató o quedó sin plan. `stripeLinked` es la señal que falta antes de reasignar: si es `true`, `POST /workspaces/{id}/plan` cancela ESA suscripción de Stripe antes de aplicar el plan nuevo.
+ */
+export const getWorkspacesIdPlan = <ThrowOnError extends boolean = false>(
+	options: Options<GetWorkspacesIdPlanData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetWorkspacesIdPlanResponse,
+		GetWorkspacesIdPlanError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/workspaces/{id}/plan",
+		...options,
 	});
 };
 
@@ -557,7 +611,7 @@ export const getFeatureFlags = <ThrowOnError extends boolean = false>(
 
 /**
  * Setear un feature flag por scope
- * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ * Upsert idempotente por (key, scope, scopeId). Con scope=workspace, un scopeId que no corresponde a un workspace existente responde 422 y no escribe nada.
  */
 export const putFeatureFlagsKey = <ThrowOnError extends boolean = false>(
 	options: Options<PutFeatureFlagsKeyData, ThrowOnError>,

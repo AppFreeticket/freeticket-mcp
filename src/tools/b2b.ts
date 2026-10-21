@@ -10,6 +10,8 @@ import {
 	getContentVideos,
 	getCustomerMe,
 	getCustomerMembership,
+	getCustomerOrders,
+	getCustomerOrdersId,
 	getCustomerProfile,
 	getCustomerTickets,
 	getCustomerTicketsId,
@@ -33,9 +35,12 @@ import {
 	getReportsTimeseries,
 	getSales,
 	getSalesId,
+	getSalesIdAttempts,
 	getSalesIdTickets,
 	getSettlements,
+	getSettlementsId,
 	getStaff,
+	getStaffId,
 	getTicketsTicketCodeAccess,
 	getTicketTypes,
 	getTicketTypesId,
@@ -285,6 +290,14 @@ export function registerB2bTools(
 		async ({ id }) => run(getSalesIdTickets({ path: { id }, client })),
 	);
 	server.tool(
+		"sales_attempts",
+		"Payment attempt history of a sale, newest first — approved, declined or " +
+			"refunded at the gateway (GET /sales/{id}/attempts). Answers \"why didn't " +
+			'this sale go through?".',
+		{ id: z.string().describe("Sale id") },
+		async ({ id }) => run(getSalesIdAttempts({ path: { id }, client })),
+	);
+	server.tool(
 		"tickets_access",
 		"Estado de acceso de un ticket por su código QR — no admite, solo consulta (GET /tickets/{code}/access).",
 		{ code: z.string().describe("Ticket QR code") },
@@ -357,6 +370,12 @@ export function registerB2bTools(
 		"Detalle de un venue (GET /venues/{id}).",
 		{ id },
 		async ({ id }) => run(getVenuesId({ path: { id }, client })),
+	);
+	server.tool(
+		"staff_get",
+		"Detail of one staff member (GET /staff/{id}).",
+		{ id: z.string().describe("Member id") },
+		async ({ id }) => run(getStaffId({ path: { id }, client })),
 	);
 	uiTool(
 		server,
@@ -516,6 +535,13 @@ export function registerB2bTools(
 			...paging,
 		},
 		async (q) => run(getSettlements({ query: q, client })),
+	);
+	server.tool(
+		"settlements_get",
+		"Detail of one settlement (GET /settlements/{id}). Files via " +
+			"`settlements_document` and `settlements_proof`.",
+		{ id },
+		async ({ id }) => run(getSettlementsId({ path: { id }, client })),
 	);
 	// getSettlementsIdDocument / getSettlementsIdProofsFileName: these do not
 	// use the generated client (they are 302s to a signed URL), but they are
@@ -695,6 +721,43 @@ export function registerB2bTools(
 		async ({ customerSession }) =>
 			run(
 				getCustomerProfile({
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+
+	server.tool(
+		"customer_order_pending",
+		"The buyer's PENDING order whose hold is still alive — seats, total and " +
+			"expiry — or `order: null` (GET /customer/orders). Lets a purchase be " +
+			"resumed instead of started over.",
+		{
+			eventDateId: z.string().optional().describe("Filter by event date"),
+			customerSession,
+		},
+		async ({ customerSession, ...q }) =>
+			run(
+				getCustomerOrders({
+					query: q,
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_order_get",
+		"Status of one of the buyer's orders: `approved`, `pending` (normal for " +
+			"async payments, retry later) or `rejected`; `tickets` only when " +
+			"approved (GET /customer/orders/{id}).",
+		{
+			id: z.string().describe("Sale id or reference (FT-…)"),
+			customerSession,
+		},
+		async ({ id, customerSession }) =>
+			run(
+				getCustomerOrdersId({
+					path: { id },
 					headers: { "X-Customer-Session": customerSession },
 					client,
 				}),

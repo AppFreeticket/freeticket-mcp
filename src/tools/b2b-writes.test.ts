@@ -36,6 +36,9 @@ const DESTRUCTIVE = [
 	"sales_cancel",
 	"sales_refund",
 	"subscriptions_cancel",
+	"events_cancel",
+	"staff_delete",
+	"customer_order_release",
 ];
 
 describe("writes destructivos", () => {

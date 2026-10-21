@@ -2,6 +2,7 @@ import type { Client } from "@hey-api/client-fetch";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import {
+	deleteWorkspacesId,
 	getAuditLog,
 	getFeatureFlags,
 	getMe,
@@ -12,6 +13,7 @@ import {
 	getUsersId,
 	getWorkspaces,
 	getWorkspacesId,
+	getWorkspacesIdPlan,
 	patchPlatformPlansId,
 	patchUsersId,
 	patchWorkspacesId,
@@ -152,6 +154,14 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			run(patchWorkspacesId({ path: { id }, body, client })),
 	);
 	server.tool(
+		"admin_workspaces_plan_get",
+		"Current platform plan of a workspace, inherited from its Organization: " +
+			"`planSlug`/`planName` (null if none) and `stripeLinked` — check it " +
+			"before reassigning (GET /api/admin/workspaces/{id}/plan).",
+		{ id: z.string().describe("Workspace id") },
+		async ({ id }) => run(getWorkspacesIdPlan({ path: { id }, client })),
+	);
+	server.tool(
 		"admin_workspaces_assign_plan",
 		"Assigns a platform plan by hand — an assisted sale, bypassing Stripe " +
 			`self-service (POST /api/admin/workspaces/{id}/plan).${CONFIRM} ` +
@@ -173,6 +183,16 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		{ id: z.string().describe("Workspace id") },
 		destructive,
 		async ({ id }) => run(postWorkspacesIdSuspend({ path: { id }, client })),
+	);
+	server.tool(
+		"admin_workspaces_delete",
+		"Soft-deletes a workspace: sets `deletedAt`, never removes rows, sales or " +
+			"buyers (DELETE /api/admin/workspaces/{id}). The tenant must be " +
+			"suspended first and have no CONFIRMED sale (409 otherwise). Does not " +
+			`cancel Stripe nor anonymize data.${CONFIRM}`,
+		{ id: z.string().describe("Workspace id") },
+		destructive,
+		async ({ id }) => run(deleteWorkspacesId({ path: { id }, client })),
 	);
 	server.tool(
 		"admin_workspaces_restore",
