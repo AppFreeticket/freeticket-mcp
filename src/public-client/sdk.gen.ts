@@ -45,8 +45,25 @@ export type Options<
 };
 
 /**
- * Reenviar el correo con el ticket/QR al comprador (anónimo)
- * Público (sin auth). Reenvía el email con el QR al correo registrado en la compra. Body opcional `{ email }` que debe coincidir con el del comprador. Devuelve el correo enmascarado, nunca el completo. Rate limit por código (1/min).
+ * Get a public event by slug
+ * Public (no auth). Detail of a PUBLISHED event: description, dates (with venue and city) and the 'from' price in two flavors: `priceFrom` (base, no fees) and `buyerTotalFrom` (including service fee, VAT (IVA), seat surcharge and any products bundled with that ticket, e.g. a drink combo). For live stock per ticket type, use `/events/{slug}/availability`.
+ */
+export const getEventsSlug = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsSlugData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsSlugResponse,
+		GetEventsSlugError,
+		ThrowOnError
+	>({
+		url: "/events/{slug}",
+		...options,
+	});
+};
+
+/**
+ * Resend the ticket/QR email to the buyer (anonymous)
+ * Public (no auth). Resends the QR email to the address registered on the purchase. Optional body `{ email }`, which must match the buyer's email. Returns the masked email address, never the full one. Rate-limited per code (1/min).
  */
 export const postTicketsCodeResend = <ThrowOnError extends boolean = false>(
 	options: Options<PostTicketsCodeResendData, ThrowOnError>,
@@ -66,8 +83,8 @@ export const postTicketsCodeResend = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Catálogo público de eventos (descubrimiento B2C)
- * Público (sin auth). Lista eventos PUBLISHED con al menos una función futura. Filtros: `q` (texto), `city`, `from`/`to` (ISO 8601), `page`, `pageSize` (≤50), `sort` (date_asc | price_asc | price_desc). Devuelve resumen con precio 'desde' y próxima fecha. Cache-friendly, sin datos personales.
+ * Public event catalog (B2C discovery)
+ * Public (no auth). Lists PUBLISHED events with at least one upcoming date. Filters: `q` (text), `city`, `from`/`to` (ISO 8601), `page`, `pageSize` (≤50), `sort` (date_asc | price_asc | price_desc). Returns a summary with the next date and two 'from' prices: `priceFrom` (base, no fees) and `buyerTotalFrom` (what the buyer pays for one unit of that same ticket type, including service fee, VAT (IVA) and seat surcharge). Cache-friendly, no personal data.
  */
 export const getEvents = <ThrowOnError extends boolean = false>(
 	options?: Options<GetEventsData, ThrowOnError>,
@@ -83,25 +100,8 @@ export const getEvents = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Detalle público de un evento por slug
- * Público (sin auth). Ficha del evento PUBLISHED: descripción, fechas (con venue y ciudad) y precio 'desde'. Para el stock en vivo por tipo de ticket, usar `/events/{slug}/availability`.
- */
-export const getEventsSlug = <ThrowOnError extends boolean = false>(
-	options: Options<GetEventsSlugData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetEventsSlugResponse,
-		GetEventsSlugError,
-		ThrowOnError
-	>({
-		url: "/events/{slug}",
-		...options,
-	});
-};
-
-/**
- * Disponibilidad en vivo por fecha y tipo de ticket
- * Público (sin auth). Stock en vivo (capacidad - vendido - reservado) por función y tipo de ticket, solo funciones futuras. Consultar antes de crear una orden. No cachear agresivo: el stock cambia.
+ * Live availability by date and ticket type
+ * Public (no auth). Live stock (capacity - sold - reserved) per date and ticket type, upcoming dates only. Each type includes the base price (`price`) and the final per-unit price (`buyerTotal` = price + service fee + VAT (IVA) + numbered-seat surcharge): quote the buyer with `buyerTotal`, not `price`. For NUMBERED ticket types (`seatsioCategoryKey` not null), `availableSeats` lists the exact label of every seat free right now — those labels are what goes into `items[].seats` in POST /orders. Check this before creating an order. Do not cache aggressively: stock (and seats) change.
  */
 export const getEventsSlugAvailability = <ThrowOnError extends boolean = false>(
 	options: Options<GetEventsSlugAvailabilityData, ThrowOnError>,
@@ -117,8 +117,10 @@ export const getEventsSlugAvailability = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Crear una orden B2C y obtener el link de pago (Mercado Pago)
- * Público (sin auth). Crea una venta PENDING + reserva de stock (30 min) y devuelve la `checkoutUrl` de Mercado Pago a la que mandar al comprador. El agente NUNCA procesa el pago. Solo admisión general (no numerado / no members-only) de eventos PUBLISHED con venta abierta y de un mismo organizador. Cupo protegido con transacción Serializable. Consultar el estado con `GET /orders/{id}`.
+ * Create a B2C order and get the payment link (Mercado Pago)
+ * Public for general admission (no auth, strict per-IP rate limit); orders with numbered seats REQUIRE a buyer session. Creates a PENDING sale + stock reservation and returns the Mercado Pago `checkoutUrl` to send the buyer to. The reservation holds the inventory for the payment window configured for that date (30 minutes unless the organizer sets it shorter or longer; never less than 10). The response includes `expiresAt`: the EXACT instant (ISO 8601, UTC) at which that reservation expires, the same one stored server-side. This is the value that decides whether it still makes sense to send the buyer to pay: past that instant the inventory has already returned to stock —and, for numbered seating, the seat is already on someone else's map— so the `checkoutUrl` may still open and the payment may arrive late. Do not recompute it by adding minutes on the client: use the returned value. `GET /orders/{id}` repeats it while the order is still `pending` (and returns null once it no longer is), so a countdown can resume after a reload instead of restarting. The agent NEVER processes the payment. Not available for members-only tickets (members_only); PUBLISHED events with sales open, all from a single organizer. Inventory is protected by a Serializable transaction. NUMBERED ticket types (seats.io): `items[].seats` is required, with one EXACT label per unit (taken from `availableSeats` in GET /events/{slug}/availability) — the seat is held in seats.io with the same TTL as the stock reservation, and is released automatically if the order expires unpaid. An order with `items[].seats` additionally requires a BUYER SESSION: the `ft-customer` cookie or the `session_token` from the code login (POST /api/v1/customer/auth/request + POST /api/v1/customer/auth/verify) in the `X-Customer-Session` header; without it the response is 401 `CUSTOMER_SESSION_REQUIRED`. A seats.io hold can only be released by the sale that took it, so a seat held anonymously is inventory nobody can reclaim. The order is linked to that account: it shows up in GET /api/v1/customer/orders and its tickets in /api/v1/customer/tickets. General admission (no `seats`) remains anonymous and is not linked to any account. Dates with an active virtual queue: 409 `QUEUE_REQUIRED` (with `details.waitingRoomUrl`) — the waiting room is the only way in; the gate runs BEFORE the seats.io retrieve/hold. Check the status with `GET /orders/{id}`.
+ *
+ * 409 errors (`error.code`): `MEMBERS_ONLY` (members-only ticket), `NOT_AVAILABLE` (event or date not published, or date already past), `EXTERNAL_SALE` (the event sells elsewhere), `SALE_CLOSED` (outside the sales window), `QUEUE_REQUIRED` (the date is sold through a waiting room: `details.waitingRoomUrl` is the ABSOLUTE URL to send the buyer to — it points to the host where THAT date is sold, which may be the portal (`/eventos/{slug}/fila`) or the organizer's or artist's own subdomain (`/events/{slug}/fila`); use it as-is, do not rebuild it), `MULTIPLE_ORGS` (tickets from multiple organizers), `MIXED_CURRENCY` (mixed currencies), `SEAT_NOT_AVAILABLE` (seat already sold or held), `ADDON_SOLD_OUT` (a product bundled with the ticket, e.g. a drink combo, sold out: the order is not created). Products bundled with a ticket travel with it automatically —they are not requested in `items`— and their price is already included in `total`.
  */
 export const postOrders = <ThrowOnError extends boolean = false>(
 	options: Options<PostOrdersData, ThrowOnError>,
@@ -128,6 +130,12 @@ export const postOrders = <ThrowOnError extends boolean = false>(
 		PostOrdersError,
 		ThrowOnError
 	>({
+		security: [
+			{
+				name: "X-Customer-Session",
+				type: "apiKey",
+			},
+		],
 		url: "/orders",
 		...options,
 		headers: {
@@ -138,8 +146,8 @@ export const postOrders = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Estado de una orden B2C (y tickets al pagar)
- * Público (sin auth). Estado de la orden: `pending | paid | expired | cancelled`. Al pagar (`paid`) incluye los códigos de ticket emitidos; el QR/entrada llega por email. El id es un cuid no enumerable; no expone datos del comprador.
+ * Get a B2C order's status (and tickets once paid)
+ * Public (no auth). Order status: `pending | paid | expired | cancelled`. Once paid (`paid`) it includes the issued ticket codes; the QR/ticket is delivered by email. While still `pending` it returns `expiresAt`, the instant (ISO 8601, UTC) at which its reservation expires — the SAME one returned by `POST /orders`, so a countdown can resume after a reload instead of restarting. It may be in the PAST: that means the reservation has already expired and there is no point sending the buyer to pay, even if the `checkoutUrl` still opens. A null `expiresAt` NEVER means 'no time limit': it means the order is no longer pending, or there is no reservation. The id is a non-enumerable cuid; no buyer data is exposed.
  */
 export const getOrdersId = <ThrowOnError extends boolean = false>(
 	options: Options<GetOrdersIdData, ThrowOnError>,

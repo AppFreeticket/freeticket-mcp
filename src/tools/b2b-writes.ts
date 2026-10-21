@@ -7,6 +7,7 @@ import {
 	deleteEventsId,
 	deleteEventsIdDatesDateId,
 	deleteMembershipPlansId,
+	deleteStaffId,
 	deleteTicketTypesId,
 	deleteVenuesId,
 	deleteWebhooksId,
@@ -16,15 +17,20 @@ import {
 	patchEventsIdDatesDateId,
 	patchMembershipPlansId,
 	patchStaffIdRole,
+	patchTicketsTicketCode,
 	patchTicketTypesId,
 	patchVenuesId,
+	patchWebhooksId,
 	postContentPlaybackToken,
+	postContentPosts,
 	postCustomerLogout,
+	postCustomerOrdersIdRelease,
 	postCustomerSubscriptions,
 	postCustomerSubscriptionsCancel,
 	postCustomerTicketsIdCancel,
 	postDiscounts,
 	postEvents,
+	postEventsIdCancel,
 	postEventsIdDates,
 	postEventsIdPublish,
 	postMembershipPlans,
@@ -38,6 +44,7 @@ import {
 	postTicketTypes,
 	postVenues,
 	postWebhooks,
+	postWorkspaces,
 } from "../client/sdk.gen";
 
 /** Deletes/refunds/cancels: irreversibles. Piden confirmación humana explícita. */
@@ -104,6 +111,15 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		{ id: z.string().describe("Event id") },
 		destructive,
 		async ({ id }) => run(deleteEventsId({ path: { id }, client })),
+	);
+	server.tool(
+		"events_cancel",
+		"Cancels an event and ALL its dates, keeping the record, its sales and " +
+			"tickets (POST /events/{id}/cancel). Idempotent. It does not refund: " +
+			`refunds go one by one with \`sales_refund\`.${CONFIRM}`,
+		{ id: z.string().describe("Event id") },
+		destructive,
+		async ({ id }) => run(postEventsIdCancel({ path: { id }, client })),
 	);
 	server.tool(
 		"event_dates_create",
@@ -174,7 +190,7 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			name: z.string(),
 			description: z.string().optional(),
 			price: z.number().describe("Price in the given currency"),
-			currency: z.string().describe("Ej: COP"),
+			currency: z.enum(["COP"]).default("COP").describe("Only COP"),
 			capacity: z.number().int().describe("Stock total"),
 			maxPerOrder: z.number().int().describe("Máximo por orden"),
 			isVisible: z.boolean(),
@@ -276,6 +292,29 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		mutating,
 		async ({ code }) =>
 			run(postTicketsTicketCodeCheckin({ path: { ticketCode: code }, client })),
+	);
+	server.tool(
+		"tickets_reassign",
+		"Moves an already sold ticket to another date and/or ticket type — for a " +
+			"postponement, without refunding and reselling (PATCH /tickets/{code}). " +
+			"At least one of `eventDateId` or `ticketTypeId`.",
+		{
+			code: z.string().describe("Ticket QR code"),
+			eventDateId: z.string().min(1).optional().describe("Target date id"),
+			ticketTypeId: z
+				.string()
+				.min(1)
+				.optional()
+				.describe("Target ticket type id"),
+			seatLabel: z
+				.string()
+				.min(1)
+				.optional()
+				.describe("Target seat (numbered events)"),
+		},
+		mutating,
+		async ({ code, ...body }) =>
+			run(patchTicketsTicketCode({ path: { ticketCode: code }, body, client })),
 	);
 	server.tool(
 		"tickets_resend",
@@ -410,6 +449,15 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		async ({ id, role }) =>
 			run(patchStaffIdRole({ path: { id }, body: { role }, client })),
 	);
+	server.tool(
+		"staff_delete",
+		"Revokes a staff member's access to THIS workspace and ends their live " +
+			"sessions; the account and its history stay (DELETE /staff/{id})." +
+			CONFIRM,
+		{ id: z.string().describe("Member id") },
+		destructive,
+		async ({ id }) => run(deleteStaffId({ path: { id }, client })),
+	);
 
 	// ── Comercial ────────────────────────────────────────────────────────────
 	server.tool(
@@ -463,6 +511,24 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		async (body) => run(postWebhooks({ body, client })),
 	);
 	server.tool(
+		"webhooks_update",
+		"Edits a webhook — url, events or active — keeping its signing secret " +
+			"(PATCH /webhooks/{id}). Prefer it over delete + create, which rotates " +
+			"the secret.",
+		{
+			id: z.string().describe("Webhook id"),
+			url: z.string().url().optional(),
+			events: z
+				.array(z.enum(["sale.confirmed", "sale.refunded"]))
+				.min(1)
+				.optional(),
+			active: z.boolean().optional(),
+		},
+		mutating,
+		async ({ id, ...body }) =>
+			run(patchWebhooksId({ path: { id }, body, client })),
+	);
+	server.tool(
 		"webhooks_delete",
 		`Elimina un webhook (DELETE /webhooks/{id}).${CONFIRM}`,
 		{ id: z.string().describe("Webhook id") },
@@ -513,11 +579,40 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	server.tool(
 		"customer_subscription_cancel",
 		`Cancels the membership held by the buyer (POST /customer/subscriptions/cancel).${CONFIRM}`,
-		{ customerSession },
+		{
+			workspaceId: z
+				.string()
+				.min(1)
+				.optional()
+				.describe(
+					"Which membership to cancel — only without an enterprise key; with one it is ignored",
+				),
+			customerSession,
+		},
 		destructive,
-		async ({ customerSession }) =>
+		async ({ customerSession, ...body }) =>
 			run(
 				postCustomerSubscriptionsCancel({
+					body,
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_order_release",
+		"Abandons the buyer's PENDING order and returns its stock and seats, so " +
+			"they can start over (POST /customer/orders/{id}/release). Refuses with " +
+			`409 \`payment_in_flight\` if a payment was already started.${CONFIRM}`,
+		{
+			id: z.string().describe("Sale id or reference (FT-…)"),
+			customerSession,
+		},
+		destructive,
+		async ({ id, customerSession }) =>
+			run(
+				postCustomerOrdersIdRelease({
+					path: { id },
 					headers: { "X-Customer-Session": customerSession },
 					client,
 				}),
@@ -581,5 +676,53 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 					client,
 				}),
 			),
+	);
+
+	// ── Contrato 1.19/1.20 ───────────────────────────────────────────────────
+	server.tool(
+		"content_posts_create",
+		"Publishes a community post (POST /content/posts). `ARTICLE` requires " +
+			"`title` and `body` (Markdown); `TEXT`/`IMAGE` require `content` or " +
+			"`imageUrl`.",
+		{
+			type: z.enum(["TEXT", "IMAGE", "ARTICLE"]).default("TEXT"),
+			content: z.string().max(5000).optional(),
+			imageUrl: z.string().url().max(2048).nullish(),
+			title: z.string().min(1).max(140).optional().describe("ARTICLE only"),
+			subtitle: z.string().max(280).nullish(),
+			slug: z
+				.string()
+				.max(200)
+				.nullish()
+				.describe("Derived from the title if omitted"),
+			body: z
+				.string()
+				.min(1)
+				.max(100000)
+				.optional()
+				.describe("Markdown — ARTICLE only"),
+			locked: z.boolean().default(false).describe("true = members only"),
+			eventId: z.string().min(1).nullish().describe("Link to an event"),
+			publishedAt: z.string().optional().describe("ISO 8601 (UTC, Z)"),
+		},
+		mutating,
+		async (body) => run(postContentPosts({ body, client })),
+	);
+	server.tool(
+		"workspaces_create",
+		"Creates a new workspace; the caller becomes its ADMIN (POST /workspaces). " +
+			"Subject to the plan quota; 409 `ALREADY_HAS_ACCESS` if the caller is " +
+			"staff of someone else's workspace. Ignores the pinned workspace.",
+		{
+			name: z.string().min(2).max(80),
+			slug: z
+				.string()
+				.min(2)
+				.max(50)
+				.regex(/^[a-z0-9-]+$/)
+				.describe("Lowercase, digits and dashes"),
+		},
+		mutating,
+		async (body) => run(postWorkspaces({ body, client })),
 	);
 }

@@ -11,7 +11,7 @@ import { registerB2bWriteTools } from "./tools/b2b-writes";
 import { registerPublicTools } from "./tools/public";
 import { registerUi } from "./ui";
 
-export const VERSION = "0.14.0";
+export const VERSION = "0.15.0";
 
 /**
  * Builds an isolated McpServer for one session. Every session carries its own

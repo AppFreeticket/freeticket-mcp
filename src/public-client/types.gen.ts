@@ -4,6 +4,7 @@ export type _Error = {
 	error: {
 		code: string;
 		message: string;
+		retryable: boolean;
 		details?: unknown;
 	};
 };
@@ -24,8 +25,25 @@ export type PublicEventSummary = {
 	coverImageUrl: string | null;
 	city: string | null;
 	nextDate: string | null;
+	/**
+	 * Cheapest BASE price, excluding service fee, VAT (IVA) and the numbered-seat surcharge. To quote what the buyer actually pays, use buyerTotalFrom.
+	 */
 	priceFrom: number | null;
+	/**
+	 * Final per-unit price of the ticket type with the cheapest base price (includes service fee, VAT (IVA) and the numbered-seat surcharge). The authoritative order total is computed by POST /orders.
+	 */
+	buyerTotalFrom: number | null;
 	currency: string;
+};
+
+export type PublicAvailableSeat = {
+	/**
+	 * EXACT seat label in seats.io.
+	 */
+	label: string;
+	categoryKey: string | null;
+	categoryLabel: string | null;
+	status: "free";
 };
 
 export type PublicTicketType = {
@@ -33,6 +51,24 @@ export type PublicTicketType = {
 	name: string;
 	description: string | null;
 	price: number;
+	/**
+	 * Service fee paid by the buyer, including the numbered-seat surcharge. 0 if the organizer absorbs the fee and the ticket type is not numbered.
+	 */
+	buyerServiceFee: number;
+	/**
+	 * Flat per-seat surcharge for numbered ticket types (seats.io). Already included in buyerServiceFee and buyerTotal; exposed separately so it can be itemized.
+	 */
+	seatingSurcharge: number;
+	/**
+	 * VAT (IVA, 19%) on the service fee.
+	 */
+	iva: number;
+	/**
+	 * Final price PER UNIT: price + buyerServiceFee + iva. This is what checkout charges; the order total is confirmed by POST /orders.
+	 */
+	buyerTotal: number;
+	seatsioCategoryKey: string | null;
+	availableSeats?: Array<PublicAvailableSeat>;
 	currency: string;
 	maxPerOrder: number;
 	available: number;
@@ -56,7 +92,14 @@ export type PublicEventDetail = {
 	coverImageUrl: string | null;
 	city: string | null;
 	nextDate: string | null;
+	/**
+	 * Cheapest BASE price, excluding service fee, VAT (IVA) and the numbered-seat surcharge. To quote what the buyer actually pays, use buyerTotalFrom.
+	 */
 	priceFrom: number | null;
+	/**
+	 * Final per-unit price of the ticket type with the cheapest base price (includes service fee, VAT (IVA) and the numbered-seat surcharge). The authoritative order total is computed by POST /orders.
+	 */
+	buyerTotalFrom: number | null;
 	currency: string;
 	dates: Array<PublicEventDate>;
 };
@@ -82,6 +125,7 @@ export type CreateOrderRequest = {
 	items: Array<{
 		ticketTypeId: string;
 		quantity: number;
+		seats?: Array<string>;
 	}>;
 };
 
@@ -92,6 +136,7 @@ export type OrderCreated = {
 	total: number;
 	currency: string;
 	checkoutUrl: string;
+	expiresAt: string;
 };
 
 export type OrderTicket = {
@@ -105,8 +150,51 @@ export type OrderStatus = {
 	status: "pending" | "paid" | "expired" | "cancelled";
 	total: number;
 	currency: string;
+	expiresAt: string | null;
 	tickets: Array<OrderTicket>;
 };
+
+export type GetEventsSlugData = {
+	body?: never;
+	path: {
+		slug: string;
+	};
+	query?: never;
+	url: "/events/{slug}";
+};
+
+export type GetEventsSlugErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventsSlugError = GetEventsSlugErrors[keyof GetEventsSlugErrors];
+
+export type GetEventsSlugResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: PublicEventDetail;
+	};
+};
+
+export type GetEventsSlugResponse =
+	GetEventsSlugResponses[keyof GetEventsSlugResponses];
 
 export type PostTicketsCodeResendData = {
 	body: ResendTicketRequest;
@@ -119,21 +207,25 @@ export type PostTicketsCodeResendData = {
 
 export type PostTicketsCodeResendErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
 };
 
 export type PostTicketsCodeResendError =
@@ -156,27 +248,27 @@ export type GetEventsData = {
 	path?: never;
 	query?: {
 		/**
-		 * Búsqueda por nombre/descripción
+		 * Search by name/description
 		 */
 		q?: string;
 		/**
-		 * Filtra por ciudad del venue
+		 * Filter by venue city
 		 */
 		city?: string;
 		/**
-		 * Funciones desde (ISO 8601)
+		 * Dates from (ISO 8601)
 		 */
 		from?: string;
 		/**
-		 * Funciones hasta (ISO 8601)
+		 * Dates until (ISO 8601)
 		 */
 		to?: string;
 		/**
-		 * Página (default 1)
+		 * Page (default 1)
 		 */
 		page?: number;
 		/**
-		 * Tamaño de página (default 20, máx 50)
+		 * Page size (default 20, max 50)
 		 */
 		pageSize?: number;
 		/**
@@ -189,19 +281,19 @@ export type GetEventsData = {
 
 export type GetEventsErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -219,48 +311,6 @@ export type GetEventsResponses = {
 
 export type GetEventsResponse = GetEventsResponses[keyof GetEventsResponses];
 
-export type GetEventsSlugData = {
-	body?: never;
-	path: {
-		slug: string;
-	};
-	query?: never;
-	url: "/events/{slug}";
-};
-
-export type GetEventsSlugErrors = {
-	/**
-	 * Credencial inválida o ausente.
-	 */
-	401: _Error;
-	/**
-	 * Rol insuficiente o recurso no accesible.
-	 */
-	403: _Error;
-	/**
-	 * Recurso inexistente o fuera de alcance.
-	 */
-	404: _Error;
-	/**
-	 * Validación del cuerpo/parámetros.
-	 */
-	422: _Error;
-};
-
-export type GetEventsSlugError = GetEventsSlugErrors[keyof GetEventsSlugErrors];
-
-export type GetEventsSlugResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: PublicEventDetail;
-	};
-};
-
-export type GetEventsSlugResponse =
-	GetEventsSlugResponses[keyof GetEventsSlugResponses];
-
 export type GetEventsSlugAvailabilityData = {
 	body?: never;
 	path: {
@@ -272,19 +322,19 @@ export type GetEventsSlugAvailabilityData = {
 
 export type GetEventsSlugAvailabilityErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -313,27 +363,31 @@ export type PostOrdersData = {
 
 export type PostOrdersErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 * Conflict: the resource does not allow this operation in its current state.
 	 */
 	409: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Operation error.
 	 */
 	422: _Error;
 	/**
-	 * Error del proveedor externo al completar la operación.
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * The external provider failed to complete the operation.
 	 */
 	502: _Error;
 };
@@ -362,19 +416,19 @@ export type GetOrdersIdData = {
 
 export type GetOrdersIdErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };

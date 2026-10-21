@@ -12,9 +12,15 @@ import { describe, expect, it } from "vitest";
  * exports one function per operationId, so if the name shows up, a tool exists.
  */
 const root = join(import.meta.dirname, "..");
-const source = ["admin.ts", "b2b.ts", "b2b-writes.ts", "public.ts"]
-	.map((f) => readFileSync(join(root, "src", "tools", f), "utf8"))
-	.join("\n");
+/**
+ * Each spec is matched only against the tools that use ITS client. A single
+ * merged source let one spec mask another: `postWorkspaces` of /api/admin
+ * counted v1's `POST /workspaces` as covered when no B2B tool called it.
+ */
+const sourceOf = (files: string[]) =>
+	files
+		.map((f) => readFileSync(join(root, "src", "tools", f), "utf8"))
+		.join("\n");
 
 /**
  * Operations deliberately kept out of the MCP, each with its reason: if someone
@@ -37,6 +43,33 @@ const EXCLUDED: Record<string, string> = {
 	// free-admin and the integrator, not something an agent should fire.
 	postApiCustomerAuthEnterpriseExchange:
 		"third-party session exchange — server-to-server, not for an agent",
+	// Account and credential bootstrap: sign-up and the buyer's device grant.
+	// The MCP gets its credentials from its own consent page (src/handler.ts);
+	// a tool that opens accounts or mints buyer sessions is new auth, not a tool.
+	postAuthSignup:
+		"account sign-up belongs to the CLI (`ft signup`) and the web",
+	postCustomerAuthRequest:
+		"buyer device-grant bootstrap — a login flow, not a tool",
+	postCustomerAuthVerify:
+		"buyer device-grant bootstrap — a login flow, not a tool",
+	// Headless checkout of an enterprise landing page: every step needs the
+	// browser (seats.io chart with a server hold, Brick/Bold widget, a returnUrl
+	// on the enterprise allowlist, buyer ID documents). An agent buys through
+	// public_orders_create; the customer_order_* reads/release do exist.
+	postCustomerPurchaseSessions:
+		"seats.io hold for a landing page chart — needs the browser",
+	getCustomerPurchaseSessionsId:
+		"polling of the landing page's seats.io session — needs the browser",
+	postCustomerPurchaseSessionsIdRelease:
+		"releases the landing page's seats.io session — needs the browser",
+	postCustomerOrders:
+		"landing page checkout (returnUrl allowlist, ID documents) — agents use public_orders_create",
+	postCustomerOrdersIdPayment:
+		"signed config to mount the Brick/Bold widget — needs the browser",
+	postCustomerOrdersIdPaymentCard:
+		"charges a Brick card token — card data never passes through an agent",
+	postCustomerOrdersIdPaymentPse:
+		"PSE redirect of the landing page checkout, which the MCP does not open",
 };
 
 function operations(specFile: string): { id: string; where: string }[] {
@@ -57,11 +90,12 @@ function operations(specFile: string): { id: string; where: string }[] {
 }
 
 describe.each([
-	["B2B /api/v1", "openapi.json", 81],
-	["superadmin /api/admin", "admin-openapi.json", 23],
-	["public /api/public", "public-openapi.json", 6],
-])("contract %s", (_label, file, minOps) => {
+	["B2B /api/v1", "openapi.json", ["b2b.ts", "b2b-writes.ts"], 103],
+	["superadmin /api/admin", "admin-openapi.json", ["admin.ts"], 25],
+	["public /api/public", "public-openapi.json", ["public.ts"], 6],
+])("contract %s", (_label, file, files, minOps) => {
 	const ops = operations(file);
+	const source = sourceOf(files);
 
 	it("exposes every operation as a tool (or excludes it with a reason)", () => {
 		const uncovered = ops

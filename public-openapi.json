@@ -2,8 +2,8 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket Public API",
-		"version": "0.4.0",
-		"description": "API REST pública de FreeTicket para el comprador B2C y sus agentes (CLI/MCP). Sin autenticación: cada endpoint es anónimo y con rate limit estricto. Aislada de los contratos B2B /api/v1 y superadmin /api/admin."
+		"version": "0.9.1",
+		"description": "FreeTicket public REST API for B2C buyers and their agents (CLI/MCP). Anonymous and strictly rate-limited: no endpoint requires an API key. The only exception is `POST /orders` with `items[].seats` (numbered seats), which requires a buyer session — the `ft-customer` cookie or the `X-Customer-Session` header. Isolated from the B2B /api/v1 and superadmin /api/admin contracts."
 	},
 	"servers": [
 		{
@@ -12,16 +12,93 @@
 	],
 	"security": [
 		{
-			"none": []
+			"customerSession": []
 		}
 	],
 	"paths": {
+		"/events/{slug}": {
+			"get": {
+				"operationId": "getEventsSlug",
+				"tags": ["catalog"],
+				"summary": "Get a public event by slug",
+				"description": "Public (no auth). Detail of a PUBLISHED event: description, dates (with venue and city) and the 'from' price in two flavors: `priceFrom` (base, no fees) and `buyerTotalFrom` (including service fee, VAT (IVA), seat surcharge and any products bundled with that ticket, e.g. a drink combo). For live stock per ticket type, use `/events/{slug}/availability`.",
+				"security": [],
+				"parameters": [
+					{
+						"name": "slug",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/PublicEventDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/tickets/{code}/resend": {
 			"post": {
 				"operationId": "postTicketsCodeResend",
 				"tags": ["tickets"],
-				"summary": "Reenviar el correo con el ticket/QR al comprador (anónimo)",
-				"description": "Público (sin auth). Reenvía el email con el QR al correo registrado en la compra. Body opcional `{ email }` que debe coincidir con el del comprador. Devuelve el correo enmascarado, nunca el completo. Rate limit por código (1/min).",
+				"summary": "Resend the ticket/QR email to the buyer (anonymous)",
+				"description": "Public (no auth). Resends the QR email to the address registered on the purchase. Optional body `{ email }`, which must match the buyer's email. Returns the masked email address, never the full one. Rate-limited per code (1/min).",
 				"security": [],
 				"parameters": [
 					{
@@ -61,7 +138,7 @@
 						}
 					},
 					"401": {
-						"description": "Credencial inválida o ausente.",
+						"description": "Missing or invalid credential.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -71,7 +148,7 @@
 						}
 					},
 					"403": {
-						"description": "Rol insuficiente o recurso no accesible.",
+						"description": "Insufficient role or resource not accessible.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -81,7 +158,7 @@
 						}
 					},
 					"404": {
-						"description": "Recurso inexistente o fuera de alcance.",
+						"description": "Resource does not exist or is out of scope.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -91,7 +168,17 @@
 						}
 					},
 					"422": {
-						"description": "Validación del cuerpo/parámetros.",
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -107,15 +194,15 @@
 			"get": {
 				"operationId": "getEvents",
 				"tags": ["catalog"],
-				"summary": "Catálogo público de eventos (descubrimiento B2C)",
-				"description": "Público (sin auth). Lista eventos PUBLISHED con al menos una función futura. Filtros: `q` (texto), `city`, `from`/`to` (ISO 8601), `page`, `pageSize` (≤50), `sort` (date_asc | price_asc | price_desc). Devuelve resumen con precio 'desde' y próxima fecha. Cache-friendly, sin datos personales.",
+				"summary": "Public event catalog (B2C discovery)",
+				"description": "Public (no auth). Lists PUBLISHED events with at least one upcoming date. Filters: `q` (text), `city`, `from`/`to` (ISO 8601), `page`, `pageSize` (≤50), `sort` (date_asc | price_asc | price_desc). Returns a summary with the next date and two 'from' prices: `priceFrom` (base, no fees) and `buyerTotalFrom` (what the buyer pays for one unit of that same ticket type, including service fee, VAT (IVA) and seat surcharge). Cache-friendly, no personal data.",
 				"security": [],
 				"parameters": [
 					{
 						"name": "q",
 						"in": "query",
 						"required": false,
-						"description": "Búsqueda por nombre/descripción",
+						"description": "Search by name/description",
 						"schema": {
 							"type": "string"
 						}
@@ -124,7 +211,7 @@
 						"name": "city",
 						"in": "query",
 						"required": false,
-						"description": "Filtra por ciudad del venue",
+						"description": "Filter by venue city",
 						"schema": {
 							"type": "string"
 						}
@@ -133,7 +220,7 @@
 						"name": "from",
 						"in": "query",
 						"required": false,
-						"description": "Funciones desde (ISO 8601)",
+						"description": "Dates from (ISO 8601)",
 						"schema": {
 							"type": "string"
 						}
@@ -142,7 +229,7 @@
 						"name": "to",
 						"in": "query",
 						"required": false,
-						"description": "Funciones hasta (ISO 8601)",
+						"description": "Dates until (ISO 8601)",
 						"schema": {
 							"type": "string"
 						}
@@ -151,7 +238,7 @@
 						"name": "page",
 						"in": "query",
 						"required": false,
-						"description": "Página (default 1)",
+						"description": "Page (default 1)",
 						"schema": {
 							"type": "integer",
 							"default": 1
@@ -161,7 +248,7 @@
 						"name": "pageSize",
 						"in": "query",
 						"required": false,
-						"description": "Tamaño de página (default 20, máx 50)",
+						"description": "Page size (default 20, max 50)",
 						"schema": {
 							"type": "integer",
 							"default": 20
@@ -199,7 +286,7 @@
 						}
 					},
 					"401": {
-						"description": "Credencial inválida o ausente.",
+						"description": "Missing or invalid credential.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -209,7 +296,7 @@
 						}
 					},
 					"403": {
-						"description": "Rol insuficiente o recurso no accesible.",
+						"description": "Insufficient role or resource not accessible.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -219,7 +306,7 @@
 						}
 					},
 					"404": {
-						"description": "Recurso inexistente o fuera de alcance.",
+						"description": "Resource does not exist or is out of scope.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -229,84 +316,7 @@
 						}
 					},
 					"422": {
-						"description": "Validación del cuerpo/parámetros.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		"/events/{slug}": {
-			"get": {
-				"operationId": "getEventsSlug",
-				"tags": ["catalog"],
-				"summary": "Detalle público de un evento por slug",
-				"description": "Público (sin auth). Ficha del evento PUBLISHED: descripción, fechas (con venue y ciudad) y precio 'desde'. Para el stock en vivo por tipo de ticket, usar `/events/{slug}/availability`.",
-				"security": [],
-				"parameters": [
-					{
-						"name": "slug",
-						"in": "path",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": {
-										"data": {
-											"$ref": "#/components/schemas/PublicEventDetail"
-										}
-									},
-									"required": ["data"]
-								}
-							}
-						}
-					},
-					"401": {
-						"description": "Credencial inválida o ausente.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"403": {
-						"description": "Rol insuficiente o recurso no accesible.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "Recurso inexistente o fuera de alcance.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "Validación del cuerpo/parámetros.",
+						"description": "Request body/parameter validation failed.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -322,8 +332,8 @@
 			"get": {
 				"operationId": "getEventsSlugAvailability",
 				"tags": ["catalog"],
-				"summary": "Disponibilidad en vivo por fecha y tipo de ticket",
-				"description": "Público (sin auth). Stock en vivo (capacidad - vendido - reservado) por función y tipo de ticket, solo funciones futuras. Consultar antes de crear una orden. No cachear agresivo: el stock cambia.",
+				"summary": "Live availability by date and ticket type",
+				"description": "Public (no auth). Live stock (capacity - sold - reserved) per date and ticket type, upcoming dates only. Each type includes the base price (`price`) and the final per-unit price (`buyerTotal` = price + service fee + VAT (IVA) + numbered-seat surcharge): quote the buyer with `buyerTotal`, not `price`. For NUMBERED ticket types (`seatsioCategoryKey` not null), `availableSeats` lists the exact label of every seat free right now — those labels are what goes into `items[].seats` in POST /orders. Check this before creating an order. Do not cache aggressively: stock (and seats) change.",
 				"security": [],
 				"parameters": [
 					{
@@ -353,7 +363,7 @@
 						}
 					},
 					"401": {
-						"description": "Credencial inválida o ausente.",
+						"description": "Missing or invalid credential.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -363,7 +373,7 @@
 						}
 					},
 					"403": {
-						"description": "Rol insuficiente o recurso no accesible.",
+						"description": "Insufficient role or resource not accessible.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -373,7 +383,7 @@
 						}
 					},
 					"404": {
-						"description": "Recurso inexistente o fuera de alcance.",
+						"description": "Resource does not exist or is out of scope.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -383,7 +393,7 @@
 						}
 					},
 					"422": {
-						"description": "Validación del cuerpo/parámetros.",
+						"description": "Request body/parameter validation failed.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -399,9 +409,14 @@
 			"post": {
 				"operationId": "postOrders",
 				"tags": ["orders"],
-				"summary": "Crear una orden B2C y obtener el link de pago (Mercado Pago)",
-				"description": "Público (sin auth). Crea una venta PENDING + reserva de stock (30 min) y devuelve la `checkoutUrl` de Mercado Pago a la que mandar al comprador. El agente NUNCA procesa el pago. Solo admisión general (no numerado / no members-only) de eventos PUBLISHED con venta abierta y de un mismo organizador. Cupo protegido con transacción Serializable. Consultar el estado con `GET /orders/{id}`.",
-				"security": [],
+				"summary": "Create a B2C order and get the payment link (Mercado Pago)",
+				"description": "Public for general admission (no auth, strict per-IP rate limit); orders with numbered seats REQUIRE a buyer session. Creates a PENDING sale + stock reservation and returns the Mercado Pago `checkoutUrl` to send the buyer to. The reservation holds the inventory for the payment window configured for that date (30 minutes unless the organizer sets it shorter or longer; never less than 10). The response includes `expiresAt`: the EXACT instant (ISO 8601, UTC) at which that reservation expires, the same one stored server-side. This is the value that decides whether it still makes sense to send the buyer to pay: past that instant the inventory has already returned to stock —and, for numbered seating, the seat is already on someone else's map— so the `checkoutUrl` may still open and the payment may arrive late. Do not recompute it by adding minutes on the client: use the returned value. `GET /orders/{id}` repeats it while the order is still `pending` (and returns null once it no longer is), so a countdown can resume after a reload instead of restarting. The agent NEVER processes the payment. Not available for members-only tickets (members_only); PUBLISHED events with sales open, all from a single organizer. Inventory is protected by a Serializable transaction. NUMBERED ticket types (seats.io): `items[].seats` is required, with one EXACT label per unit (taken from `availableSeats` in GET /events/{slug}/availability) — the seat is held in seats.io with the same TTL as the stock reservation, and is released automatically if the order expires unpaid. An order with `items[].seats` additionally requires a BUYER SESSION: the `ft-customer` cookie or the `session_token` from the code login (POST /api/v1/customer/auth/request + POST /api/v1/customer/auth/verify) in the `X-Customer-Session` header; without it the response is 401 `CUSTOMER_SESSION_REQUIRED`. A seats.io hold can only be released by the sale that took it, so a seat held anonymously is inventory nobody can reclaim. The order is linked to that account: it shows up in GET /api/v1/customer/orders and its tickets in /api/v1/customer/tickets. General admission (no `seats`) remains anonymous and is not linked to any account. Dates with an active virtual queue: 409 `QUEUE_REQUIRED` (with `details.waitingRoomUrl`) — the waiting room is the only way in; the gate runs BEFORE the seats.io retrieve/hold. Check the status with `GET /orders/{id}`.\n\n409 errors (`error.code`): `MEMBERS_ONLY` (members-only ticket), `NOT_AVAILABLE` (event or date not published, or date already past), `EXTERNAL_SALE` (the event sells elsewhere), `SALE_CLOSED` (outside the sales window), `QUEUE_REQUIRED` (the date is sold through a waiting room: `details.waitingRoomUrl` is the ABSOLUTE URL to send the buyer to — it points to the host where THAT date is sold, which may be the portal (`/eventos/{slug}/fila`) or the organizer's or artist's own subdomain (`/events/{slug}/fila`); use it as-is, do not rebuild it), `MULTIPLE_ORGS` (tickets from multiple organizers), `MIXED_CURRENCY` (mixed currencies), `SEAT_NOT_AVAILABLE` (seat already sold or held), `ADDON_SOLD_OUT` (a product bundled with the ticket, e.g. a drink combo, sold out: the order is not created). Products bundled with a ticket travel with it automatically —they are not requested in `items`— and their price is already included in `total`.",
+				"security": [
+					{},
+					{
+						"customerSession": []
+					}
+				],
 				"requestBody": {
 					"required": true,
 					"content": {
@@ -430,7 +445,7 @@
 						}
 					},
 					"401": {
-						"description": "Credencial inválida o ausente.",
+						"description": "Missing or invalid credential.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -440,7 +455,7 @@
 						}
 					},
 					"403": {
-						"description": "Rol insuficiente o recurso no accesible.",
+						"description": "Insufficient role or resource not accessible.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -450,7 +465,7 @@
 						}
 					},
 					"404": {
-						"description": "Recurso inexistente o fuera de alcance.",
+						"description": "Resource does not exist or is out of scope.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -460,7 +475,7 @@
 						}
 					},
 					"409": {
-						"description": "Conflicto: el recurso no admite la operación en su estado actual.",
+						"description": "Conflict: the resource does not allow this operation in its current state.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -470,7 +485,17 @@
 						}
 					},
 					"422": {
-						"description": "Validación del cuerpo/parámetros.",
+						"description": "Operation error.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -480,7 +505,7 @@
 						}
 					},
 					"502": {
-						"description": "Error del proveedor externo al completar la operación.",
+						"description": "The external provider failed to complete the operation.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -496,8 +521,8 @@
 			"get": {
 				"operationId": "getOrdersId",
 				"tags": ["orders"],
-				"summary": "Estado de una orden B2C (y tickets al pagar)",
-				"description": "Público (sin auth). Estado de la orden: `pending | paid | expired | cancelled`. Al pagar (`paid`) incluye los códigos de ticket emitidos; el QR/entrada llega por email. El id es un cuid no enumerable; no expone datos del comprador.",
+				"summary": "Get a B2C order's status (and tickets once paid)",
+				"description": "Public (no auth). Order status: `pending | paid | expired | cancelled`. Once paid (`paid`) it includes the issued ticket codes; the QR/ticket is delivered by email. While still `pending` it returns `expiresAt`, the instant (ISO 8601, UTC) at which its reservation expires — the SAME one returned by `POST /orders`, so a countdown can resume after a reload instead of restarting. It may be in the PAST: that means the reservation has already expired and there is no point sending the buyer to pay, even if the `checkoutUrl` still opens. A null `expiresAt` NEVER means 'no time limit': it means the order is no longer pending, or there is no reservation. The id is a non-enumerable cuid; no buyer data is exposed.",
 				"security": [],
 				"parameters": [
 					{
@@ -527,7 +552,7 @@
 						}
 					},
 					"401": {
-						"description": "Credencial inválida o ausente.",
+						"description": "Missing or invalid credential.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -537,7 +562,7 @@
 						}
 					},
 					"403": {
-						"description": "Rol insuficiente o recurso no accesible.",
+						"description": "Insufficient role or resource not accessible.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -547,7 +572,7 @@
 						}
 					},
 					"404": {
-						"description": "Recurso inexistente o fuera de alcance.",
+						"description": "Resource does not exist or is out of scope.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -557,7 +582,7 @@
 						}
 					},
 					"422": {
-						"description": "Validación del cuerpo/parámetros.",
+						"description": "Request body/parameter validation failed.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -584,9 +609,12 @@
 							"message": {
 								"type": "string"
 							},
+							"retryable": {
+								"type": "boolean"
+							},
 							"details": {}
 						},
-						"required": ["code", "message"],
+						"required": ["code", "message", "retryable"],
 						"additionalProperties": false
 					}
 				},
@@ -675,7 +703,19 @@
 							{
 								"type": "null"
 							}
-						]
+						],
+						"description": "Cheapest BASE price, excluding service fee, VAT (IVA) and the numbered-seat surcharge. To quote what the buyer actually pays, use buyerTotalFrom."
+					},
+					"buyerTotalFrom": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Final per-unit price of the ticket type with the cheapest base price (includes service fee, VAT (IVA) and the numbered-seat surcharge). The authoritative order total is computed by POST /orders."
 					},
 					"currency": {
 						"type": "string"
@@ -689,8 +729,44 @@
 					"city",
 					"nextDate",
 					"priceFrom",
+					"buyerTotalFrom",
 					"currency"
 				],
+				"additionalProperties": false
+			},
+			"PublicAvailableSeat": {
+				"type": "object",
+				"properties": {
+					"label": {
+						"type": "string",
+						"description": "EXACT seat label in seats.io."
+					},
+					"categoryKey": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"categoryLabel": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"status": {
+						"type": "string",
+						"const": "free"
+					}
+				},
+				"required": ["label", "categoryKey", "categoryLabel", "status"],
 				"additionalProperties": false
 			},
 			"PublicTicketType": {
@@ -715,6 +791,38 @@
 					"price": {
 						"type": "number"
 					},
+					"buyerServiceFee": {
+						"type": "number",
+						"description": "Service fee paid by the buyer, including the numbered-seat surcharge. 0 if the organizer absorbs the fee and the ticket type is not numbered."
+					},
+					"seatingSurcharge": {
+						"type": "number",
+						"description": "Flat per-seat surcharge for numbered ticket types (seats.io). Already included in buyerServiceFee and buyerTotal; exposed separately so it can be itemized."
+					},
+					"iva": {
+						"type": "number",
+						"description": "VAT (IVA, 19%) on the service fee."
+					},
+					"buyerTotal": {
+						"type": "number",
+						"description": "Final price PER UNIT: price + buyerServiceFee + iva. This is what checkout charges; the order total is confirmed by POST /orders."
+					},
+					"seatsioCategoryKey": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"availableSeats": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/PublicAvailableSeat"
+						}
+					},
 					"currency": {
 						"type": "string"
 					},
@@ -737,6 +845,11 @@
 					"name",
 					"description",
 					"price",
+					"buyerServiceFee",
+					"seatingSurcharge",
+					"iva",
+					"buyerTotal",
+					"seatsioCategoryKey",
 					"currency",
 					"maxPerOrder",
 					"available",
@@ -865,7 +978,19 @@
 							{
 								"type": "null"
 							}
-						]
+						],
+						"description": "Cheapest BASE price, excluding service fee, VAT (IVA) and the numbered-seat surcharge. To quote what the buyer actually pays, use buyerTotalFrom."
+					},
+					"buyerTotalFrom": {
+						"anyOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Final per-unit price of the ticket type with the cheapest base price (includes service fee, VAT (IVA) and the numbered-seat surcharge). The authoritative order total is computed by POST /orders."
 					},
 					"currency": {
 						"type": "string"
@@ -885,6 +1010,7 @@
 					"city",
 					"nextDate",
 					"priceFrom",
+					"buyerTotalFrom",
 					"currency",
 					"dates"
 				],
@@ -1002,6 +1128,13 @@
 									"type": "integer",
 									"exclusiveMinimum": 0,
 									"maximum": 50
+								},
+								"seats": {
+									"type": "array",
+									"items": {
+										"type": "string",
+										"minLength": 1
+									}
 								}
 							},
 							"required": ["ticketTypeId", "quantity"],
@@ -1033,6 +1166,9 @@
 					},
 					"checkoutUrl": {
 						"type": "string"
+					},
+					"expiresAt": {
+						"type": "string"
 					}
 				},
 				"required": [
@@ -1041,7 +1177,8 @@
 					"status",
 					"total",
 					"currency",
-					"checkoutUrl"
+					"checkoutUrl",
+					"expiresAt"
 				],
 				"additionalProperties": false
 			},
@@ -1077,6 +1214,16 @@
 					"currency": {
 						"type": "string"
 					},
+					"expiresAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
 					"tickets": {
 						"type": "array",
 						"items": {
@@ -1090,17 +1237,18 @@
 					"status",
 					"total",
 					"currency",
+					"expiresAt",
 					"tickets"
 				],
 				"additionalProperties": false
 			}
 		},
 		"securitySchemes": {
-			"none": {
+			"customerSession": {
 				"type": "apiKey",
 				"in": "header",
-				"name": "X-No-Auth",
-				"description": "Contrato público: los endpoints no requieren credenciales."
+				"name": "X-Customer-Session",
+				"description": "B2C buyer session. Obtained via POST /api/v1/customer/auth/request (code sent by email) + POST /api/v1/customer/auth/verify, which returns `session_token`. A browser can present the `ft-customer` cookie instead. Only orders with numbered seats require it (`POST /orders` with `items[].seats`); the rest of the contract is anonymous."
 			}
 		}
 	}

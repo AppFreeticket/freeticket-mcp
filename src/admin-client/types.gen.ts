@@ -4,6 +4,7 @@ export type _Error = {
 	error: {
 		code: string;
 		message: string;
+		retryable: boolean;
 		details?: unknown;
 	};
 };
@@ -65,6 +66,19 @@ export type AdminWorkspacePlan = {
 	planSlug: string;
 	planName: string;
 	previousPlanSlug: string | null;
+};
+
+export type AdminWorkspacePlanDetail = {
+	workspaceId: string;
+	orgId: string | null;
+	planSlug: string | null;
+	planName: string | null;
+	status: ("TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED") | null;
+	startedAt: string | null;
+	expiresAt: string | null;
+	cancelledAt: string | null;
+	stripeLinked: boolean;
+	paymentOption: string | null;
 };
 
 export type AdminUserWorkspace = {
@@ -229,19 +243,19 @@ export type GetMeData = {
 
 export type GetMeErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -282,19 +296,19 @@ export type GetWorkspacesData = {
 
 export type GetWorkspacesErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -323,23 +337,23 @@ export type PostWorkspacesData = {
 
 export type PostWorkspacesErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 * Conflict: the resource does not allow this operation in its current state.
 	 */
 	409: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -359,6 +373,53 @@ export type PostWorkspacesResponses = {
 export type PostWorkspacesResponse =
 	PostWorkspacesResponses[keyof PostWorkspacesResponses];
 
+export type DeleteWorkspacesIdData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/workspaces/{id}";
+};
+
+export type DeleteWorkspacesIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteWorkspacesIdError =
+	DeleteWorkspacesIdErrors[keyof DeleteWorkspacesIdErrors];
+
+export type DeleteWorkspacesIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminWorkspace;
+	};
+};
+
+export type DeleteWorkspacesIdResponse =
+	DeleteWorkspacesIdResponses[keyof DeleteWorkspacesIdResponses];
+
 export type GetWorkspacesIdData = {
 	body?: never;
 	path: {
@@ -370,19 +431,19 @@ export type GetWorkspacesIdData = {
 
 export type GetWorkspacesIdErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -413,23 +474,23 @@ export type PatchWorkspacesIdData = {
 
 export type PatchWorkspacesIdErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 * Conflict: the resource does not allow this operation in its current state.
 	 */
 	409: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -449,6 +510,49 @@ export type PatchWorkspacesIdResponses = {
 export type PatchWorkspacesIdResponse =
 	PatchWorkspacesIdResponses[keyof PatchWorkspacesIdResponses];
 
+export type GetWorkspacesIdPlanData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/workspaces/{id}/plan";
+};
+
+export type GetWorkspacesIdPlanErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetWorkspacesIdPlanError =
+	GetWorkspacesIdPlanErrors[keyof GetWorkspacesIdPlanErrors];
+
+export type GetWorkspacesIdPlanResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminWorkspacePlanDetail;
+	};
+};
+
+export type GetWorkspacesIdPlanResponse =
+	GetWorkspacesIdPlanResponses[keyof GetWorkspacesIdPlanResponses];
+
 export type PostWorkspacesIdPlanData = {
 	body: AdminWorkspacePlanAssign;
 	path: {
@@ -460,23 +564,23 @@ export type PostWorkspacesIdPlanData = {
 
 export type PostWorkspacesIdPlanErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 * Conflict: the resource does not allow this operation in its current state.
 	 */
 	409: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -507,23 +611,23 @@ export type PostWorkspacesIdSuspendData = {
 
 export type PostWorkspacesIdSuspendErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 * Conflict: the resource does not allow this operation in its current state.
 	 */
 	409: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -554,19 +658,19 @@ export type PostWorkspacesIdRestoreData = {
 
 export type PostWorkspacesIdRestoreErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -613,19 +717,19 @@ export type GetUsersData = {
 
 export type GetUsersErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -655,19 +759,19 @@ export type GetUsersIdData = {
 
 export type GetUsersIdErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -696,19 +800,23 @@ export type PatchUsersIdData = {
 
 export type PatchUsersIdErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -736,23 +844,23 @@ export type PostImpersonateData = {
 
 export type PostImpersonateErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 * Conflict: the resource does not allow this operation in its current state.
 	 */
 	409: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -781,19 +889,19 @@ export type PostImpersonateStopData = {
 
 export type PostImpersonateStopErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -822,19 +930,19 @@ export type GetPlatformPlansData = {
 
 export type GetPlatformPlansErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -863,23 +971,23 @@ export type PostPlatformPlansData = {
 
 export type PostPlatformPlansErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Conflicto: el recurso no admite la operación en su estado actual.
+	 * Conflict: the resource does not allow this operation in its current state.
 	 */
 	409: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -910,19 +1018,19 @@ export type GetPlatformPlansIdData = {
 
 export type GetPlatformPlansIdErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -953,19 +1061,19 @@ export type PatchPlatformPlansIdData = {
 
 export type PatchPlatformPlansIdErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -1004,19 +1112,19 @@ export type GetFeatureFlagsData = {
 
 export type GetFeatureFlagsErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -1047,19 +1155,19 @@ export type PutFeatureFlagsKeyData = {
 
 export type PutFeatureFlagsKeyErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -1105,19 +1213,19 @@ export type GetAuditLogData = {
 
 export type GetAuditLogErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -1146,19 +1254,19 @@ export type GetTokensData = {
 
 export type GetTokensErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -1185,19 +1293,19 @@ export type PostTokensData = {
 
 export type PostTokensErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };
@@ -1226,19 +1334,19 @@ export type DeleteTokensIdData = {
 
 export type DeleteTokensIdErrors = {
 	/**
-	 * Credencial inválida o ausente.
+	 * Missing or invalid credential.
 	 */
 	401: _Error;
 	/**
-	 * Rol insuficiente o recurso no accesible.
+	 * Insufficient role or resource not accessible.
 	 */
 	403: _Error;
 	/**
-	 * Recurso inexistente o fuera de alcance.
+	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
 	/**
-	 * Validación del cuerpo/parámetros.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
 };

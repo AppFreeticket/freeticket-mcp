@@ -147,8 +147,10 @@ describe("tool registration", () => {
 		registerB2bWriteTools(server, stub);
 		const t = names(server);
 		// 35 writes: 29 from contract 1.5.0 + the 6 from 1.7.0 (members area and
-		// token de reproducción de contenido).
-		expect(t.length).toBe(35);
+		// token de reproducción de contenido) + the 7 from 1.19/1.20 (events_cancel,
+		// tickets_reassign, staff_delete, webhooks_update, customer_order_release,
+		// content_posts_create, workspaces_create).
+		expect(t.length).toBe(42);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -179,8 +181,9 @@ describe("tool registration", () => {
 		registerAdminTools(server, stub);
 		const t = names(server);
 		// 4 original reads + 15 from Wave C + admin_tokens (admin 1.1.0)
-		// + admin_workspaces_assign_plan (admin 1.3.0).
-		expect(t.length).toBe(21);
+		// + admin_workspaces_assign_plan (admin 1.3.0)
+		// + admin_workspaces_plan_get and admin_workspaces_delete (admin 1.5).
+		expect(t.length).toBe(23);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of t) expect(n).toMatch(/^admin_/);
 		for (const n of [

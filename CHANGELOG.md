@@ -5,7 +5,45 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-20
+
+Brings all three contracts in line with production: B2B 1.7.0 → **1.20.0**,
+superadmin 1.3.0 → **1.5.1**, public 0.4.0 → **0.9.1**. Additions only.
+**117 tools** (B2B 88 · superadmin 23 · public 6).
+
 ### Added
+- B2B: `events_cancel` (keeps the record and its sales; destructive),
+  `sales_attempts` (payment attempt history), `tickets_reassign` (move a sold
+  ticket to another date or type), `staff_get`, `staff_delete` (revokes access
+  to the workspace; destructive), `webhooks_update` (edits without rotating
+  the secret), `settlements_get`, `content_posts_create`, `workspaces_create`.
+- Members area: `customer_order_pending`, `customer_order_get` and
+  `customer_order_release` (destructive), on the same `X-Customer-Session`
+  credential as the rest of `customer_*`.
+- Superadmin: `admin_workspaces_plan_get` and `admin_workspaces_delete`
+  (soft delete; destructive).
+- `customer_subscription_cancel` takes an optional `workspaceId`, which the
+  contract requires when no enterprise key is present.
+
+### Changed
+- `ticket_types_create`: `currency` is the contract enum (`COP`), defaulting
+  to it, instead of a free string.
+- The coverage sweep matches each spec only against the tools of its own
+  client. A merged source let the admin `postWorkspaces` mask v1's
+  `POST /workspaces`, which had no tool.
+
+### Not exposed (excluded with a reason in `src/coverage.test.ts`)
+- `POST /auth/signup` and the buyer device grant
+  (`/customer/auth/request`, `/customer/auth/verify`): credential bootstrap,
+  not tools.
+- The landing-page headless checkout: `/customer/purchase-sessions*`,
+  `POST /customer/orders`, `/customer/orders/{id}/payment{,/card,/pse}`. Each
+  step needs a browser (seats.io chart, Brick/Bold widget, returnUrl
+  allowlist); agents buy through `public_orders_create`.
+
+### Also in this release (merged since 0.14.0)
+
+#### Added
 - `GET /.well-known/openai-apps-challenge` serves the OpenAI plugin directory's
   domain-verification token as plain text, read from `OPENAI_APPS_CHALLENGE`
   and trimmed (a value pasted into a dashboard field usually arrives with a
@@ -14,7 +52,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
   from a fork. With nothing configured the path answers 404 naming the variable
   to set, rather than inventing a value that would verify and prove nothing.
 
-### Changed
+#### Changed
 - **Connecting your account connects all of your workspaces.** The consent page
   used to end on a picker when the account reached more than one workspace —
   "choose the one this connection is about" — and the chosen id was sealed into

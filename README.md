@@ -127,18 +127,18 @@ confirmation.
 
 | Domain | Reads | Writes |
 |---|---|---|
-| Session | `whoami` | — |
-| Events | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
-| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_resend` |
-| Sales | `sales_list` · `sales_get` · `sales_tickets` | `sales_create` · `sales_cancel` · `sales_refund` |
+| Session | `whoami` | `workspaces_create` |
+| Events | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_cancel` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
+| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_reassign` · `tickets_resend` |
+| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` | `sales_create` · `sales_cancel` · `sales_refund` |
 | Memberships | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
-| Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` |
+| Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` · `staff_get` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_update` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` · `staff_delete` |
 | Reports | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reports_financials` · `reconciliation` | — |
-| Settlements | `settlements_list` · `settlements_document` · `settlements_proof` | — |
+| Settlements | `settlements_list` · `settlements_get` · `settlements_document` · `settlements_proof` | — |
 | Credentials | `api_keys_list` | — |
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
-| Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` |
-| Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` |
+| Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` |
+| Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` |
 
 Minting and revoking credentials (`ft api-keys`, `ft admin tokens`) is left out
 of the MCP on purpose: an agent lists credentials to audit them, it does not
@@ -173,7 +173,7 @@ members-only).
 | Domain | Tools |
 |---|---|
 | Session / audit | `admin_whoami` · `admin_audit_log` · `admin_tokens` |
-| Workspaces | `admin_workspaces` · `admin_workspaces_get` · `admin_workspaces_create` · `admin_workspaces_update` (includes `webTemplate` / `customDomain`) · `admin_workspaces_assign_plan` · `admin_workspaces_suspend` · `admin_workspaces_restore` |
+| Workspaces | `admin_workspaces` · `admin_workspaces_get` · `admin_workspaces_create` · `admin_workspaces_update` (includes `webTemplate` / `customDomain`) · `admin_workspaces_plan_get` · `admin_workspaces_assign_plan` · `admin_workspaces_suspend` · `admin_workspaces_restore` · `admin_workspaces_delete` |
 | Users | `admin_users` · `admin_users_get` · `admin_users_update` · `admin_impersonate` · `admin_impersonate_stop` |
 | Platform plans | `admin_platform_plans_list` · `admin_platform_plans_get` · `admin_platform_plans_create` · `admin_platform_plans_update` |
 | Feature flags | `admin_feature_flags_list` · `admin_feature_flags_set` |
@@ -221,8 +221,8 @@ pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contracts this build targets: B2B **1.7.0**, superadmin **1.3.0**, public
-**0.4.0**. All three are served by `free-admin` and are the only source of
+Contracts this build targets: B2B **1.20.0**, superadmin **1.5.1**, public
+**0.9.1**. All three are served by `free-admin` and are the only source of
 truth, on separate semver lineages. To propagate a backend change, use the
 `contract-sync` agent from the
 [ai-native](https://github.com/AppFreeticket/ai-native) umbrella — and check for
