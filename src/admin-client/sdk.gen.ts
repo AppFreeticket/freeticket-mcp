@@ -16,6 +16,24 @@ import type {
 	GetAuditLogData,
 	GetAuditLogError,
 	GetAuditLogResponse,
+	GetCrmCampaignsData,
+	GetCrmCampaignsError,
+	GetCrmCampaignsIdData,
+	GetCrmCampaignsIdError,
+	GetCrmCampaignsIdResponse,
+	GetCrmCampaignsResponse,
+	GetCrmEventDatesData,
+	GetCrmEventDatesError,
+	GetCrmEventDatesResponse,
+	GetCrmEventsData,
+	GetCrmEventsError,
+	GetCrmEventsResponse,
+	GetCrmOptionsData,
+	GetCrmOptionsError,
+	GetCrmOptionsResponse,
+	GetCrmQuotaData,
+	GetCrmQuotaError,
+	GetCrmQuotaResponse,
 	GetFeatureFlagsData,
 	GetFeatureFlagsError,
 	GetFeatureFlagsResponse,
@@ -55,6 +73,21 @@ import type {
 	PatchWorkspacesIdData,
 	PatchWorkspacesIdError,
 	PatchWorkspacesIdResponse,
+	PostCrmAudiencePreviewData,
+	PostCrmAudiencePreviewError,
+	PostCrmAudiencePreviewResponse,
+	PostCrmCampaignsData,
+	PostCrmCampaignsError,
+	PostCrmCampaignsIdBatchesNextData,
+	PostCrmCampaignsIdBatchesNextError,
+	PostCrmCampaignsIdBatchesNextResponse,
+	PostCrmCampaignsIdBatchesStopData,
+	PostCrmCampaignsIdBatchesStopError,
+	PostCrmCampaignsIdBatchesStopResponse,
+	PostCrmCampaignsIdCancelData,
+	PostCrmCampaignsIdCancelError,
+	PostCrmCampaignsIdCancelResponse,
+	PostCrmCampaignsResponse,
 	PostImpersonateData,
 	PostImpersonateError,
 	PostImpersonateResponse,
@@ -733,6 +766,286 @@ export const deleteTokensId = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/tokens/{id}",
+		...options,
+	});
+};
+
+/**
+ * Listar campañas del CRM maestro (las que lanzó el equipo)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const getCrmCampaigns = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCrmCampaignsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCrmCampaignsResponse,
+		GetCrmCampaignsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/campaigns",
+		...options,
+	});
+};
+
+/**
+ * Lanzar una campaña del CRM maestro (ESCRITURA: envía mensajes)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: crea la campaña ya aprobada y, con `timing.mode = now`, empieza a enviar a toda la audiencia al responder. No expuesta por el MCP (`x-ft-mcp`). Errores: 422 con `error.details[].path` (filtro, remitente, reglas de canal, ids que no existen) o `EMPTY_AUDIENCE`; 409 `DUPLICATE_CAMPAIGN` con `error.details.existingId` si hace menos de 10 minutos se lanzó otra con el mismo canal, remitente y asunto; 409 `WHATSAPP_BLOCKED` (plantilla) o 503 `WHATSAPP_UNAVAILABLE` (Kapso no contestó, reintentable). Queda en `GET /audit-log` como `crm_campaign.launch`.
+ */
+export const postCrmCampaigns = <ThrowOnError extends boolean = false>(
+	options: Options<PostCrmCampaignsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCrmCampaignsResponse,
+		PostCrmCampaignsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/campaigns",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Detalle de una campaña del CRM maestro
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const getCrmCampaignsId = <ThrowOnError extends boolean = false>(
+	options: Options<GetCrmCampaignsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCrmCampaignsIdResponse,
+		GetCrmCampaignsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/campaigns/{id}",
+		...options,
+	});
+};
+
+/**
+ * Mandar ya el siguiente lote de WhatsApp (ESCRITURA: envía mensajes)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: reclama la campaña y envía hasta un lote de destinatarios pendientes al responder. Solo campañas del equipo (otra es 404). Respeta la ventana de 9:00–20:00 de Bogotá: fuera de ella responde 409 `OUTSIDE_SEND_WINDOW` (reintentable) con `Retry-After` hasta la próxima apertura; `ignoreSendWindow: true` la salta. Otros 409: `INVALID_STATE` (no hay pendientes, ya está saliendo un lote, no es WhatsApp) o `WHATSAPP_BLOCKED`; 429 `QUOTA_EXHAUSTED` con `Retry-After` si se usó el cupo diario; 503 `WHATSAPP_UNAVAILABLE`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_campaign.batch_next`.
+ */
+export const postCrmCampaignsIdBatchesNext = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCrmCampaignsIdBatchesNextData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCrmCampaignsIdBatchesNextResponse,
+		PostCrmCampaignsIdBatchesNextError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/campaigns/{id}/batches/next",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Detener los lotes pendientes de una campaña (ESCRITURA)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA irreversible: los destinatarios pendientes pasan a SKIPPED y ya no se envían. Solo campañas del equipo (otra es 404). 409 `INVALID_STATE` si no es de WhatsApp o tiene un lote saliendo (reintentar en un minuto). No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_campaign.batch_stop`.
+ */
+export const postCrmCampaignsIdBatchesStop = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCrmCampaignsIdBatchesStopData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCrmCampaignsIdBatchesStopResponse,
+		PostCrmCampaignsIdBatchesStopError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/campaigns/{id}/batches/stop",
+		...options,
+	});
+};
+
+/**
+ * Cancelar una campaña programada (ESCRITURA)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: la campaña programada no sale (queda `DENIED`, con un motivo que ve el organizador). Solo campañas del equipo (otra es 404). 409 `INVALID_STATE` si ya no está programada (salió, está saliendo o alguien la canceló antes). No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_campaign.cancel`.
+ */
+export const postCrmCampaignsIdCancel = <ThrowOnError extends boolean = false>(
+	options: Options<PostCrmCampaignsIdCancelData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCrmCampaignsIdCancelResponse,
+		PostCrmCampaignsIdCancelError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/campaigns/{id}/cancel",
+		...options,
+	});
+};
+
+/**
+ * Contar la audiencia de un filtro del CRM (solo lectura)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Solo lectura: no crea nada. Devuelve contadores, una muestra de hasta 10 personas enmascarada en el servidor, quién puede firmar y, si hay WhatsApp alcanzable, los días que tomaría con el cupo. Un filtro inválido responde 422 con `error.details[].path`.
+ */
+export const postCrmAudiencePreview = <ThrowOnError extends boolean = false>(
+	options: Options<PostCrmAudiencePreviewData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCrmAudiencePreviewResponse,
+		PostCrmAudiencePreviewError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/audience/preview",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Cupo de WhatsApp y lotes comprometidos
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const getCrmQuota = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCrmQuotaData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCrmQuotaResponse,
+		GetCrmQuotaError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/quota",
+		...options,
+	});
+};
+
+/**
+ * Opciones para armar una campaña (ciudades, facetas, planes, plantillas)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const getCrmOptions = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCrmOptionsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCrmOptionsResponse,
+		GetCrmOptionsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/options",
+		...options,
+	});
+};
+
+/**
+ * Buscar shows para una campaña del CRM
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const getCrmEvents = <ThrowOnError extends boolean = false>(
+	options: Options<GetCrmEventsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCrmEventsResponse,
+		GetCrmEventsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/events",
+		...options,
+	});
+};
+
+/**
+ * Funciones de unos shows (para acotar una condición)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const getCrmEventDates = <ThrowOnError extends boolean = false>(
+	options: Options<GetCrmEventDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCrmEventDatesResponse,
+		GetCrmEventDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/event-dates",
 		...options,
 	});
 };
