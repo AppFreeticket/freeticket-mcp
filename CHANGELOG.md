@@ -5,6 +5,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+Superadmin contract 1.5.1 → **1.7.0** (CRM master). Additions only.
+**124 tools** (B2B 88 · superadmin 30 · public 6).
+
+### Added
+- Superadmin, CRM master reads: `admin_crm_campaigns`,
+  `admin_crm_campaigns_get`, `admin_crm_audience_preview` (counts the audience
+  of a filter and returns a server-masked sample; creates and sends nothing),
+  `admin_crm_quota`, `admin_crm_options`, `admin_crm_events` and
+  `admin_crm_event_dates`.
+- The coverage sweep reads `x-ft-mcp: { expose: false, reason }` from the
+  spec: those operations count as excluded with the contract's own reason,
+  and the test fails if any tool calls them.
+
+### Not exposed
+- CRM master writes: `POST /crm/campaigns`,
+  `/crm/campaigns/{id}/batches/next`, `/crm/campaigns/{id}/batches/stop` and
+  `/crm/campaigns/{id}/cancel`. They send real messages to buyers; they stay
+  in the CLI (`ft admin crm`) and the panel.
+
 ## [0.15.0] - 2026-10-20
 
 Brings all three contracts in line with production: B2B 1.7.0 → **1.20.0**,

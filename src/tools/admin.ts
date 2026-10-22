@@ -4,6 +4,12 @@ import { z } from "zod";
 import {
 	deleteWorkspacesId,
 	getAuditLog,
+	getCrmCampaigns,
+	getCrmCampaignsId,
+	getCrmEventDates,
+	getCrmEvents,
+	getCrmOptions,
+	getCrmQuota,
 	getFeatureFlags,
 	getMe,
 	getPlatformPlans,
@@ -17,6 +23,7 @@ import {
 	patchPlatformPlansId,
 	patchUsersId,
 	patchWorkspacesId,
+	postCrmAudiencePreview,
 	postImpersonate,
 	postImpersonateStop,
 	postPlatformPlans,
@@ -32,11 +39,17 @@ import { UI_META, uiTool } from "../ui";
 const destructive = { destructiveHint: true, idempotentHint: false } as const;
 const mutating = { destructiveHint: false, idempotentHint: false } as const;
 const CONFIRM = " ⚠️ Sensitive cross-tenant action: confirm with the human.";
+const readOnly = { readOnlyHint: true, idempotentHint: true } as const;
+const CRM_READ_ONLY =
+	" Solo lectura: lanzar, avanzar lotes, frenar o cancelar campañas no se " +
+	"hace desde el MCP, sino con el CLI (`ft admin crm`) o el panel.";
 
 /**
  * Tools superadmin (/api/admin, cross-tenant). Se registran solo si hay
  * FT_ADMIN_SESSION. Cubre reads + writes (Ola C): workspaces, users,
- * impersonation, platform plans y feature flags.
+ * impersonation, platform plans y feature flags. Del CRM maestro solo las
+ * lecturas: las escrituras (`x-ft-mcp: { expose: false }` en el contrato)
+ * mandan correos y WhatsApp reales a clientes y quedan fuera a propósito.
  */
 export function registerAdminTools(server: McpServer, client: Client): void {
 	server.tool(
@@ -328,5 +341,123 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		mutating,
 		async ({ key, ...body }) =>
 			run(putFeatureFlagsKey({ path: { key }, body, client })),
+	);
+
+	// ── CRM maestro (solo lecturas) ──────────────────────────────────────────
+	uiTool(
+		server,
+		"admin_crm_campaigns",
+		`Lista las campañas del CRM maestro que lanzó el equipo (GET /api/admin/crm/campaigns).${CRM_READ_ONLY}`,
+		{
+			channel: z.enum(["EMAIL", "WHATSAPP"]).optional(),
+			status: z
+				.enum([
+					"SENT",
+					"FAILED",
+					"DENIED",
+					"PROCESSING",
+					"APPROVED",
+					"SCHEDULED",
+					"CANCELLED",
+				])
+				.optional(),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("1-100, por defecto 50"),
+		},
+		async (q) => run(getCrmCampaigns({ query: q, client })),
+	);
+	server.tool(
+		"admin_crm_campaigns_get",
+		`Detalle de una campaña del CRM maestro: filtro, firma, contadores y lotes (GET /api/admin/crm/campaigns/{id}).${CRM_READ_ONLY}`,
+		{ id: z.string().describe("Campaign id") },
+		readOnly,
+		async ({ id }) => run(getCrmCampaignsId({ path: { id }, client })),
+	);
+	server.tool(
+		"admin_crm_audience_preview",
+		"Cuenta la audiencia de un filtro del CRM sin enviar ni crear nada " +
+			"(POST /api/admin/crm/audience/preview): contadores por canal, una " +
+			"muestra de hasta 10 personas enmascarada en el servidor, quién puede " +
+			"firmar y, si hay WhatsApp alcanzable, los días que tomaría con el cupo. " +
+			"`filter` es v2: `{ version: 2, scope, include, except }`, con `scope` " +
+			"`{ level: 'platform' }`, `{ level: 'orgs', workspaceIds }` o " +
+			"`{ level: 'events', eventIds }`, e `include`/`except` listas de " +
+			"condiciones (`purchased`, `abandoned`, `checked_in`, `city`, `facet`, " +
+			"`membership`, `spend`, `received_campaign`, `people`). Usá " +
+			"`admin_crm_options`, `admin_crm_events` y `admin_crm_event_dates` " +
+			"para los ids. Un filtro inválido responde 422 con `error.details[].path`." +
+			CRM_READ_ONLY,
+		{
+			filter: z
+				.record(z.unknown())
+				.describe("Filtro de audiencia v2 (lo valida el servidor)"),
+			sender: z
+				.discriminatedUnion("kind", [
+					z.object({ kind: z.literal("freeticket") }),
+					z.object({
+						kind: z.literal("organization"),
+						workspaceId: z.string().min(1).max(64),
+					}),
+				])
+				.optional()
+				.describe(
+					"Quién firma. Solo suma las bajas de ese remitente; nunca agrega gente.",
+				),
+		},
+		readOnly,
+		async (body) => run(postCrmAudiencePreview({ body, client })),
+	);
+	uiTool(
+		server,
+		"admin_crm_quota",
+		"Cupo diario de WhatsApp y lotes ya comprometidos del CRM maestro (GET /api/admin/crm/quota).",
+		{},
+		async () => run(getCrmQuota({ client })),
+	);
+	server.tool(
+		"admin_crm_options",
+		"Opciones para armar un filtro del CRM: ciudades, facetas (género/formato), " +
+			"planes de membresía y plantillas (GET /api/admin/crm/options).",
+		readOnly,
+		async () => run(getCrmOptions({ client })),
+	);
+	uiTool(
+		server,
+		"admin_crm_events",
+		"Busca shows para un filtro o una campaña del CRM (GET /api/admin/crm/events).",
+		{
+			purpose: z
+				.enum(["scope", "promote", "except"])
+				.describe(
+					"`scope` para acotar la audiencia, `except` para excluir, `promote` " +
+						"para el show que se anuncia (solo publicados; con " +
+						"`senderWorkspaceId`, solo los de esa organización)",
+				),
+			query: z.string().max(120).optional().describe("Texto a buscar"),
+			senderWorkspaceId: z.string().optional(),
+		},
+		async (q) => run(getCrmEvents({ query: q, client })),
+	);
+	server.tool(
+		"admin_crm_event_dates",
+		"Funciones de uno o varios shows, para acotar una condición del CRM a " +
+			"fechas puntuales (GET /api/admin/crm/event-dates).",
+		{
+			eventIds: z
+				.array(z.string())
+				.min(1)
+				.max(50)
+				.describe("Ids de shows (1 a 50)"),
+		},
+		readOnly,
+		async ({ eventIds }) =>
+			run(
+				getCrmEventDates({ query: { eventIds: eventIds.join(",") }, client }),
+			),
 	);
 }

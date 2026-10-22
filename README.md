@@ -177,6 +177,12 @@ members-only).
 | Users | `admin_users` · `admin_users_get` · `admin_users_update` · `admin_impersonate` · `admin_impersonate_stop` |
 | Platform plans | `admin_platform_plans_list` · `admin_platform_plans_get` · `admin_platform_plans_create` · `admin_platform_plans_update` |
 | Feature flags | `admin_feature_flags_list` · `admin_feature_flags_set` |
+| CRM master (reads only) | `admin_crm_campaigns` · `admin_crm_campaigns_get` · `admin_crm_audience_preview` (counts, sends nothing) · `admin_crm_quota` · `admin_crm_options` · `admin_crm_events` · `admin_crm_event_dates` |
+
+Launching, advancing or stopping batches and cancelling CRM campaigns is not
+exposed: those operations send real email and WhatsApp to buyers. The contract
+marks them `x-ft-mcp: { expose: false }` and `src/coverage.test.ts` fails if a
+tool calls them. Use the CLI (`ft admin crm`) or the panel.
 
 ## UI in the host (MCP Apps)
 
@@ -221,7 +227,7 @@ pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contracts this build targets: B2B **1.20.0**, superadmin **1.5.1**, public
+Contracts this build targets: B2B **1.20.0**, superadmin **1.7.0**, public
 **0.9.1**. All three are served by `free-admin` and are the only source of
 truth, on separate semver lineages. To propagate a backend change, use the
 `contract-sync` agent from the
