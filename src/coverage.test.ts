@@ -26,6 +26,14 @@ const sourceOf = (files: string[]) =>
  * Operations deliberately kept out of the MCP, each with its reason: if someone
  * wants to expose one tomorrow, they argue with the reason instead of
  * rediscovering it.
+ *
+ * Operations the contract itself marks `x-ft-mcp: { expose: false }` do not go
+ * here: their reason lives in the spec (see `operations()`). Today that is the
+ * CRM master writes of /api/admin — `postCrmCampaigns`,
+ * `postCrmCampaignsIdBatchesNext`, `postCrmCampaignsIdBatchesStop` and
+ * `postCrmCampaignsIdCancel` — which send real messages to buyers. If
+ * free-admin drops the marker, the coverage test demands a tool for them, so
+ * removing it is never a silent way in.
  */
 const EXCLUDED: Record<string, string> = {
 	// Device flow mechanics: used by the embedded AS (src/handler.ts), not by an
@@ -72,26 +80,48 @@ const EXCLUDED: Record<string, string> = {
 		"PSE redirect of the landing page checkout, which the MCP does not open",
 };
 
-function operations(specFile: string): { id: string; where: string }[] {
+type Op = { id: string; where: string; hidden?: string };
+
+/**
+ * The contract can mark an operation `x-ft-mcp: { expose: false, reason }`:
+ * free-admin decides, next to the route, that agents must not get it (the CRM
+ * writes send real email and WhatsApp to buyers). Those count as excluded with
+ * the spec's own reason, and must NOT show up in the tools — the opposite of
+ * the coverage rule.
+ */
+function operations(specFile: string): Op[] {
 	const spec = JSON.parse(readFileSync(join(root, specFile), "utf8")) as {
-		paths: Record<string, Record<string, { operationId?: string }>>;
+		paths: Record<
+			string,
+			Record<
+				string,
+				{
+					operationId?: string;
+					"x-ft-mcp"?: { expose?: boolean; reason?: string };
+				}
+			>
+		>;
 	};
-	const out: { id: string; where: string }[] = [];
+	const out: Op[] = [];
 	for (const [path, item] of Object.entries(spec.paths ?? {}))
 		for (const [method, op] of Object.entries(item)) {
 			if (!["get", "post", "patch", "put", "delete"].includes(method)) continue;
-			if (op.operationId)
-				out.push({
-					id: op.operationId,
-					where: `${method.toUpperCase()} ${path}`,
-				});
+			if (!op.operationId) continue;
+			const mcp = op["x-ft-mcp"];
+			out.push({
+				id: op.operationId,
+				where: `${method.toUpperCase()} ${path}`,
+				...(mcp?.expose === false
+					? { hidden: mcp.reason?.trim() || "(no reason)" }
+					: {}),
+			});
 		}
 	return out;
 }
 
 describe.each([
 	["B2B /api/v1", "openapi.json", ["b2b.ts", "b2b-writes.ts"], 103],
-	["superadmin /api/admin", "admin-openapi.json", ["admin.ts"], 25],
+	["superadmin /api/admin", "admin-openapi.json", ["admin.ts"], 36],
 	["public /api/public", "public-openapi.json", ["public.ts"], 6],
 ])("contract %s", (_label, file, files, minOps) => {
 	const ops = operations(file);
@@ -99,15 +129,39 @@ describe.each([
 
 	it("exposes every operation as a tool (or excludes it with a reason)", () => {
 		const uncovered = ops
-			.filter((o) => !EXCLUDED[o.id])
+			.filter((o) => !EXCLUDED[o.id] && !o.hidden)
 			.filter((o) => !new RegExp(`\\b${o.id}\\b`).test(source))
 			.map((o) => `${o.where} [${o.id}]`);
 		expect(uncovered).toEqual([]);
 	});
 
+	it("keeps out every operation the contract marks x-ft-mcp.expose=false", () => {
+		const leaked = ops
+			.filter((o) => o.hidden)
+			.filter((o) => new RegExp(`\\b${o.id}\\b`).test(source))
+			.map((o) => `${o.where} [${o.id}]: ${o.hidden}`);
+		expect(leaked).toEqual([]);
+	});
+
+	it("every x-ft-mcp.expose=false carries its reason", () => {
+		const bare = ops
+			.filter((o) => o.hidden === "(no reason)")
+			.map((o) => o.where);
+		expect(bare).toEqual([]);
+	});
+
 	it("did not shrink abruptly (a truncated spec would break the clients silently)", () => {
 		expect(ops.length).toBeGreaterThanOrEqual(minOps);
 	});
+});
+
+it("does not duplicate in EXCLUDED what the contract already hides", () => {
+	// Two sources for the same rule drift apart: the spec's reason wins.
+	const hidden = ["openapi.json", "admin-openapi.json", "public-openapi.json"]
+		.flatMap(operations)
+		.filter((o) => o.hidden)
+		.map((o) => o.id);
+	expect(hidden.filter((id) => EXCLUDED[id])).toEqual([]);
 });
 
 it("carries no exclusions for operations the contract no longer has", () => {

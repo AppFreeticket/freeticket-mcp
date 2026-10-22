@@ -182,8 +182,9 @@ describe("tool registration", () => {
 		const t = names(server);
 		// 4 original reads + 15 from Wave C + admin_tokens (admin 1.1.0)
 		// + admin_workspaces_assign_plan (admin 1.3.0)
-		// + admin_workspaces_plan_get and admin_workspaces_delete (admin 1.5).
-		expect(t.length).toBe(23);
+		// + admin_workspaces_plan_get and admin_workspaces_delete (admin 1.5)
+		// + 7 CRM master reads (admin 1.7.0; its writes stay out).
+		expect(t.length).toBe(30);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of t) expect(n).toMatch(/^admin_/);
 		for (const n of [
@@ -191,6 +192,8 @@ describe("tool registration", () => {
 			"admin_impersonate",
 			"admin_platform_plans_create",
 			"admin_feature_flags_set",
+			"admin_crm_campaigns",
+			"admin_crm_audience_preview",
 		]) {
 			expect(t).toContain(n);
 		}
