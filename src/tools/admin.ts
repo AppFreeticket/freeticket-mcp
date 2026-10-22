@@ -390,12 +390,16 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			"condiciones (`purchased`, `abandoned`, `checked_in`, `city`, `facet`, " +
 			"`membership`, `spend`, `received_campaign`, `people`). Usá " +
 			"`admin_crm_options`, `admin_crm_events` y `admin_crm_event_dates` " +
-			"para los ids. Un filtro inválido responde 422 con `error.details[].path`." +
+			"para los ids. Un filtro inválido responde 422 con `error.details[].path`; " +
+			"uno demasiado grande, 413." +
 			CRM_READ_ONLY,
 		{
 			filter: z
-				.record(z.unknown())
-				.describe("Filtro de audiencia v2 (lo valida el servidor)"),
+				.object({ version: z.literal(2) })
+				.passthrough()
+				.describe(
+					"Filtro de audiencia v2 (`version: 2` obligatorio; el resto lo valida el servidor)",
+				),
 			sender: z
 				.discriminatedUnion("kind", [
 					z.object({ kind: z.literal("freeticket") }),

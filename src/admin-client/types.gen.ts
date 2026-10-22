@@ -246,9 +246,12 @@ export type AdminCrmCampaignStatus =
 	| "CANCELLED";
 
 /**
- * Filtro de audiencia v2 (`{ version: 2, scope, include, except }`). Objeto opaco en el contrato: lo valida el servidor con `audienceFilterSchema` (src/lib/crm/filter.ts). Un filtro inválido responde 422 con `error.details[].path` relativo al body (ej. `filter.scope.level`).
+ * Filtro de audiencia v2 (`{ version: 2, scope, include, except }`). Objeto abierto en el contrato: lo valida el servidor con `audienceFilterSchema` (src/lib/crm/filter.ts). Un filtro inválido responde 422 con `error.details[].path` relativo al body (ej. `filter.scope.level`).
  */
-export type AdminCrmAudienceFilter = {};
+export type AdminCrmAudienceFilter = {
+	version: 2;
+	[key: string]: unknown | 2;
+};
 
 /**
  * Quién firma. `freeticket` es obligatorio si el alcance es la plataforma, varias organizaciones o eventos de más de un dueño: el servidor RECHAZA otra firma (422), no la corrige.
@@ -527,6 +530,10 @@ export type AdminCrmLaunchInput = {
 	promotedEventId?: string;
 	filter: AdminCrmAudienceFilter;
 	timing: AdminCrmTiming;
+	/**
+	 * Solo WhatsApp con `timing.mode = now`: true = sale aunque sea fuera de las 9:00–20:00 de Bogotá. Por defecto la respeta y responde 409 `OUTSIDE_SEND_WINDOW` con `Retry-After`.
+	 */
+	ignoreSendWindow?: boolean;
 };
 
 export type AdminCrmLaunchResult = {
@@ -1776,6 +1783,10 @@ export type PostCrmCampaignsErrors = {
 	 */
 	409: _Error;
 	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
 	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
@@ -1874,6 +1885,10 @@ export type PostCrmCampaignsIdBatchesNextErrors = {
 	 */
 	409: _Error;
 	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
 	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
@@ -1929,6 +1944,10 @@ export type PostCrmCampaignsIdBatchesStopErrors = {
 	 */
 	409: _Error;
 	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
 	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
@@ -1980,6 +1999,10 @@ export type PostCrmCampaignsIdCancelErrors = {
 	 */
 	409: _Error;
 	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
 	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
@@ -2024,6 +2047,10 @@ export type PostCrmAudiencePreviewErrors = {
 	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
 	/**
 	 * Request body/parameter validation failed.
 	 */

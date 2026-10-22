@@ -796,7 +796,7 @@ export const getCrmCampaigns = <ThrowOnError extends boolean = false>(
 
 /**
  * Lanzar una campaña del CRM maestro (ESCRITURA: envía mensajes)
- * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: crea la campaña ya aprobada y, con `timing.mode = now`, empieza a enviar a toda la audiencia al responder. No expuesta por el MCP (`x-ft-mcp`). Errores: 422 con `error.details[].path` (filtro, remitente, reglas de canal, ids que no existen) o `EMPTY_AUDIENCE`; 409 `DUPLICATE_CAMPAIGN` con `error.details.existingId` si hace menos de 10 minutos se lanzó otra con el mismo canal, remitente y asunto; 409 `WHATSAPP_BLOCKED` (plantilla) o 503 `WHATSAPP_UNAVAILABLE` (Kapso no contestó, reintentable). Queda en `GET /audit-log` como `crm_campaign.launch`.
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: crea la campaña ya aprobada y, con `timing.mode = now`, empieza a enviar a toda la audiencia al responder. Un WhatsApp con `timing.mode = now` fuera de las 9:00–20:00 de Bogotá responde 409 `OUTSIDE_SEND_WINDOW` (reintentable) con `Retry-After` hasta la próxima apertura, antes de contar la audiencia; `ignoreSendWindow: true` la salta (el correo no tiene ventana; programada y lotes se ajustan solos). No expuesta por el MCP (`x-ft-mcp`). Errores: 422 con `error.details[].path` (filtro, remitente, reglas de canal, ids que no existen) o `EMPTY_AUDIENCE`; 409 `DUPLICATE_CAMPAIGN` con `error.details.existingId` si hace menos de 10 minutos se lanzó otra con el mismo canal, remitente y asunto; 409 `WHATSAPP_BLOCKED` (plantilla) o 503 `WHATSAPP_UNAVAILABLE` (Kapso no contestó, reintentable). Queda en `GET /audit-log` como `crm_campaign.launch`.
  */
 export const postCrmCampaigns = <ThrowOnError extends boolean = false>(
 	options: Options<PostCrmCampaignsData, ThrowOnError>,
@@ -928,7 +928,7 @@ export const postCrmCampaignsIdCancel = <ThrowOnError extends boolean = false>(
 
 /**
  * Contar la audiencia de un filtro del CRM (solo lectura)
- * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Solo lectura: no crea nada. Devuelve contadores, una muestra de hasta 10 personas enmascarada en el servidor, quién puede firmar y, si hay WhatsApp alcanzable, los días que tomaría con el cupo. Un filtro inválido responde 422 con `error.details[].path`.
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Solo lectura: no crea nada. Devuelve contadores, una muestra de hasta 10 personas enmascarada en el servidor (correo, teléfono y nombre: solo la inicial), quién puede firmar y, si hay WhatsApp alcanzable, los días que tomaría con el cupo. Un filtro inválido responde 422 con `error.details[].path`.
  */
 export const postCrmAudiencePreview = <ThrowOnError extends boolean = false>(
 	options: Options<PostCrmAudiencePreviewData, ThrowOnError>,

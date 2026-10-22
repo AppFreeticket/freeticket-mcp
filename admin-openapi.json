@@ -2389,7 +2389,7 @@
 				"operationId": "postCrmCampaigns",
 				"tags": ["crm"],
 				"summary": "Lanzar una campaña del CRM maestro (ESCRITURA: envía mensajes)",
-				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: crea la campaña ya aprobada y, con `timing.mode = now`, empieza a enviar a toda la audiencia al responder. No expuesta por el MCP (`x-ft-mcp`). Errores: 422 con `error.details[].path` (filtro, remitente, reglas de canal, ids que no existen) o `EMPTY_AUDIENCE`; 409 `DUPLICATE_CAMPAIGN` con `error.details.existingId` si hace menos de 10 minutos se lanzó otra con el mismo canal, remitente y asunto; 409 `WHATSAPP_BLOCKED` (plantilla) o 503 `WHATSAPP_UNAVAILABLE` (Kapso no contestó, reintentable). Queda en `GET /audit-log` como `crm_campaign.launch`.",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: crea la campaña ya aprobada y, con `timing.mode = now`, empieza a enviar a toda la audiencia al responder. Un WhatsApp con `timing.mode = now` fuera de las 9:00–20:00 de Bogotá responde 409 `OUTSIDE_SEND_WINDOW` (reintentable) con `Retry-After` hasta la próxima apertura, antes de contar la audiencia; `ignoreSendWindow: true` la salta (el correo no tiene ventana; programada y lotes se ajustan solos). No expuesta por el MCP (`x-ft-mcp`). Errores: 422 con `error.details[].path` (filtro, remitente, reglas de canal, ids que no existen) o `EMPTY_AUDIENCE`; 409 `DUPLICATE_CAMPAIGN` con `error.details.existingId` si hace menos de 10 minutos se lanzó otra con el mismo canal, remitente y asunto; 409 `WHATSAPP_BLOCKED` (plantilla) o 503 `WHATSAPP_UNAVAILABLE` (Kapso no contestó, reintentable). Queda en `GET /audit-log` como `crm_campaign.launch`.",
 				"security": [
 					{
 						"session": []
@@ -2458,6 +2458,16 @@
 					},
 					"409": {
 						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -2672,6 +2682,16 @@
 							}
 						}
 					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "Request body/parameter validation failed.",
 						"content": {
@@ -2787,6 +2807,16 @@
 							}
 						}
 					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "Request body/parameter validation failed.",
 						"content": {
@@ -2892,6 +2922,16 @@
 							}
 						}
 					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
 					"422": {
 						"description": "Request body/parameter validation failed.",
 						"content": {
@@ -2920,7 +2960,7 @@
 				"operationId": "postCrmAudiencePreview",
 				"tags": ["crm"],
 				"summary": "Contar la audiencia de un filtro del CRM (solo lectura)",
-				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. Solo lectura: no crea nada. Devuelve contadores, una muestra de hasta 10 personas enmascarada en el servidor, quién puede firmar y, si hay WhatsApp alcanzable, los días que tomaría con el cupo. Un filtro inválido responde 422 con `error.details[].path`.",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. Solo lectura: no crea nada. Devuelve contadores, una muestra de hasta 10 personas enmascarada en el servidor (correo, teléfono y nombre: solo la inicial), quién puede firmar y, si hay WhatsApp alcanzable, los días que tomaría con el cupo. Un filtro inválido responde 422 con `error.details[].path`.",
 				"security": [
 					{
 						"session": []
@@ -2975,6 +3015,16 @@
 					},
 					"404": {
 						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -4414,11 +4464,38 @@
 			},
 			"AdminCrmAudienceFilter": {
 				"type": "object",
-				"propertyNames": {
-					"type": "string"
+				"description": "Filtro de audiencia v2 (`{ version: 2, scope, include, except }`). Objeto abierto en el contrato: lo valida el servidor con `audienceFilterSchema` (src/lib/crm/filter.ts). Un filtro inválido responde 422 con `error.details[].path` relativo al body (ej. `filter.scope.level`).",
+				"properties": {
+					"version": {
+						"type": "integer",
+						"enum": [2]
+					}
 				},
-				"additionalProperties": {},
-				"description": "Filtro de audiencia v2 (`{ version: 2, scope, include, except }`). Objeto opaco en el contrato: lo valida el servidor con `audienceFilterSchema` (src/lib/crm/filter.ts). Un filtro inválido responde 422 con `error.details[].path` relativo al body (ej. `filter.scope.level`)."
+				"required": ["version"],
+				"additionalProperties": true,
+				"examples": [
+					{
+						"version": 2,
+						"scope": {
+							"level": "platform"
+						},
+						"include": [
+							{
+								"type": "purchased",
+								"window": {
+									"kind": "last_days",
+									"days": 90
+								}
+							}
+						],
+						"except": [
+							{
+								"type": "received_campaign",
+								"days": 7
+							}
+						]
+					}
+				]
 			},
 			"AdminCrmSender": {
 				"oneOf": [
@@ -5597,6 +5674,10 @@
 					},
 					"timing": {
 						"$ref": "#/components/schemas/AdminCrmTiming"
+					},
+					"ignoreSendWindow": {
+						"description": "Solo WhatsApp con `timing.mode = now`: true = sale aunque sea fuera de las 9:00–20:00 de Bogotá. Por defecto la respeta y responde 409 `OUTSIDE_SEND_WINDOW` con `Retry-After`.",
+						"type": "boolean"
 					}
 				},
 				"required": [
