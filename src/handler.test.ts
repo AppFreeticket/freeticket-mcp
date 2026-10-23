@@ -78,3 +78,50 @@ describe("/.well-known/openai-apps-challenge", () => {
 		expect(JSON.parse(out.body).resource).toContain("mcp.appfreeticket.com");
 	});
 });
+
+describe("OAuth redirect binding", () => {
+	const post = (pathname: string, body: unknown) =>
+		({
+			method: "POST",
+			url: pathname,
+			headers: { host: "mcp.appfreeticket.com" },
+			body,
+		}) as unknown as IncomingMessage;
+
+	it("/register seals the redirect_uris and /authorize refuses any other", async () => {
+		const handleHttp = await loadHandler();
+		const reg = stubRes();
+		await handleHttp(
+			post("/register", {
+				client_name: "Claude",
+				redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
+			}),
+			reg.res,
+		);
+		expect(reg.out.status).toBe(201);
+		const { client_id } = JSON.parse(reg.out.body);
+		expect(client_id.startsWith("ftcl_")).toBe(true);
+
+		const authorize = (redirect: string) =>
+			get(
+				`/authorize?${new URLSearchParams({
+					client_id,
+					redirect_uri: redirect,
+					code_challenge: "ch",
+				})}`,
+			);
+		const bad = stubRes();
+		await handleHttp(authorize("https://evil.example/cb"), bad.res);
+		expect(bad.out.status).toBe(400);
+	});
+
+	it("/register rejects non-https redirect_uris", async () => {
+		const handleHttp = await loadHandler();
+		const { res, out } = stubRes();
+		await handleHttp(
+			post("/register", { redirect_uris: ["javascript:alert(1)"] }),
+			res,
+		);
+		expect(out.status).toBe(400);
+	});
+});
