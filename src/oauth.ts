@@ -43,6 +43,12 @@ export interface Sealed {
 	rus?: string[];
 	/** registered client_name — only in client ids */
 	n?: string;
+	/** client_id the code was issued to — only in authorization codes */
+	c?: string;
+	/** token type (its prefix). Sealed since client ids exist: /register hands
+	 * anybody a sealed blob, and without it that blob opened under another
+	 * prefix. Payloads sealed before carry none and stay valid. */
+	t?: string;
 	/** expiración, epoch en segundos */
 	exp: number;
 }
@@ -57,19 +63,21 @@ export const CLIENT_PREFIX = "ftcl_";
 export const CLIENT_TTL = 10 * 365 * 24 * 3600;
 
 /**
- * Callback hosts of the MCP clients FreeTicket is used from. A client_id that
- * is not sealed (registered before ids were sealed, or after a secret
- * rotation) may only redirect here or to loopback; the consent page also uses
- * the list to warn about any other destination.
+ * Callbacks of the MCP clients FreeTicket is used from. A client_id that is
+ * not sealed (registered before ids were sealed, or after a secret rotation)
+ * may only redirect to one of these exact URLs or to loopback. Exact URLs, not
+ * hosts: some of these hosts run open redirectors on other paths. The consent
+ * page warns about any host not listed here.
  */
-export const KNOWN_CALLBACK_HOSTS = [
-	"claude.ai",
-	"claude.com",
-	"chatgpt.com",
-	"chat.openai.com",
-	"vscode.dev",
-	"insiders.vscode.dev",
+export const KNOWN_CALLBACKS = [
+	"https://claude.ai/api/mcp/auth_callback",
+	"https://claude.com/api/mcp/auth_callback",
+	"https://chatgpt.com/connector_platform_oauth_redirect",
+	"https://vscode.dev/redirect",
+	"https://insiders.vscode.dev/redirect",
 ];
+const KNOWN_HOSTS = new Set(KNOWN_CALLBACKS.map((u) => new URL(u).host));
+const MAX_REDIRECT_LENGTH = 2048;
 
 export interface RedirectCheck {
 	ok: boolean;
@@ -99,12 +107,16 @@ export function checkRedirect(
 	} catch {
 		return { ok: false };
 	}
+	// RFC 6749 §3.1.2: no fragment.
+	if (redirectUri.length > MAX_REDIRECT_LENGTH || u.hash) return { ok: false };
 	const loopback =
 		(u.protocol === "http:" || u.protocol === "https:") &&
 		(u.hostname === "localhost" || u.hostname === "127.0.0.1");
 	if (u.protocol !== "https:" && !loopback) return { ok: false };
-	const known = loopback || KNOWN_CALLBACK_HOSTS.includes(u.hostname);
-	const base = { host: u.host, unknownHost: !known };
+	const base = {
+		host: u.host,
+		unknownHost: !loopback && !KNOWN_HOSTS.has(u.host),
+	};
 	const client = open(clientId, secret, CLIENT_PREFIX);
 	if (client)
 		return {
@@ -112,7 +124,7 @@ export function checkRedirect(
 			ok: loopback || (client.rus ?? []).includes(redirectUri),
 			clientName: client.n,
 		};
-	return { ...base, ok: known };
+	return { ...base, ok: loopback || KNOWN_CALLBACKS.includes(redirectUri) };
 }
 
 /** Respuesta de POST /auth/device/code de free-admin (contrato B2B). */
@@ -131,7 +143,7 @@ export function seal(payload: Sealed, secret: string, prefix: string): string {
 	const iv = randomBytes(12);
 	const cipher = createCipheriv("aes-256-gcm", keyFrom(secret), iv);
 	const ct = Buffer.concat([
-		cipher.update(JSON.stringify(payload), "utf8"),
+		cipher.update(JSON.stringify({ ...payload, t: prefix }), "utf8"),
 		cipher.final(),
 	]);
 	return (
@@ -157,6 +169,10 @@ export function open(
 		const p = JSON.parse(
 			Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString("utf8"),
 		) as Sealed;
+		// A blob sealed as one type never opens as another. Untyped payloads
+		// predate the field, and no client id was ever sealed without it.
+		if (p.t !== undefined ? p.t !== prefix : prefix === CLIENT_PREFIX)
+			return null;
 		return p.exp > Date.now() / 1000 ? p : null;
 	} catch {
 		return null;
@@ -215,7 +231,7 @@ export function consentPage(
 	// Who gets the connection. Registration is open, so client_name alone proves
 	// nothing: the destination host is what the user has to recognise.
 	const target = redirect?.host
-		? `<div class="target">Vas a conectar <b>${esc(redirect.clientName || redirect.host)}</b>.<br>Al aprobar, volverás a <b>${esc(redirect.host)}</b>.</div>${
+		? `<div class="target">Vas a conectar <b>${esc((!redirect.unknownHost && redirect.clientName) || redirect.host)}</b>.<br>Al aprobar, volverás a <b>${esc(redirect.host)}</b>.</div>${
 				redirect.unknownHost
 					? `<div class="err">Ese destino no es un cliente conocido. Continúa solo si tú iniciaste esta conexión.</div>`
 					: ""

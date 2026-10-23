@@ -71,7 +71,7 @@ const EXTERNAL_ISSUER = process.env.FT_OAUTH_ISSUER?.replace(/\/$/, "");
  */
 const OPENAI_APPS_CHALLENGE = process.env.OPENAI_APPS_CHALLENGE?.trim();
 const TOKEN_SECRET =
-	process.env.MCP_TOKEN_SECRET ??
+	process.env.MCP_TOKEN_SECRET?.trim() ||
 	(() => {
 		// Fail closed where instances are many: each one would mint its own
 		// secret and reject the tokens of the others at random.
@@ -175,9 +175,11 @@ function mintCode(
 	creds: { apiKey?: string; workspaceId?: string; adminSession?: string },
 	challenge: string,
 	redirectUri: string,
+	clientId: string,
 ): string {
 	return seal(
 		{
+			c: clientId,
 			k: creds.apiKey ?? "",
 			w: creds.workspaceId ?? "",
 			a: creds.adminSession ?? "",
@@ -322,14 +324,15 @@ export async function handleHttp(
 				redirect_uris?: unknown;
 				client_name?: unknown;
 			};
-			const uris = Array.isArray(body.redirect_uris)
-				? body.redirect_uris.filter((u): u is string => typeof u === "string")
-				: [];
-			if (
-				!uris.length ||
-				uris.length > 10 ||
-				uris.some((u) => !checkRedirect("", u, TOKEN_SECRET).host)
-			)
+			// Entries this server can never redirect to (custom schemes and the
+			// like) are dropped rather than failing the whole registration.
+			const uris = (Array.isArray(body.redirect_uris) ? body.redirect_uris : [])
+				.filter(
+					(u): u is string =>
+						typeof u === "string" && !!checkRedirect("", u, TOKEN_SECRET).host,
+				)
+				.slice(0, 10);
+			if (!uris.length)
 				return json(res, 400, {
 					error: "invalid_redirect_uri",
 					error_description:
@@ -443,6 +446,7 @@ export async function handleHttp(
 				{ apiKey: grant.access_token },
 				challenge,
 				redirectUri,
+				body.client_id ?? "",
 			);
 			return json(res, 200, {
 				redirect: redirectWithCode(redirectUri, code, state),
@@ -472,7 +476,12 @@ export async function handleHttp(
 			};
 			const error = await validateCreds(creds);
 			if (error) return html(res, consentPage(form, { error, redirect }));
-			const code = mintCode(creds, challenge, redirectUri);
+			const code = mintCode(
+				creds,
+				challenge,
+				redirectUri,
+				form.get("client_id") ?? "",
+			);
 			res
 				.writeHead(302, {
 					location: redirectWithCode(redirectUri, code, form.get("state")),
@@ -497,7 +506,9 @@ export async function handleHttp(
 					p &&
 					p.ch &&
 					pkceMatches(verifier, p.ch) &&
-					form.get("redirect_uri") === p.ru
+					form.get("redirect_uri") === p.ru &&
+					// RFC 6749 §4.1.3: the code is redeemed by the client it was issued to.
+					(p.c === undefined || form.get("client_id") === p.c)
 				)
 					sealed = p;
 			} else if (grant === "refresh_token") {

@@ -97,8 +97,16 @@ describe("checkRedirect", () => {
 
 	it("limits unsealed (legacy) client_ids to known hosts and loopback", () => {
 		expect(
-			checkRedirect("ftmcp-0123", "https://chatgpt.com/cb", SECRET).ok,
+			checkRedirect(
+				"ftmcp-0123",
+				"https://chatgpt.com/connector_platform_oauth_redirect",
+				SECRET,
+			).ok,
 		).toBe(true);
+		// Exact callbacks, not hosts: other paths on a known host are refused.
+		expect(
+			checkRedirect("ftmcp-0123", "https://vscode.dev/elsewhere", SECRET).ok,
+		).toBe(false);
 		expect(
 			checkRedirect("ftmcp-0123", "http://127.0.0.1:5173/cb", SECRET).ok,
 		).toBe(true);
@@ -106,6 +114,9 @@ describe("checkRedirect", () => {
 			checkRedirect("ftmcp-0123", "https://evil.example/cb", SECRET).ok,
 		).toBe(false);
 		expect(checkRedirect("", "javascript:alert(1)", SECRET).ok).toBe(false);
+		expect(checkRedirect("", "http://localhost/cb#frag", SECRET).ok).toBe(
+			false,
+		);
 	});
 
 	it("flags destinations that are not a known client", () => {
@@ -142,5 +153,19 @@ describe("consentPage", () => {
 		});
 		expect(page).toContain("evil.example");
 		expect(page).toContain("no es un cliente conocido");
+	});
+});
+
+describe("token types", () => {
+	it("a client id never opens as an access or refresh token", () => {
+		const id = seal(
+			{ rus: ["https://x/cb"], exp: Date.now() / 1000 + 60 },
+			SECRET,
+			CLIENT_PREFIX,
+		);
+		const swapped = (prefix: string) => prefix + id.slice(CLIENT_PREFIX.length);
+		expect(open(swapped(ACCESS_PREFIX), SECRET, ACCESS_PREFIX)).toBeNull();
+		expect(open(swapped(CODE_PREFIX), SECRET, CODE_PREFIX)).toBeNull();
+		expect(open(id, SECRET, CLIENT_PREFIX)).not.toBeNull();
 	});
 });
