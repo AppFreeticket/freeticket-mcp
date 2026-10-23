@@ -78,3 +78,129 @@ describe("/.well-known/openai-apps-challenge", () => {
 		expect(JSON.parse(out.body).resource).toContain("mcp.appfreeticket.com");
 	});
 });
+
+describe("OAuth redirect binding", () => {
+	const post = (pathname: string, body: unknown) =>
+		({
+			method: "POST",
+			url: pathname,
+			headers: { host: "mcp.appfreeticket.com" },
+			body,
+		}) as unknown as IncomingMessage;
+
+	it("/register seals the redirect_uris and /authorize refuses any other", async () => {
+		const handleHttp = await loadHandler();
+		const reg = stubRes();
+		await handleHttp(
+			post("/register", {
+				client_name: "Claude",
+				redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
+			}),
+			reg.res,
+		);
+		expect(reg.out.status).toBe(201);
+		const { client_id } = JSON.parse(reg.out.body);
+		expect(client_id.startsWith("ftcl_")).toBe(true);
+
+		const authorize = (redirect: string) =>
+			get(
+				`/authorize?${new URLSearchParams({
+					client_id,
+					redirect_uri: redirect,
+					code_challenge: "ch",
+				})}`,
+			);
+		const bad = stubRes();
+		await handleHttp(authorize("https://evil.example/cb"), bad.res);
+		expect(bad.out.status).toBe(400);
+	});
+
+	const register = async (
+		handleHttp: Awaited<ReturnType<typeof loadHandler>>,
+		redirect_uris: unknown,
+	) => {
+		const { res, out } = stubRes();
+		await handleHttp(post("/register", { redirect_uris }), res);
+		return out;
+	};
+	const GOOD = "https://claude.ai/api/mcp/auth_callback";
+	const EVIL = "https://evil.example/cb";
+
+	it("GET /authorize shows the consent page for a registered redirect", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => new Response("{}", { status: 503 })),
+		);
+		const handleHttp = await loadHandler();
+		const { client_id } = JSON.parse((await register(handleHttp, [GOOD])).body);
+		const { res, out } = stubRes();
+		await handleHttp(
+			get(
+				`/authorize?${new URLSearchParams({ client_id, redirect_uri: GOOD, code_challenge: "ch" })}`,
+			),
+			res,
+		);
+		vi.unstubAllGlobals();
+		expect(out.status).toBe(200);
+		expect(out.body).toContain("claude.ai");
+	});
+
+	it("POST /authorize and /device-token refuse an unregistered redirect", async () => {
+		const handleHttp = await loadHandler();
+		const { client_id } = JSON.parse((await register(handleHttp, [GOOD])).body);
+		const form = stubRes();
+		await handleHttp(
+			post(
+				"/authorize",
+				new URLSearchParams({
+					client_id,
+					redirect_uri: EVIL,
+					code_challenge: "ch",
+					api_key: "k",
+				}).toString(),
+			),
+			form.res,
+		);
+		expect(form.out.status).toBe(400);
+		const device = stubRes();
+		await handleHttp(
+			post("/device-token", {
+				client_id,
+				redirect_uri: EVIL,
+				code_challenge: "ch",
+				device_code: "dc",
+			}),
+			device.res,
+		);
+		expect(device.out.status).toBe(400);
+	});
+
+	it("/register drops redirect_uris it can never use", async () => {
+		const handleHttp = await loadHandler();
+		const out = await register(handleHttp, [GOOD, "cursor://cb"]);
+		expect(out.status).toBe(201);
+		expect(JSON.parse(out.body).redirect_uris).toEqual([GOOD]);
+	});
+
+	it("refuses to start on Vercel without MCP_TOKEN_SECRET", async () => {
+		const secret = process.env.MCP_TOKEN_SECRET;
+		delete process.env.MCP_TOKEN_SECRET;
+		process.env.VERCEL_ENV = "preview";
+		try {
+			await expect(loadHandler()).rejects.toThrow("MCP_TOKEN_SECRET");
+		} finally {
+			delete process.env.VERCEL_ENV;
+			if (secret !== undefined) process.env.MCP_TOKEN_SECRET = secret;
+		}
+	});
+
+	it("/register rejects non-https redirect_uris", async () => {
+		const handleHttp = await loadHandler();
+		const { res, out } = stubRes();
+		await handleHttp(
+			post("/register", { redirect_uris: ["javascript:alert(1)"] }),
+			res,
+		);
+		expect(out.status).toBe(400);
+	});
+});

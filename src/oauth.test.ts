@@ -2,7 +2,10 @@ import { createHash, randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import {
 	ACCESS_PREFIX,
+	CLIENT_PREFIX,
 	CODE_PREFIX,
+	checkRedirect,
+	consentPage,
 	open,
 	pkceMatches,
 	seal,
@@ -72,5 +75,97 @@ describe("asForm", () => {
 		expect(asForm("a=1&b=2").get("b")).toBe("2");
 		expect(asForm({ a: "1", b: "2", n: 3 }).get("b")).toBe("2");
 		expect(asForm(undefined).toString()).toBe("");
+	});
+});
+
+describe("checkRedirect", () => {
+	const client = (rus: string[]) =>
+		seal(
+			{ rus, n: "Claude", exp: Date.now() / 1000 + 60 },
+			SECRET,
+			CLIENT_PREFIX,
+		);
+
+	it("accepts only the redirect_uris sealed into the client_id", () => {
+		const id = client(["https://claude.ai/api/mcp/auth_callback"]);
+		expect(
+			checkRedirect(id, "https://claude.ai/api/mcp/auth_callback", SECRET),
+		).toMatchObject({ ok: true, clientName: "Claude", host: "claude.ai" });
+		// A legitimate client_id cannot carry the code to another host.
+		expect(checkRedirect(id, "https://evil.example/cb", SECRET).ok).toBe(false);
+	});
+
+	it("limits unsealed (legacy) client_ids to known hosts and loopback", () => {
+		expect(
+			checkRedirect(
+				"ftmcp-0123",
+				"https://chatgpt.com/connector_platform_oauth_redirect",
+				SECRET,
+			).ok,
+		).toBe(true);
+		// Exact callbacks, not hosts: other paths on a known host are refused.
+		expect(
+			checkRedirect("ftmcp-0123", "https://vscode.dev/elsewhere", SECRET).ok,
+		).toBe(false);
+		expect(
+			checkRedirect("ftmcp-0123", "http://127.0.0.1:5173/cb", SECRET).ok,
+		).toBe(true);
+		expect(
+			checkRedirect("ftmcp-0123", "https://evil.example/cb", SECRET).ok,
+		).toBe(false);
+		expect(checkRedirect("", "javascript:alert(1)", SECRET).ok).toBe(false);
+		expect(checkRedirect("", "http://localhost/cb#frag", SECRET).ok).toBe(
+			false,
+		);
+	});
+
+	it("flags destinations that are not a known client", () => {
+		const id = client(["https://my-agent.example/cb"]);
+		expect(
+			checkRedirect(id, "https://my-agent.example/cb", SECRET),
+		).toMatchObject({ ok: true, unknownHost: true });
+	});
+});
+
+describe("consentPage", () => {
+	it("cannot be broken out of its inline script by query params", () => {
+		const page = consentPage(
+			new URLSearchParams({
+				state: "</script><script>alert(1)</script>",
+				redirect_uri: "https://claude.ai/cb",
+			}),
+			{
+				device: {
+					device_code: "dc",
+					user_code: "ABCD",
+					verification_uri_complete: "https://x/verify",
+					interval: 5,
+					expires_in: 600,
+				},
+			},
+		);
+		expect(page).not.toContain("<script>alert(1)");
+	});
+
+	it("names the destination host and warns about unknown ones", () => {
+		const page = consentPage(new URLSearchParams(), {
+			redirect: { ok: true, host: "evil.example", unknownHost: true },
+		});
+		expect(page).toContain("evil.example");
+		expect(page).toContain("no es un cliente conocido");
+	});
+});
+
+describe("token types", () => {
+	it("a client id never opens as an access or refresh token", () => {
+		const id = seal(
+			{ rus: ["https://x/cb"], exp: Date.now() / 1000 + 60 },
+			SECRET,
+			CLIENT_PREFIX,
+		);
+		const swapped = (prefix: string) => prefix + id.slice(CLIENT_PREFIX.length);
+		expect(open(swapped(ACCESS_PREFIX), SECRET, ACCESS_PREFIX)).toBeNull();
+		expect(open(swapped(CODE_PREFIX), SECRET, CODE_PREFIX)).toBeNull();
+		expect(open(id, SECRET, CLIENT_PREFIX)).not.toBeNull();
 	});
 });
