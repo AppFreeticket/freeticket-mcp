@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import {
 	type Creds,
 	makeAdminClient,
@@ -42,5 +43,49 @@ export function buildServer(creds: Creds): McpServer {
 	if (creds.adminSession) {
 		registerAdminTools(server, makeAdminClient(creds));
 	}
+	annotate(server);
 	return server;
 }
+
+/**
+ * Per the MCP spec a tool without `readOnlyHint` is assumed to write, and
+ * `destructiveHint` then defaults to true: every bare read looked like a
+ * destructive write to hosts (claude.ai asks to approve each one, and the
+ * Anthropic connector directory rejects tools without hints or a title). Reads
+ * register with no annotations, writes always carry `destructiveHint`, so the
+ * rule is: no destructiveHint → read. Every tool also gets a `title`.
+ */
+function annotate(server: McpServer): void {
+	// ponytail: SDK-private map (stable through 1.x); swap for a per-call
+	// registration helper if the SDK ever hides it.
+	const tools = (
+		server as unknown as {
+			_registeredTools: Record<
+				string,
+				{ title?: string; annotations?: ToolAnnotations }
+			>;
+		}
+	)._registeredTools;
+	for (const [name, tool] of Object.entries(tools)) {
+		const a = tool.annotations ?? {};
+		const write = a.destructiveHint !== undefined;
+		tool.annotations = {
+			title: a.title ?? tool.title ?? titleOf(name),
+			readOnlyHint: !write,
+			// Reads only touch FreeTicket's own data. Writes keep the spec default
+			// (open world): refunds hit Mercado Pago, resends send email.
+			...(write
+				? {}
+				: {
+						destructiveHint: false,
+						idempotentHint: true,
+						openWorldHint: false,
+					}),
+			...a,
+		};
+	}
+}
+
+/** `admin_workspaces_get` → "Admin workspaces get". */
+const titleOf = (name: string) =>
+	name.charAt(0).toUpperCase() + name.slice(1).replaceAll("_", " ");
