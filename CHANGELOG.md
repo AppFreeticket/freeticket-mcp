@@ -5,6 +5,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-01
+
+### Fixed
+- Declare explicit read-only, destructive, idempotent and open-world annotations,
+  plus human-readable titles, for every MCP tool so directory reviewers can
+  inspect its behavior. Preserve all existing destructive-action hints.
+- Mark public ticket resend as a write because it sends an email.
+
 ## [0.15.0] - 2026-10-20
 
 Brings all three contracts in line with production: B2B 1.7.0 → **1.20.0**,

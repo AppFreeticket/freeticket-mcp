@@ -27,6 +27,7 @@ import {
 	putFeatureFlagsKey,
 } from "../admin-client/sdk.gen";
 import { run } from "../api";
+import { toolAnnotations } from "../tool-annotations";
 import { UI_META, uiTool } from "../ui";
 
 const destructive = { destructiveHint: true, idempotentHint: false } as const;
@@ -42,6 +43,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	server.tool(
 		"admin_whoami",
 		"Identity of the superadmin in the active session (GET /api/admin/me).",
+		toolAnnotations("admin_whoami", true),
 		async () => run(getMe({ client })),
 	);
 
@@ -74,6 +76,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	server.registerTool(
 		"admin_tokens",
 		{
+			annotations: toolAnnotations("admin_tokens", true),
 			description:
 				"Platform service tokens (PATs): which headless credentials exist and " +
 				"when they were used (GET /api/admin/tokens). It never returns the " +
@@ -104,6 +107,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_workspaces_get",
 		"Detalle de un workspace/tenant (GET /api/admin/workspaces/{id}).",
 		{ id: z.string().describe("Workspace id") },
+		toolAnnotations("admin_workspaces_get", true),
 		async ({ id }) => run(getWorkspacesId({ path: { id }, client })),
 	);
 	server.tool(
@@ -116,7 +120,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			country: z.string(),
 			email: z.string().email().optional().describe("Owner email"),
 		},
-		mutating,
+		toolAnnotations("admin_workspaces_create", false, mutating),
 		async (body) => run(postWorkspaces({ body, client })),
 	);
 	server.tool(
@@ -149,7 +153,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.nullish()
 				.describe("Marks the domain as verified. null reverts it."),
 		},
-		mutating,
+		toolAnnotations("admin_workspaces_update", false, mutating),
 		async ({ id, ...body }) =>
 			run(patchWorkspacesId({ path: { id }, body, client })),
 	);
@@ -159,6 +163,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			"`planSlug`/`planName` (null if none) and `stripeLinked` — check it " +
 			"before reassigning (GET /api/admin/workspaces/{id}/plan).",
 		{ id: z.string().describe("Workspace id") },
+		toolAnnotations("admin_workspaces_plan_get", true),
 		async ({ id }) => run(getWorkspacesIdPlan({ path: { id }, client })),
 	);
 	server.tool(
@@ -173,7 +178,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.enum(["spark", "star", "icon", "legend"])
 				.describe("Tier a activar (`legend` es enterprise)"),
 		},
-		destructive,
+		toolAnnotations("admin_workspaces_assign_plan", false, destructive),
 		async ({ id, ...body }) =>
 			run(postWorkspacesIdPlan({ path: { id }, body, client })),
 	);
@@ -181,7 +186,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_workspaces_suspend",
 		`Suspende un workspace/tenant (POST /api/admin/workspaces/{id}/suspend).${CONFIRM}`,
 		{ id: z.string().describe("Workspace id") },
-		destructive,
+		toolAnnotations("admin_workspaces_suspend", false, destructive),
 		async ({ id }) => run(postWorkspacesIdSuspend({ path: { id }, client })),
 	);
 	server.tool(
@@ -191,14 +196,14 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			"suspended first and have no CONFIRMED sale (409 otherwise). Does not " +
 			`cancel Stripe nor anonymize data.${CONFIRM}`,
 		{ id: z.string().describe("Workspace id") },
-		destructive,
+		toolAnnotations("admin_workspaces_delete", false, destructive),
 		async ({ id }) => run(deleteWorkspacesId({ path: { id }, client })),
 	);
 	server.tool(
 		"admin_workspaces_restore",
 		"Restaura un workspace suspendido (POST /api/admin/workspaces/{id}/restore).",
 		{ id: z.string().describe("Workspace id") },
-		mutating,
+		toolAnnotations("admin_workspaces_restore", false, mutating),
 		async ({ id }) => run(postWorkspacesIdRestore({ path: { id }, client })),
 	);
 
@@ -207,6 +212,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_users_get",
 		"Detalle de un usuario global (GET /api/admin/users/{id}).",
 		{ id: z.string().describe("User id") },
+		toolAnnotations("admin_users_get", true),
 		async ({ id }) => run(getUsersId({ path: { id }, client })),
 	);
 	server.tool(
@@ -219,7 +225,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.optional(),
 			banned: z.boolean().optional(),
 		},
-		mutating,
+		toolAnnotations("admin_users_update", false, mutating),
 		async ({ id, ...body }) =>
 			run(patchUsersId({ path: { id }, body, client })),
 	);
@@ -230,13 +236,13 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			targetUserId: z.string().optional().describe("Usuario a impersonar"),
 			workspaceId: z.string().optional().describe("Workspace de contexto"),
 		},
-		destructive,
+		toolAnnotations("admin_impersonate", false, destructive),
 		async (body) => run(postImpersonate({ body, client })),
 	);
 	server.tool(
 		"admin_impersonate_stop",
 		"Ends the active impersonation (POST /api/admin/impersonate/stop).",
-		mutating,
+		toolAnnotations("admin_impersonate_stop", false, mutating),
 		async () => run(postImpersonateStop({ client })),
 	);
 
@@ -252,6 +258,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_platform_plans_get",
 		"Detalle de un plan de plataforma (GET /api/admin/platform-plans/{id}).",
 		{ id: z.string().describe("Platform plan id") },
+		toolAnnotations("admin_platform_plans_get", true),
 		async ({ id }) => run(getPlatformPlansId({ path: { id }, client })),
 	);
 	server.tool(
@@ -276,7 +283,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			customDomain: z.boolean().optional(),
 			analytics: z.boolean().optional(),
 		},
-		mutating,
+		toolAnnotations("admin_platform_plans_create", false, mutating),
 		async (body) => run(postPlatformPlans({ body, client })),
 	);
 	server.tool(
@@ -302,7 +309,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			customDomain: z.boolean().optional(),
 			analytics: z.boolean().optional(),
 		},
-		mutating,
+		toolAnnotations("admin_platform_plans_update", false, mutating),
 		async ({ id, ...body }) =>
 			run(patchPlatformPlansId({ path: { id }, body, client })),
 	);
@@ -325,7 +332,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.describe("Plan or workspace id when scope is not global"),
 			enabled: z.boolean(),
 		},
-		mutating,
+		toolAnnotations("admin_feature_flags_set", false, mutating),
 		async ({ key, ...body }) =>
 			run(putFeatureFlagsKey({ path: { key }, body, client })),
 	);

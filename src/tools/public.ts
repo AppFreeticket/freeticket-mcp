@@ -10,6 +10,7 @@ import {
 	postOrders,
 	postTicketsCodeResend,
 } from "../public-client/sdk.gen";
+import { toolAnnotations } from "../tool-annotations";
 import { uiTool } from "../ui";
 
 /**
@@ -38,12 +39,14 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 		"public_events_get",
 		"Detalle público de un evento por slug (GET /public/events/{slug}).",
 		{ slug: z.string().describe("Event slug") },
+		toolAnnotations("public_events_get", true),
 		async ({ slug }) => run(getEventsSlug({ path: { slug }, client })),
 	);
 	server.tool(
 		"public_events_availability",
 		"Live stock per date and ticket type (GET /public/events/{slug}/availability). Check it before building an order.",
 		{ slug: z.string().describe("Event slug") },
+		toolAnnotations("public_events_availability", true),
 		async ({ slug }) =>
 			run(getEventsSlugAvailability({ path: { slug }, client })),
 	);
@@ -67,7 +70,10 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 				.min(1)
 				.describe("Tipos de ticket y cantidades"),
 		},
-		{ destructiveHint: false, idempotentHint: false },
+		toolAnnotations("public_orders_create", false, {
+			destructiveHint: false,
+			idempotentHint: false,
+		}),
 		async (body) => run(postOrders({ body, client })),
 	);
 	server.tool(
@@ -76,6 +82,7 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 		{
 			id: z.string().describe("Order id (returned by public_orders_create)"),
 		},
+		toolAnnotations("public_orders_get", true),
 		async ({ id }) => run(getOrdersId({ path: { id }, client })),
 	);
 	server.tool(
@@ -89,6 +96,7 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 				.optional()
 				.describe("Optional: must match the buyer email"),
 		},
+		toolAnnotations("public_tickets_resend", false),
 		async ({ code, email }) =>
 			run(
 				postTicketsCodeResend({

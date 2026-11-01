@@ -48,6 +48,7 @@ import {
 	getVenuesId,
 	getWebhooks,
 } from "../client/sdk.gen";
+import { toolAnnotations } from "../tool-annotations";
 import { uiTool } from "../ui";
 import { makeWorkspaceResolver, runWorkspaceList } from "../workspaces";
 
@@ -180,6 +181,7 @@ export function registerB2bTools(
 	server.tool(
 		"whoami",
 		"User and workspaces of the configured session (GET /me).",
+		toolAnnotations("whoami", true),
 		async () => run(getMe({ client })),
 	);
 
@@ -221,6 +223,7 @@ export function registerB2bTools(
 		"events_get",
 		"Detail of one event (GET /events/{id}).",
 		{ id },
+		toolAnnotations("events_get", true),
 		async ({ id }) => run(getEventsId({ path: { id }, client })),
 	);
 	uiTool(
@@ -250,6 +253,7 @@ export function registerB2bTools(
 		"ticket_types_get",
 		"Detalle de un tipo de ticket (GET /ticket-types/{id}).",
 		{ id },
+		toolAnnotations("ticket_types_get", true),
 		async ({ id }) => run(getTicketTypesId({ path: { id }, client })),
 	);
 
@@ -281,12 +285,14 @@ export function registerB2bTools(
 		"sales_get",
 		"Detail of one sale (GET /sales/{id}).",
 		{ id },
+		toolAnnotations("sales_get", true),
 		async ({ id }) => run(getSalesId({ path: { id }, client })),
 	);
 	server.tool(
 		"sales_tickets",
 		"Individual tickets and attendees of a sale (GET /sales/{id}/tickets).",
 		{ id: z.string().describe("Sale id") },
+		toolAnnotations("sales_tickets", true),
 		async ({ id }) => run(getSalesIdTickets({ path: { id }, client })),
 	);
 	server.tool(
@@ -295,12 +301,14 @@ export function registerB2bTools(
 			"refunded at the gateway (GET /sales/{id}/attempts). Answers \"why didn't " +
 			'this sale go through?".',
 		{ id: z.string().describe("Sale id") },
+		toolAnnotations("sales_attempts", true),
 		async ({ id }) => run(getSalesIdAttempts({ path: { id }, client })),
 	);
 	server.tool(
 		"tickets_access",
 		"Estado de acceso de un ticket por su código QR — no admite, solo consulta (GET /tickets/{code}/access).",
 		{ code: z.string().describe("Ticket QR code") },
+		toolAnnotations("tickets_access", true),
 		async ({ code }) =>
 			run(getTicketsTicketCodeAccess({ path: { ticketCode: code }, client })),
 	);
@@ -319,12 +327,14 @@ export function registerB2bTools(
 		"plans_get",
 		"Detalle de un plan de membresía (GET /membership-plans/{id}).",
 		{ id },
+		toolAnnotations("plans_get", true),
 		async ({ id }) => run(getMembershipPlansId({ path: { id }, client })),
 	);
 	server.tool(
 		"plans_subscribers",
 		"Suscriptores/miembros de un plan (GET /membership-plans/{id}/subscribers).",
 		{ id: z.string().describe("Plan id") },
+		toolAnnotations("plans_subscribers", true),
 		async ({ id }) =>
 			run(getMembershipPlansIdSubscribers({ path: { id }, client })),
 	);
@@ -369,12 +379,14 @@ export function registerB2bTools(
 		"venues_get",
 		"Detalle de un venue (GET /venues/{id}).",
 		{ id },
+		toolAnnotations("venues_get", true),
 		async ({ id }) => run(getVenuesId({ path: { id }, client })),
 	);
 	server.tool(
 		"staff_get",
 		"Detail of one staff member (GET /staff/{id}).",
 		{ id: z.string().describe("Member id") },
+		toolAnnotations("staff_get", true),
 		async ({ id }) => run(getStaffId({ path: { id }, client })),
 	);
 	uiTool(
@@ -541,6 +553,7 @@ export function registerB2bTools(
 		"Detail of one settlement (GET /settlements/{id}). Files via " +
 			"`settlements_document` and `settlements_proof`.",
 		{ id },
+		toolAnnotations("settlements_get", true),
 		async ({ id }) => run(getSettlementsId({ path: { id }, client })),
 	);
 	// getSettlementsIdDocument / getSettlementsIdProofsFileName: these do not
@@ -551,6 +564,7 @@ export function registerB2bTools(
 		"Download link for a settlement PDF (GET /settlements/{id}/document). " +
 			"Returns a signed URL that expires in 5 minutes — not the file.",
 		{ id },
+		toolAnnotations("settlements_document", true),
 		async ({ id }) => signedDownload(creds, `/settlements/${id}/document`),
 	);
 	server.tool(
@@ -564,6 +578,7 @@ export function registerB2bTools(
 				.string()
 				.describe("File name, exactly as the settlement lists it"),
 		},
+		toolAnnotations("settlements_proof", true),
 		async ({ id, fileName }) =>
 			signedDownload(
 				creds,
@@ -619,6 +634,7 @@ export function registerB2bTools(
 		"Identity of the buyer authenticated through headless SSO (GET /customer/me). " +
 			"Requires an enterprise service API key plus the buyer's session token.",
 		{ customerSession },
+		toolAnnotations("customer_me", true),
 		async ({ customerSession }) =>
 			run(
 				getCustomerMe({
@@ -648,17 +664,20 @@ export function registerB2bTools(
 		"reports_export_buyers",
 		"Buyer export — one row per sale (GET /reports/exports/buyers).",
 		exportFilters,
+		toolAnnotations("reports_export_buyers", true),
 		async (q) => run(getReportsExportsBuyers({ query: q, client })),
 	);
 	server.tool(
 		"reports_export_attendees",
 		"Attendee export — one row per ticket (GET /reports/exports/attendees).",
 		exportFilters,
+		toolAnnotations("reports_export_attendees", true),
 		async (q) => run(getReportsExportsAttendees({ query: q, client })),
 	);
 	server.tool(
 		"reports_export_subscribers",
 		"Export de suscriptores (GET /reports/exports/subscribers).",
+		toolAnnotations("reports_export_subscribers", true),
 		async () => run(getReportsExportsSubscribers({ client })),
 	);
 	server.tool(
@@ -678,6 +697,7 @@ export function registerB2bTools(
 				.optional(),
 			provider: z.string().optional(),
 		},
+		toolAnnotations("reports_export_reconciliation", true),
 		async (q) => run(getReportsExportsReconciliation({ query: q, client })),
 	);
 
@@ -690,6 +710,7 @@ export function registerB2bTools(
 		"Detail of one ticket held by the buyer — a deep link from the list " +
 			"(GET /customer/tickets/{id}).",
 		{ id, customerSession },
+		toolAnnotations("customer_ticket_get", true),
 		async ({ id, customerSession }) =>
 			run(
 				getCustomerTicketsId({
@@ -718,6 +739,7 @@ export function registerB2bTools(
 		"customer_profile",
 		"Profile of the buyer — name and phone (GET /customer/profile).",
 		{ customerSession },
+		toolAnnotations("customer_profile", true),
 		async ({ customerSession }) =>
 			run(
 				getCustomerProfile({
@@ -736,6 +758,7 @@ export function registerB2bTools(
 			eventDateId: z.string().optional().describe("Filter by event date"),
 			customerSession,
 		},
+		toolAnnotations("customer_order_pending", true),
 		async ({ customerSession, ...q }) =>
 			run(
 				getCustomerOrders({
@@ -754,6 +777,7 @@ export function registerB2bTools(
 			id: z.string().describe("Sale id or reference (FT-…)"),
 			customerSession,
 		},
+		toolAnnotations("customer_order_get", true),
 		async ({ id, customerSession }) =>
 			run(
 				getCustomerOrdersId({
@@ -794,6 +818,7 @@ export function registerB2bTools(
 		"content_live_get",
 		"Status of one specific live stream (GET /content/lives/{id}).",
 		{ id },
+		toolAnnotations("content_live_get", true),
 		async ({ id }) => run(getContentLivesId({ path: { id }, client })),
 	);
 }
