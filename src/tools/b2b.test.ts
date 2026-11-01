@@ -151,7 +151,7 @@ describe("tool registration", () => {
 		// tickets_reassign, staff_delete, webhooks_update, customer_order_release,
 		// content_posts_create, workspaces_create) + the 4 lineup writes from 1.25
 		// (events_artists_set|remove, events_artist_invitations_resend|cancel).
-		expect(t.length).toBe(46);
+		expect(t.length).toBe(54);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",

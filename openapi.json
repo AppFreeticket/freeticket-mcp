@@ -691,7 +691,7 @@
 				"operationId": "patchEventsId",
 				"tags": ["events"],
 				"summary": "Update an event",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nAbsent fields are left untouched. Errors (`error.code`): 409 `SLUG_TAKEN`; 422 `PULEP_REQUIRED` (only evaluated when the request changes `genre` or `pulepCode`); 422 `GENRE_OTHER_WITHOUT_OTRO` (`genreOther` sent without `genre` while the stored genre is not \"otro\"); 422 `CLASSIFICATION_CONFLICT` (the resulting genre + audience, merged with the stored values, are incompatible, e.g. \"familiar\" with an 18+ audience). `genre`/`subgenre`/`audience` are validated against the stored classification (422 `CLASSIFICATION_CONFLICT`) and then saved as manual classification facets on a best-effort basis. Publication status, the external ticketing URL and the artist lineup have their own endpoints.",
 				"security": [
 					{
 						"apiKey": []
@@ -768,6 +768,16 @@
 					},
 					"404": {
 						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -3354,6 +3364,335 @@
 					},
 					"502": {
 						"description": "The external provider failed to complete the operation.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "Service unavailable: an external dependency is down or initialization failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/sales/{id}/items/{itemId}/transfer": {
+			"post": {
+				"operationId": "postSalesIdItemsItemIdTransfer",
+				"tags": ["sales"],
+				"summary": "Transfer one ticket of a sale to another person (destructive)",
+				"description": "DESTRUCTIVE: changes the ticket holder and voids the previous QR code (the ticket code is rotated and any installed Apple Wallet pass stops working). The new holder receives the ticket by email and the buyer is notified. Same rules as the dashboard and the buyer: the recipient must already have a verified FreeTicket buyer account (the holder name comes from that account), each ticket can be transferred only once (no staff override) and only until the show starts. 422 RECIPIENT_NOT_REGISTERED / SELF_TRANSFER: fix the recipient. 409 NOT_CONFIRMED, ALREADY_TRANSFERRED, CHECKED_IN, REFUNDED, ADDON, PRESALE_NOT_TRANSFERABLE, MULTI_QUANTITY, EVENT_STARTED or CONFLICT (the ticket changed in flight; re-read and retry). Not idempotent: a retry after success answers 409 ALREADY_TRANSFERRED. Minimum role: `ADMIN`.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "itemId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/SaleItemTransferRequest"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/SaleItemTransfer"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/sales/{id}/recipient": {
+			"patch": {
+				"operationId": "patchSalesIdRecipient",
+				"tags": ["sales"],
+				"summary": "Correct the recipient of a courtesy sale and resend its tickets",
+				"description": "DESTRUCTIVE when the email changes (previous QR codes are voided). Only for courtesy sales issued from the dashboard (confirmed, `is_courtesy`); any other sale answers 404. Updates the recipient's name and email and resends the tickets to the corrected address. When the email changes, the ticket codes of the non-transferred tickets are rotated, so the QR codes sent to the wrong address stop working (`ticketCodesRotated: true`). Minimum role: `ADMIN`.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CourtesyRecipientUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CourtesyRecipient"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/event-dates/{id}/courtesy-seats": {
+			"get": {
+				"operationId": "getEventDatesIdCourtesySeats",
+				"tags": ["events"],
+				"summary": "List blocked seats that can be issued as courtesies",
+				"description": "For a numbered (seats.io) event date: the seats that are booked on the map without an order (blocked from sale by the event wizard or by hand) and are not claimed by any live sale, grouped by numbered ticket type (matched by seats.io category). These are the seats the dashboard offers when issuing a courtesy. A date without a seat map, or without numbered ticket types, returns `ticketTypes: []`. 503 SEATSIO_UNAVAILABLE (retryable) when seats.io could not be read. Minimum role: `ADMIN`.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CourtesySeats"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -8207,6 +8546,108 @@
 						}
 					}
 				}
+			},
+			"delete": {
+				"operationId": "deleteTicketsTicketCodeCheckin",
+				"tags": ["tickets"],
+				"summary": "Undo a ticket check-in (destructive)",
+				"description": "DESTRUCTIVE: reverts a door check-in so the ticket is valid again. Use it to fix a wrong scan; it is recorded in the audit log as CHECKIN_UNDO. Requires `ADMIN` (not `STAFF`): a checked-in ticket blocks cancelling its sale, and undoing the check-in reopens that path. The show's validation window does not apply. Idempotent: a ticket that is not checked in answers 200 with `undone: false`. 409 CHECKIN_CHANGED when the check-in changed between the read and the write (another undo or a new scan): re-read the ticket and retry. Minimum role: `ADMIN`.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "ticketCode",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CheckinUndoResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
 			}
 		},
 		"/tickets/{ticketCode}/access": {
@@ -11976,6 +12417,626 @@
 					}
 				}
 			}
+		},
+		"/events/{id}/schedule": {
+			"post": {
+				"operationId": "postEventsIdSchedule",
+				"tags": ["events"],
+				"summary": "Schedule a draft event",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nSend exactly one of:\n- `publishAt`: the DRAFT publishes itself at that instant (checked every ~5 minutes). Must be in the future and before at least one of the event's dates. The response's `publishAt` echoes it.\n- `saleStartsAt`: publishes the DRAFT now and opens sales at that instant, setting `saleStartsAt` on every ticket type of the upcoming dates in the same transaction. Must be in the future and before the first upcoming date.\n\nErrors (`error.code`):\n- 409 `EVENT_NOT_DRAFT`: only drafts can be scheduled (also when it got published concurrently).\n- 422 `SCHEDULE_IN_PAST`, 422 `SCHEDULE_AFTER_EVENT_DATE`.\n- 409 `NO_FUTURE_DATE`, 409 `NO_TICKET_TYPES`, 422 `TICKET_TYPE_SALE_CLOSES_BEFORE` (`saleStartsAt` only).\n- Seated (seats.io) events: 409 `SEATSIO_INVALID`, 409 `SEAT_MAP_CATEGORIES_UNCOVERED` (`error.details.zones[]`), 503 `SEAT_MAP_UNVERIFIABLE` (retryable) — same as `POST /events/{id}/publish`.\n- 409 `IDENTITY_VERIFICATION_REQUIRED` (`saleStartsAt` on a paid event of an unverified workspace). Unlike `POST /events/{id}/publish`, the event is NOT queued: retry after the verification is approved.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/EventSchedule"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Event"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "Service unavailable: an external dependency is down or initialization failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteEventsIdSchedule",
+				"tags": ["events"],
+				"summary": "Cancel a scheduled publication",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nClears the pending scheduled publication (`publishAt` becomes null). The event keeps its status. Does not undo a `saleStartsAt` schedule: edit the ticket types' `saleStartsAt` instead.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Event"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/ticket-types/{id}/presale-windows": {
+			"get": {
+				"operationId": "getTicketTypesIdPresaleWindows",
+				"tags": ["ticket-types"],
+				"summary": "List a ticket type's presale windows",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/PresaleWindow"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postTicketTypesIdPresaleWindows",
+				"tags": ["ticket-types"],
+				"summary": "Create a presale window",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nActive members of `planId` can buy this ticket type between `presaleStartsAt` and `presaleEndsAt` (instants in UTC), optionally capped by `presaleCapacity`. One window per plan and ticket type.\n\nErrors (`error.code`): 422 `PLAN_NOT_ELIGIBLE` (the plan is not an active plan of the workspace that owns the event), 422 `PRESALE_WINDOW_INVERTED` (end not after start), 409 `DUPLICATE_PLAN` (that plan already has a window on this ticket type), 403 `EVENT_SCOPE_FORBIDDEN` (key restricted to other events).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/PresaleWindowCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/PresaleWindow"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/presale-windows/{id}": {
+			"patch": {
+				"operationId": "patchPresaleWindowsId",
+				"tags": ["ticket-types"],
+				"summary": "Update a presale window",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nAbsent fields are left untouched; the start/end order is checked against the stored values.\n\nErrors (`error.code`): 422 `PLAN_NOT_ELIGIBLE` (the plan is not an active plan of the workspace that owns the event), 422 `PRESALE_WINDOW_INVERTED` (end not after start), 409 `DUPLICATE_PLAN` (that plan already has a window on this ticket type), 403 `EVENT_SCOPE_FORBIDDEN` (key restricted to other events).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/PresaleWindowUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/PresaleWindow"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deletePresaleWindowsId",
+				"tags": ["ticket-types"],
+				"summary": "Delete a presale window",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nDESTRUCTIVE: permanently deletes the window; members lose that presale access immediately. Re-creating it yields a new id.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	},
 	"components": {
@@ -12626,6 +13687,43 @@
 							"$ref": "#/components/schemas/EventArtist"
 						}
 					},
+					"publishAt": {
+						"description": "Scheduled publication instant (ISO 8601, UTC) of a DRAFT event; null = not scheduled. See `POST /events/{id}/schedule`.",
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"pulepCode": {
+						"description": "PULEP registration code (Colombian Ministry of Culture). Required for performing-arts events with capacity above 400.",
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"listedOnPortal": {
+						"description": "false = hidden from portal discovery (listings, search, home); still reachable by direct link.",
+						"type": "boolean"
+					},
+					"genreOther": {
+						"description": "Free-text event type, only when the genre is \"otro\".",
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
 					"createdAt": {
 						"type": "string"
 					},
@@ -12940,6 +14038,19 @@
 					"streamType": {
 						"type": "string"
 					},
+					"maxPerCustomer": {
+						"description": "Cumulative per-buyer cap across ALL ticket types of this date. null = no date-level cap (each ticket type's own cap applies).",
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
 					"createdAt": {
 						"type": "string"
 					}
@@ -13061,6 +14172,111 @@
 								"type": "null"
 							}
 						]
+					},
+					"slug": {
+						"description": "Public URL slug. Must be unique across live events (409 `SLUG_TAKEN`).",
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 100,
+						"pattern": "^[a-z0-9-]+$"
+					},
+					"squareImageUrl": {
+						"anyOf": [
+							{
+								"type": "string",
+								"format": "uri"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"storyImageUrl": {
+						"anyOf": [
+							{
+								"type": "string",
+								"format": "uri"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"pulepCode": {
+						"description": "PULEP code. Required (422 `PULEP_REQUIRED`) when the event is performing arts (or has no genre) and its capacity per date exceeds 400.",
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 50
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"listedOnPortal": {
+						"type": "boolean"
+					},
+					"genre": {
+						"description": "Event type from the taxonomy.",
+						"type": "string",
+						"enum": [
+							"comedia",
+							"musica",
+							"teatro",
+							"danza",
+							"cultura",
+							"familiar",
+							"fiesta",
+							"deporte",
+							"conferencia",
+							"otro"
+						]
+					},
+					"subgenre": {
+						"description": "Subtype; must belong to `genre`, which must be sent in the same request. null = no subtype.",
+						"anyOf": [
+							{
+								"type": "string",
+								"enum": [
+									"stand_up",
+									"impro",
+									"sketch",
+									"satira",
+									"rock",
+									"indie",
+									"pop",
+									"urbano",
+									"salsa",
+									"vallenato",
+									"electronica",
+									"tributo",
+									"opera",
+									"musical"
+								]
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"genreOther": {
+						"description": "Free-text type. Required when `genre` is \"otro\".",
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 60
+					},
+					"audience": {
+						"description": "Minimum age classification. null = unspecified.",
+						"anyOf": [
+							{
+								"type": "string",
+								"enum": ["todo_publico", "mayores_14", "mayores_18", "infantil"]
+							},
+							{
+								"type": "null"
+							}
+						]
 					}
 				},
 				"additionalProperties": false
@@ -13127,6 +14343,18 @@
 						"default": "PRESENCIAL",
 						"type": "string",
 						"enum": ["PRESENCIAL", "ONLINE", "HIBRIDO"]
+					},
+					"maxPerCustomer": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 10000
+							},
+							{
+								"type": "null"
+							}
+						]
 					}
 				},
 				"required": ["startsAt", "timezone"],
@@ -13196,6 +14424,18 @@
 					"status": {
 						"type": "string",
 						"enum": ["DRAFT", "PUBLISHED", "SOLD_OUT", "CANCELLED", "COMPLETED"]
+					},
+					"maxPerCustomer": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 10000
+							},
+							{
+								"type": "null"
+							}
+						]
 					}
 				},
 				"additionalProperties": false
@@ -13367,6 +14607,151 @@
 								"type": "null"
 							}
 						]
+					}
+				},
+				"additionalProperties": false
+			},
+			"EventSchedule": {
+				"type": "object",
+				"properties": {
+					"publishAt": {
+						"description": "Publish the DRAFT automatically at this instant (UTC). Must be in the future and before at least one of its dates.",
+						"type": "string",
+						"format": "date-time",
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+					},
+					"saleStartsAt": {
+						"description": "Publish the DRAFT NOW and open ticket sales at this instant (UTC): sets `saleStartsAt` on every ticket type of the upcoming dates. Must be in the future and before the first upcoming date.",
+						"type": "string",
+						"format": "date-time",
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+					}
+				},
+				"additionalProperties": false
+			},
+			"PresaleWindow": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"ticketTypeId": {
+						"type": "string"
+					},
+					"planId": {
+						"type": "string",
+						"description": "Membership plan whose active members get early access."
+					},
+					"presaleStartsAt": {
+						"type": "string"
+					},
+					"presaleEndsAt": {
+						"type": "string"
+					},
+					"presaleCapacity": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Sub-cap of tickets sellable during the presale. null = shares the ticket type's whole capacity."
+					},
+					"isActive": {
+						"type": "boolean"
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"updatedAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"ticketTypeId",
+					"planId",
+					"presaleStartsAt",
+					"presaleEndsAt",
+					"presaleCapacity",
+					"isActive",
+					"createdAt",
+					"updatedAt"
+				],
+				"additionalProperties": false
+			},
+			"PresaleWindowCreate": {
+				"type": "object",
+				"properties": {
+					"planId": {
+						"type": "string",
+						"minLength": 1
+					},
+					"presaleStartsAt": {
+						"type": "string",
+						"format": "date-time",
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+					},
+					"presaleEndsAt": {
+						"type": "string",
+						"format": "date-time",
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+					},
+					"presaleCapacity": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"isActive": {
+						"default": true,
+						"type": "boolean"
+					}
+				},
+				"required": ["planId", "presaleStartsAt", "presaleEndsAt"],
+				"additionalProperties": false
+			},
+			"PresaleWindowUpdate": {
+				"type": "object",
+				"properties": {
+					"planId": {
+						"type": "string",
+						"minLength": 1
+					},
+					"presaleStartsAt": {
+						"type": "string",
+						"format": "date-time",
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+					},
+					"presaleEndsAt": {
+						"type": "string",
+						"format": "date-time",
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+					},
+					"presaleCapacity": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"isActive": {
+						"type": "boolean"
 					}
 				},
 				"additionalProperties": false
@@ -15165,6 +16550,129 @@
 				],
 				"additionalProperties": false
 			},
+			"SaleItemTransferRequest": {
+				"type": "object",
+				"properties": {
+					"email": {
+						"type": "string",
+						"maxLength": 254,
+						"format": "email",
+						"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+					}
+				},
+				"required": ["email"],
+				"additionalProperties": false
+			},
+			"SaleItemTransfer": {
+				"type": "object",
+				"properties": {
+					"saleId": {
+						"type": "string"
+					},
+					"itemId": {
+						"type": "string"
+					},
+					"ticketCode": {
+						"type": "string",
+						"description": "New ticket code (the previous QR is void)."
+					},
+					"holderName": {
+						"type": "string"
+					},
+					"holderEmail": {
+						"type": "string"
+					},
+					"transferredAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"saleId",
+					"itemId",
+					"ticketCode",
+					"holderName",
+					"holderEmail",
+					"transferredAt"
+				],
+				"additionalProperties": false
+			},
+			"CourtesyRecipientUpdate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 2,
+						"maxLength": 120
+					},
+					"email": {
+						"type": "string",
+						"maxLength": 254,
+						"format": "email",
+						"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+					}
+				},
+				"required": ["name", "email"],
+				"additionalProperties": false
+			},
+			"CourtesyRecipient": {
+				"type": "object",
+				"properties": {
+					"saleId": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"email": {
+						"type": "string"
+					},
+					"resent": {
+						"type": "boolean"
+					},
+					"ticketCodesRotated": {
+						"type": "boolean",
+						"description": "true when the email changed: the previous QR codes are void (transferred tickets keep theirs)."
+					}
+				},
+				"required": ["saleId", "name", "email", "resent", "ticketCodesRotated"],
+				"additionalProperties": false
+			},
+			"CourtesySeats": {
+				"type": "object",
+				"properties": {
+					"eventDateId": {
+						"type": "string"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"ticketTypes": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"ticketTypeId": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								},
+								"labels": {
+									"type": "array",
+									"items": {
+										"type": "string"
+									},
+									"description": "Blocked seat labels of this ticket type's category that no live sale claims, in natural order."
+								}
+							},
+							"required": ["ticketTypeId", "name", "labels"],
+							"additionalProperties": false
+						}
+					}
+				},
+				"required": ["eventDateId", "eventId", "ticketTypes"],
+				"additionalProperties": false
+			},
 			"ReportByEventRow": {
 				"type": "object",
 				"properties": {
@@ -16212,6 +17720,45 @@
 						]
 					}
 				},
+				"additionalProperties": false
+			},
+			"CheckinUndoResult": {
+				"type": "object",
+				"properties": {
+					"ticketCode": {
+						"type": "string"
+					},
+					"undone": {
+						"type": "boolean",
+						"description": "true when this call reverted the check-in; false when the ticket was not checked in (idempotent no-op)."
+					},
+					"previousCheckedInAt": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"previousCheckedInBy": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"ticketCode",
+					"undone",
+					"previousCheckedInAt",
+					"previousCheckedInBy"
+				],
 				"additionalProperties": false
 			},
 			"TicketAccess": {

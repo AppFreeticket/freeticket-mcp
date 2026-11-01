@@ -6,8 +6,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 ## [Unreleased]
 
 B2B contract 1.20.0 → **1.25.0** (synced from free-admin's
-`feat/api-v1-lineup` branch, AppFreeticket/free-admin#1155 — not deployed yet).
-Additions only. **124 tools** (B2B 95 · superadmin 23 · public 6).
+`feat/api-v1-lineup`, `feat/api-v1-p1-ops` and `feat/api-v1-p1-ops-tickets`
+branches, AppFreeticket/free-admin#1155, #1157 and #1156 — not deployed yet).
+Additions only. **134 tools** (B2B 105 · superadmin 23 · public 6).
 
 ### Added
 - Event lineup: `artists_search` (read-only; resolves artist names to ids),
@@ -20,6 +21,18 @@ Additions only. **124 tools** (B2B 95 · superadmin 23 · public 6).
   asks for confirmation).
 - `waitlist_list` (read-only): the enterprise landing's waitlist, new in 1.21+.
   `POST /waitlist` stays out on purpose (server-to-server sign-up).
+- Scheduled publication: `events_schedule` (`publishAt` or `saleStartsAt`,
+  exactly one) and `events_unschedule`.
+- Presale windows: `presale_windows_list` (read-only), `presale_windows_create`,
+  `presale_windows_update` (idempotent) and `presale_windows_delete`
+  (destructive, asks for confirmation).
+- Ticket operations: `sales_transfer` (destructive, not idempotent),
+  `tickets_checkin_undo` (destructive + idempotent), `sales_recipient_update`
+  (destructive: a new email voids the courtesy's QRs) — all ask for
+  confirmation — and `event_dates_courtesy_seats` (read-only).
+- `events_update` accepts `slug`, `squareImageUrl`, `storyImageUrl`,
+  `pulepCode`, `listedOnPortal`, `genre`, `subgenre`, `genreOther` and
+  `audience`; `event_dates_create`/`event_dates_update` accept `maxPerCustomer`.
 - `uiTool` now accepts tool annotations, so list tools can declare
   `readOnlyHint`.
 

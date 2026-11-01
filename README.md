@@ -128,9 +128,9 @@ confirmation.
 | Domain | Reads | Writes |
 |---|---|---|
 | Session | `whoami` | `workspaces_create` |
-| Events | `events_list` · `events_get` · `event_dates_list` · `artists_search` · `events_artist_invitations_list` | `events_create` · `events_update` · `events_publish` · `events_cancel` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` · `events_artists_set` · `events_artists_remove` · `events_artist_invitations_resend` · `events_artist_invitations_cancel` |
-| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_reassign` · `tickets_resend` |
-| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` | `sales_create` · `sales_cancel` · `sales_refund` |
+| Events | `events_list` · `events_get` · `event_dates_list` · `artists_search` · `events_artist_invitations_list` · `event_dates_courtesy_seats` | `events_create` · `events_update` · `events_publish` · `events_cancel` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` · `events_artists_set` · `events_artists_remove` · `events_artist_invitations_resend` · `events_artist_invitations_cancel` · `events_schedule` · `events_unschedule` |
+| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` · `presale_windows_list` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_checkin_undo` · `tickets_reassign` · `tickets_resend` · `presale_windows_create` · `presale_windows_update` · `presale_windows_delete` |
+| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` | `sales_create` · `sales_cancel` · `sales_refund` · `sales_transfer` · `sales_recipient_update` |
 | Memberships | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
 | Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` · `staff_get` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_update` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` · `staff_delete` |
 | Waitlist | `waitlist_list` | — |

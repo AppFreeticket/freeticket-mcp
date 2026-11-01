@@ -8,8 +8,11 @@ import {
 	deleteEventsIdArtistInvitationsInvitationId,
 	deleteEventsIdArtistsOrganizationId,
 	deleteEventsIdDatesDateId,
+	deleteEventsIdSchedule,
 	deleteMembershipPlansId,
+	deletePresaleWindowsId,
 	deleteStaffId,
+	deleteTicketsTicketCodeCheckin,
 	deleteTicketTypesId,
 	deleteVenuesId,
 	deleteWebhooksId,
@@ -18,6 +21,8 @@ import {
 	patchEventsId,
 	patchEventsIdDatesDateId,
 	patchMembershipPlansId,
+	patchPresaleWindowsId,
+	patchSalesIdRecipient,
 	patchStaffIdRole,
 	patchTicketsTicketCode,
 	patchTicketTypesId,
@@ -36,15 +41,18 @@ import {
 	postEventsIdCancel,
 	postEventsIdDates,
 	postEventsIdPublish,
+	postEventsIdSchedule,
 	postMembershipPlans,
 	postSales,
 	postSalesIdCancel,
+	postSalesIdItemsItemIdTransfer,
 	postSalesIdRefund,
 	postStaff,
 	postSubscriptionsIdCancel,
 	postTicketsTicketCodeCheckin,
 	postTicketsTicketCodeResend,
 	postTicketTypes,
+	postTicketTypesIdPresaleWindows,
 	postVenues,
 	postWebhooks,
 	postWorkspaces,
@@ -55,6 +63,11 @@ import {
 const destructive = { destructiveHint: true, idempotentHint: false } as const;
 /** Creates/publish: no borran datos, pero mutan. */
 const mutating = { destructiveHint: false, idempotentHint: false } as const;
+/** Mutates, and repeating the same call lands in the same state. */
+const mutatingIdempotent = {
+	destructiveHint: false,
+	idempotentHint: true,
+} as const;
 /** Removes data, but repeating the same call lands in the same state. */
 const destructiveIdempotent = {
 	destructiveHint: true,
@@ -102,6 +115,58 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			description: z.string().nullish(),
 			venueId: z.string().nullish(),
 			coverImageUrl: z.string().nullish(),
+			slug: z.string().optional().describe("Public URL slug (409 if taken)"),
+			squareImageUrl: z.string().nullish().describe("1:1 image URL"),
+			storyImageUrl: z.string().nullish().describe("9:16 image URL"),
+			pulepCode: z
+				.string()
+				.nullish()
+				.describe(
+					"PULEP code (Colombia). Required for performing arts with capacity over 400",
+				),
+			listedOnPortal: z
+				.boolean()
+				.optional()
+				.describe("Show the event on the public portal listings"),
+			genre: z
+				.enum([
+					"comedia",
+					"musica",
+					"teatro",
+					"danza",
+					"cultura",
+					"familiar",
+					"fiesta",
+					"deporte",
+					"conferencia",
+					"otro",
+				])
+				.optional(),
+			subgenre: z
+				.enum([
+					"stand_up",
+					"impro",
+					"sketch",
+					"satira",
+					"rock",
+					"indie",
+					"pop",
+					"urbano",
+					"salsa",
+					"vallenato",
+					"electronica",
+					"tributo",
+					"opera",
+					"musical",
+				])
+				.nullish(),
+			genreOther: z
+				.string()
+				.optional()
+				.describe('Free-text genre when genre is "otro"'),
+			audience: z
+				.enum(["todo_publico", "mayores_14", "mayores_18", "infantil"])
+				.nullish(),
 		},
 		mutating,
 		async ({ id, ...body }) =>
@@ -221,6 +286,161 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 				}),
 			),
 	);
+	// ── Dashboard parity (contract 1.25.0) ──────────────────────────────────
+	server.tool(
+		"events_schedule",
+		"Schedules a DRAFT event (POST /events/{id}/schedule). Send exactly one: " +
+			"`publishAt` publishes it automatically at that UTC instant (checked " +
+			"every ~5 min; future and before one of its dates), or `saleStartsAt` " +
+			"publishes it NOW and opens sales at that instant on every upcoming " +
+			"ticket type. 409 EVENT_NOT_DRAFT: re-read the event, it is no longer " +
+			"a draft. 422 SCHEDULE_IN_PAST / SCHEDULE_AFTER_EVENT_DATE: fix the date.",
+		{
+			id: z.string().describe("Event id"),
+			publishAt: z
+				.string()
+				.datetime()
+				.optional()
+				.describe("Publish automatically at this instant (UTC, ISO 8601)"),
+			saleStartsAt: z
+				.string()
+				.datetime()
+				.optional()
+				.describe("Publish now; open sales at this instant (UTC, ISO 8601)"),
+		},
+		mutating,
+		async ({ id, publishAt, saleStartsAt }) =>
+			run(
+				postEventsIdSchedule({
+					path: { id },
+					body: publishAt ? { publishAt } : { saleStartsAt },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"events_unschedule",
+		"Cancels a pending scheduled publication (DELETE /events/{id}/schedule): " +
+			"`publishAt` becomes null and the event keeps its status. It does not " +
+			"undo a `saleStartsAt` schedule: edit the ticket types' `saleStartsAt`.",
+		{ id: z.string().describe("Event id") },
+		mutatingIdempotent,
+		async ({ id }) => run(deleteEventsIdSchedule({ path: { id }, client })),
+	);
+	server.tool(
+		"presale_windows_create",
+		"Opens a membership presale window on a ticket type " +
+			"(POST /ticket-types/{id}/presale-windows): active members of `planId` " +
+			"can buy between `presaleStartsAt` and `presaleEndsAt`. One window per " +
+			"plan and ticket type (409 DUPLICATE_PLAN: update the existing one). " +
+			"422 PLAN_NOT_ELIGIBLE: the plan must be an active plan of the " +
+			"workspace that owns the event.",
+		{
+			ticketTypeId: z.string().describe("Ticket type id"),
+			planId: z.string().min(1).describe("Membership plan id"),
+			presaleStartsAt: z.string().datetime().describe("Start (UTC, ISO 8601)"),
+			presaleEndsAt: z.string().datetime().describe("End (UTC), after start"),
+			presaleCapacity: z
+				.number()
+				.int()
+				.positive()
+				.nullish()
+				.describe("Max tickets sold in the presale (null = no cap)"),
+			isActive: z.boolean().optional(),
+		},
+		mutating,
+		async ({ ticketTypeId, ...body }) =>
+			run(
+				postTicketTypesIdPresaleWindows({
+					path: { id: ticketTypeId },
+					body,
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"presale_windows_update",
+		"Edits a presale window (PATCH /presale-windows/{id}); absent fields are " +
+			"left untouched. 422 PRESALE_WINDOW_INVERTED: the end must be after the start.",
+		{
+			id: z.string().describe("Presale window id"),
+			planId: z.string().min(1).optional(),
+			presaleStartsAt: z.string().datetime().optional(),
+			presaleEndsAt: z.string().datetime().optional(),
+			presaleCapacity: z.number().int().positive().nullish(),
+			isActive: z.boolean().optional(),
+		},
+		mutatingIdempotent,
+		async ({ id, ...body }) =>
+			run(patchPresaleWindowsId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"presale_windows_delete",
+		"Deletes a presale window (DELETE /presale-windows/{id}); the plan's " +
+			`members lose that presale access immediately.${CONFIRM}`,
+		{ id: z.string().describe("Presale window id") },
+		destructive,
+		async ({ id }) => run(deletePresaleWindowsId({ path: { id }, client })),
+	);
+	server.tool(
+		"sales_transfer",
+		"Transfers ONE ticket of a sale to another person " +
+			"(POST /sales/{id}/items/{itemId}/transfer). Voids the previous QR and " +
+			"emails the new holder. The recipient must already have a verified " +
+			"FreeTicket buyer account; each ticket transfers only once, until the " +
+			"show starts. 422 RECIPIENT_NOT_REGISTERED / SELF_TRANSFER: ask the " +
+			"human for a different email. 409 CONFLICT: re-read the sale and retry. " +
+			`Not idempotent: do not retry after success.${CONFIRM}`,
+		{
+			saleId: z.string().describe("Sale id"),
+			itemId: z.string().describe("Sale item (ticket) id, from sales_tickets"),
+			email: z.string().email().describe("Recipient's FreeTicket email"),
+		},
+		destructive,
+		async ({ saleId, itemId, email }) =>
+			run(
+				postSalesIdItemsItemIdTransfer({
+					path: { id: saleId, itemId },
+					body: { email },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"tickets_checkin_undo",
+		"Undoes a door check-in so the ticket is valid again " +
+			"(DELETE /tickets/{code}/checkin), to fix a wrong scan. Requires ADMIN. " +
+			"Idempotent: a ticket that is not checked in answers `undone: false`. " +
+			"409 CHECKIN_CHANGED: re-read the ticket (tickets_access) and retry." +
+			CONFIRM,
+		{ code: z.string().describe("Ticket QR code") },
+		destructiveIdempotent,
+		async ({ code }) =>
+			run(
+				deleteTicketsTicketCodeCheckin({ path: { ticketCode: code }, client }),
+			),
+	);
+	server.tool(
+		"sales_recipient_update",
+		"Corrects the recipient of a dashboard-issued courtesy sale and resends " +
+			"its tickets (PATCH /sales/{id}/recipient). If the email changes, the " +
+			"QRs already sent are voided (`ticketCodesRotated: true`). Any non-" +
+			`courtesy sale answers 404.${CONFIRM}`,
+		{
+			saleId: z.string().describe("Courtesy sale id"),
+			name: z.string().min(2).max(120).describe("Recipient name"),
+			email: z.string().email().describe("Recipient email"),
+		},
+		destructive,
+		async ({ saleId, name, email }) =>
+			run(
+				patchSalesIdRecipient({
+					path: { id: saleId },
+					body: { name, email },
+					client,
+				}),
+			),
+	);
 	server.tool(
 		"event_dates_create",
 		"Adds a date to an event (POST /events/{id}/dates).",
@@ -238,6 +458,14 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 				.nullish()
 				.describe("Apertura de puertas (ISO 8601)"),
 			venueId: z.string().nullish().describe("Venue de esta función"),
+			maxPerCustomer: z
+				.number()
+				.int()
+				.positive()
+				.nullish()
+				.describe(
+					"Max tickets one buyer can hold for this date (null = no cap)",
+				),
 		},
 		mutating,
 		async ({ eventId, ...body }) =>
@@ -258,6 +486,14 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			timezone: z.string().optional(),
 			label: z.string().max(200).nullish(),
 			venueId: z.string().nullish(),
+			maxPerCustomer: z
+				.number()
+				.int()
+				.positive()
+				.nullish()
+				.describe(
+					"Max tickets one buyer can hold for this date (null = no cap)",
+				),
 		},
 		mutating,
 		async ({ eventId, dateId, ...body }) =>

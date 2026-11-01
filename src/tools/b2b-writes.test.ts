@@ -42,6 +42,10 @@ const DESTRUCTIVE = [
 	"customer_order_release",
 	"events_artists_remove",
 	"events_artist_invitations_cancel",
+	"presale_windows_delete",
+	"sales_transfer",
+	"tickets_checkin_undo",
+	"sales_recipient_update",
 ];
 
 describe("writes destructivos", () => {
@@ -113,5 +117,41 @@ describe("lineup tools (contract 1.25.0)", () => {
 
 	it("events_artists_set warns that it replaces the whole lineup", () => {
 		expect(all().events_artists_set.description).toMatch(/FULL list/);
+	});
+});
+
+describe("dashboard-parity tools (contract 1.25.0)", () => {
+	const tools = {
+		...(() => {
+			const server = new McpServer({ name: "t", version: "0.0.0" });
+			registerB2bTools(server, stub, {
+				apiUrl: "http://localhost",
+				apiKey: "test",
+			});
+			return (
+				server as unknown as { _registeredTools: Record<string, Registered> }
+			)._registeredTools;
+		})(),
+		...registered(),
+	} as Record<
+		string,
+		Registered & { annotations?: { readOnlyHint?: boolean } }
+	>;
+
+	// Annotation table from free-admin#1156/#1157: the host's confirmation gate
+	// and its retry policy both hang off these hints.
+	it.each([
+		["events_schedule", { destructiveHint: false }],
+		["events_unschedule", { destructiveHint: false }],
+		["presale_windows_list", { readOnlyHint: true }],
+		["presale_windows_create", { destructiveHint: false }],
+		["presale_windows_update", { destructiveHint: false }],
+		["presale_windows_delete", { destructiveHint: true }],
+		["sales_transfer", { destructiveHint: true, idempotentHint: false }],
+		["tickets_checkin_undo", { destructiveHint: true, idempotentHint: true }],
+		["sales_recipient_update", { destructiveHint: true }],
+		["event_dates_courtesy_seats", { readOnlyHint: true }],
+	])("%s carries %j", (name, hints) => {
+		expect(tools[name]?.annotations).toMatchObject(hints);
 	});
 });

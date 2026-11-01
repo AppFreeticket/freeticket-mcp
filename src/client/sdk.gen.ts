@@ -25,12 +25,21 @@ import type {
 	DeleteEventsIdDatesDateIdResponse,
 	DeleteEventsIdError,
 	DeleteEventsIdResponse,
+	DeleteEventsIdScheduleData,
+	DeleteEventsIdScheduleError,
+	DeleteEventsIdScheduleResponse,
 	DeleteMembershipPlansIdData,
 	DeleteMembershipPlansIdError,
 	DeleteMembershipPlansIdResponse,
+	DeletePresaleWindowsIdData,
+	DeletePresaleWindowsIdError,
+	DeletePresaleWindowsIdResponse,
 	DeleteStaffIdData,
 	DeleteStaffIdError,
 	DeleteStaffIdResponse,
+	DeleteTicketsTicketCodeCheckinData,
+	DeleteTicketsTicketCodeCheckinError,
+	DeleteTicketsTicketCodeCheckinResponse,
 	DeleteTicketTypesIdData,
 	DeleteTicketTypesIdError,
 	DeleteTicketTypesIdResponse,
@@ -85,6 +94,9 @@ import type {
 	GetDiscountsData,
 	GetDiscountsError,
 	GetDiscountsResponse,
+	GetEventDatesIdCourtesySeatsData,
+	GetEventDatesIdCourtesySeatsError,
+	GetEventDatesIdCourtesySeatsResponse,
 	GetEventsData,
 	GetEventsError,
 	GetEventsIdArtistInvitationsData,
@@ -174,6 +186,9 @@ import type {
 	GetTicketTypesError,
 	GetTicketTypesIdData,
 	GetTicketTypesIdError,
+	GetTicketTypesIdPresaleWindowsData,
+	GetTicketTypesIdPresaleWindowsError,
+	GetTicketTypesIdPresaleWindowsResponse,
 	GetTicketTypesIdResponse,
 	GetTicketTypesResponse,
 	GetVenuesData,
@@ -203,6 +218,12 @@ import type {
 	PatchMembershipPlansIdData,
 	PatchMembershipPlansIdError,
 	PatchMembershipPlansIdResponse,
+	PatchPresaleWindowsIdData,
+	PatchPresaleWindowsIdError,
+	PatchPresaleWindowsIdResponse,
+	PatchSalesIdRecipientData,
+	PatchSalesIdRecipientError,
+	PatchSalesIdRecipientResponse,
 	PatchStaffIdRoleData,
 	PatchStaffIdRoleError,
 	PatchStaffIdRoleResponse,
@@ -294,6 +315,9 @@ import type {
 	PostEventsIdPublishData,
 	PostEventsIdPublishError,
 	PostEventsIdPublishResponse,
+	PostEventsIdScheduleData,
+	PostEventsIdScheduleError,
+	PostEventsIdScheduleResponse,
 	PostEventsResponse,
 	PostMembershipPlansData,
 	PostMembershipPlansError,
@@ -303,6 +327,9 @@ import type {
 	PostSalesIdCancelData,
 	PostSalesIdCancelError,
 	PostSalesIdCancelResponse,
+	PostSalesIdItemsItemIdTransferData,
+	PostSalesIdItemsItemIdTransferError,
+	PostSalesIdItemsItemIdTransferResponse,
 	PostSalesIdRefundData,
 	PostSalesIdRefundError,
 	PostSalesIdRefundResponse,
@@ -321,6 +348,9 @@ import type {
 	PostTicketsTicketCodeResendResponse,
 	PostTicketTypesData,
 	PostTicketTypesError,
+	PostTicketTypesIdPresaleWindowsData,
+	PostTicketTypesIdPresaleWindowsError,
+	PostTicketTypesIdPresaleWindowsResponse,
 	PostTicketTypesResponse,
 	PostVenuesData,
 	PostVenuesError,
@@ -590,6 +620,8 @@ export const getEventsId = <ThrowOnError extends boolean = false>(
 /**
  * Update an event
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Absent fields are left untouched. Errors (`error.code`): 409 `SLUG_TAKEN`; 422 `PULEP_REQUIRED` (only evaluated when the request changes `genre` or `pulepCode`); 422 `GENRE_OTHER_WITHOUT_OTRO` (`genreOther` sent without `genre` while the stored genre is not "otro"); 422 `CLASSIFICATION_CONFLICT` (the resulting genre + audience, merged with the stored values, are incompatible, e.g. "familiar" with an 18+ audience). `genre`/`subgenre`/`audience` are validated against the stored classification (422 `CLASSIFICATION_CONFLICT`) and then saved as manual classification facets on a best-effort basis. Publication status, the external ticketing URL and the artist lineup have their own endpoints.
  */
 export const patchEventsId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchEventsIdData, ThrowOnError>,
@@ -1287,6 +1319,99 @@ export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
 			"Content-Type": "application/json",
 			...options?.headers,
 		},
+	});
+};
+
+/**
+ * Transfer one ticket of a sale to another person (destructive)
+ * DESTRUCTIVE: changes the ticket holder and voids the previous QR code (the ticket code is rotated and any installed Apple Wallet pass stops working). The new holder receives the ticket by email and the buyer is notified. Same rules as the dashboard and the buyer: the recipient must already have a verified FreeTicket buyer account (the holder name comes from that account), each ticket can be transferred only once (no staff override) and only until the show starts. 422 RECIPIENT_NOT_REGISTERED / SELF_TRANSFER: fix the recipient. 409 NOT_CONFIRMED, ALREADY_TRANSFERRED, CHECKED_IN, REFUNDED, ADDON, PRESALE_NOT_TRANSFERABLE, MULTI_QUANTITY, EVENT_STARTED or CONFLICT (the ticket changed in flight; re-read and retry). Not idempotent: a retry after success answers 409 ALREADY_TRANSFERRED. Minimum role: `ADMIN`.
+ */
+export const postSalesIdItemsItemIdTransfer = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostSalesIdItemsItemIdTransferData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSalesIdItemsItemIdTransferResponse,
+		PostSalesIdItemsItemIdTransferError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/items/{itemId}/transfer",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Correct the recipient of a courtesy sale and resend its tickets
+ * DESTRUCTIVE when the email changes (previous QR codes are voided). Only for courtesy sales issued from the dashboard (confirmed, `is_courtesy`); any other sale answers 404. Updates the recipient's name and email and resends the tickets to the corrected address. When the email changes, the ticket codes of the non-transferred tickets are rotated, so the QR codes sent to the wrong address stop working (`ticketCodesRotated: true`). Minimum role: `ADMIN`.
+ */
+export const patchSalesIdRecipient = <ThrowOnError extends boolean = false>(
+	options: Options<PatchSalesIdRecipientData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchSalesIdRecipientResponse,
+		PatchSalesIdRecipientError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/recipient",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List blocked seats that can be issued as courtesies
+ * For a numbered (seats.io) event date: the seats that are booked on the map without an order (blocked from sale by the event wizard or by hand) and are not claimed by any live sale, grouped by numbered ticket type (matched by seats.io category). These are the seats the dashboard offers when issuing a courtesy. A date without a seat map, or without numbered ticket types, returns `ticketTypes: []`. 503 SEATSIO_UNAVAILABLE (retryable) when seats.io could not be read. Minimum role: `ADMIN`.
+ */
+export const getEventDatesIdCourtesySeats = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetEventDatesIdCourtesySeatsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventDatesIdCourtesySeatsResponse,
+		GetEventDatesIdCourtesySeatsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/event-dates/{id}/courtesy-seats",
+		...options,
 	});
 };
 
@@ -2528,6 +2653,35 @@ export const postTicketsTicketCodeResend = <
 };
 
 /**
+ * Undo a ticket check-in (destructive)
+ * DESTRUCTIVE: reverts a door check-in so the ticket is valid again. Use it to fix a wrong scan; it is recorded in the audit log as CHECKIN_UNDO. Requires `ADMIN` (not `STAFF`): a checked-in ticket blocks cancelling its sale, and undoing the check-in reopens that path. The show's validation window does not apply. Idempotent: a ticket that is not checked in answers 200 with `undone: false`. 409 CHECKIN_CHANGED when the check-in changed between the read and the write (another undo or a new scan): re-read the ticket and retry. Minimum role: `ADMIN`.
+ */
+export const deleteTicketsTicketCodeCheckin = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<DeleteTicketsTicketCodeCheckinData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteTicketsTicketCodeCheckinResponse,
+		DeleteTicketsTicketCodeCheckinError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/tickets/{ticketCode}/checkin",
+		...options,
+	});
+};
+
+/**
  * Check in a ticket at the door
  * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header.
  */
@@ -3551,6 +3705,207 @@ export const postWaitlist = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/waitlist",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Cancel a scheduled publication
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Clears the pending scheduled publication (`publishAt` becomes null). The event keeps its status. Does not undo a `saleStartsAt` schedule: edit the ticket types' `saleStartsAt` instead.
+ */
+export const deleteEventsIdSchedule = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteEventsIdScheduleData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteEventsIdScheduleResponse,
+		DeleteEventsIdScheduleError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/schedule",
+		...options,
+	});
+};
+
+/**
+ * Schedule a draft event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Send exactly one of:
+ * - `publishAt`: the DRAFT publishes itself at that instant (checked every ~5 minutes). Must be in the future and before at least one of the event's dates. The response's `publishAt` echoes it.
+ * - `saleStartsAt`: publishes the DRAFT now and opens sales at that instant, setting `saleStartsAt` on every ticket type of the upcoming dates in the same transaction. Must be in the future and before the first upcoming date.
+ *
+ * Errors (`error.code`):
+ * - 409 `EVENT_NOT_DRAFT`: only drafts can be scheduled (also when it got published concurrently).
+ * - 422 `SCHEDULE_IN_PAST`, 422 `SCHEDULE_AFTER_EVENT_DATE`.
+ * - 409 `NO_FUTURE_DATE`, 409 `NO_TICKET_TYPES`, 422 `TICKET_TYPE_SALE_CLOSES_BEFORE` (`saleStartsAt` only).
+ * - Seated (seats.io) events: 409 `SEATSIO_INVALID`, 409 `SEAT_MAP_CATEGORIES_UNCOVERED` (`error.details.zones[]`), 503 `SEAT_MAP_UNVERIFIABLE` (retryable) — same as `POST /events/{id}/publish`.
+ * - 409 `IDENTITY_VERIFICATION_REQUIRED` (`saleStartsAt` on a paid event of an unverified workspace). Unlike `POST /events/{id}/publish`, the event is NOT queued: retry after the verification is approved.
+ */
+export const postEventsIdSchedule = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdScheduleData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdScheduleResponse,
+		PostEventsIdScheduleError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/schedule",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List a ticket type's presale windows
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const getTicketTypesIdPresaleWindows = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetTicketTypesIdPresaleWindowsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetTicketTypesIdPresaleWindowsResponse,
+		GetTicketTypesIdPresaleWindowsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/ticket-types/{id}/presale-windows",
+		...options,
+	});
+};
+
+/**
+ * Create a presale window
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Active members of `planId` can buy this ticket type between `presaleStartsAt` and `presaleEndsAt` (instants in UTC), optionally capped by `presaleCapacity`. One window per plan and ticket type.
+ *
+ * Errors (`error.code`): 422 `PLAN_NOT_ELIGIBLE` (the plan is not an active plan of the workspace that owns the event), 422 `PRESALE_WINDOW_INVERTED` (end not after start), 409 `DUPLICATE_PLAN` (that plan already has a window on this ticket type), 403 `EVENT_SCOPE_FORBIDDEN` (key restricted to other events).
+ */
+export const postTicketTypesIdPresaleWindows = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostTicketTypesIdPresaleWindowsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostTicketTypesIdPresaleWindowsResponse,
+		PostTicketTypesIdPresaleWindowsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/ticket-types/{id}/presale-windows",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Delete a presale window
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * DESTRUCTIVE: permanently deletes the window; members lose that presale access immediately. Re-creating it yields a new id.
+ */
+export const deletePresaleWindowsId = <ThrowOnError extends boolean = false>(
+	options: Options<DeletePresaleWindowsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeletePresaleWindowsIdResponse,
+		DeletePresaleWindowsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/presale-windows/{id}",
+		...options,
+	});
+};
+
+/**
+ * Update a presale window
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Absent fields are left untouched; the start/end order is checked against the stored values.
+ *
+ * Errors (`error.code`): 422 `PLAN_NOT_ELIGIBLE` (the plan is not an active plan of the workspace that owns the event), 422 `PRESALE_WINDOW_INVERTED` (end not after start), 409 `DUPLICATE_PLAN` (that plan already has a window on this ticket type), 403 `EVENT_SCOPE_FORBIDDEN` (key restricted to other events).
+ */
+export const patchPresaleWindowsId = <ThrowOnError extends boolean = false>(
+	options: Options<PatchPresaleWindowsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchPresaleWindowsIdResponse,
+		PatchPresaleWindowsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/presale-windows/{id}",
 		...options,
 		headers: {
 			"Content-Type": "application/json",

@@ -17,6 +17,7 @@ import {
 	getCustomerTickets,
 	getCustomerTicketsId,
 	getDiscounts,
+	getEventDatesIdCourtesySeats,
 	getEvents,
 	getEventsId,
 	getEventsIdArtistInvitations,
@@ -46,6 +47,7 @@ import {
 	getTicketsTicketCodeAccess,
 	getTicketTypes,
 	getTicketTypesId,
+	getTicketTypesIdPresaleWindows,
 	getVenues,
 	getVenuesId,
 	getWaitlist,
@@ -262,6 +264,35 @@ export function registerB2bTools(
 		async ({ eventId }) =>
 			run(getEventsIdArtistInvitations({ path: { id: eventId }, client })),
 		readOnly,
+	);
+	// ── Dashboard-parity reads (contract 1.25.0) ────────────────────────────
+	uiTool(
+		server,
+		"presale_windows_list",
+		"Lists a ticket type's membership presale windows " +
+			"(GET /ticket-types/{id}/presale-windows): which plan's members can buy " +
+			"it early, between which UTC instants, and the optional presale cap. " +
+			"One window per plan and ticket type.",
+		{ ticketTypeId: z.string().describe("Ticket type id") },
+		async ({ ticketTypeId }) =>
+			run(
+				getTicketTypesIdPresaleWindows({
+					path: { id: ticketTypeId },
+					client,
+				}),
+			),
+		readOnly,
+	);
+	server.tool(
+		"event_dates_courtesy_seats",
+		"Lists the blocked seats of a numbered (seats.io) event date that can " +
+			"be issued as courtesies, grouped by numbered ticket type " +
+			"(GET /event-dates/{id}/courtesy-seats). A date without a seat map " +
+			"returns `ticketTypes: []`. 503 SEATSIO_UNAVAILABLE is retryable.",
+		{ eventDateId: z.string().describe("Event date id") },
+		readOnly,
+		async ({ eventDateId }) =>
+			run(getEventDatesIdCourtesySeats({ path: { id: eventDateId }, client })),
 	);
 	uiTool(
 		server,
