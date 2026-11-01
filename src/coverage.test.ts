@@ -70,6 +70,10 @@ const EXCLUDED: Record<string, string> = {
 		"charges a Brick card token — card data never passes through an agent",
 	postCustomerOrdersIdPaymentPse:
 		"PSE redirect of the landing page checkout, which the MCP does not open",
+	// Written by the enterprise landing page on the buyer's behalf, with an
+	// enterprise service key: an agent reads the list (waitlist_list) instead.
+	postWaitlist:
+		"enterprise landing sign-up, server-to-server — agents read it with waitlist_list",
 };
 
 function operations(specFile: string): { id: string; where: string }[] {

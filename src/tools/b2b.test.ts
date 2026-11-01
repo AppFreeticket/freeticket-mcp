@@ -149,8 +149,9 @@ describe("tool registration", () => {
 		// 35 writes: 29 from contract 1.5.0 + the 6 from 1.7.0 (members area and
 		// token de reproducción de contenido) + the 7 from 1.19/1.20 (events_cancel,
 		// tickets_reassign, staff_delete, webhooks_update, customer_order_release,
-		// content_posts_create, workspaces_create).
-		expect(t.length).toBe(42);
+		// content_posts_create, workspaces_create) + the 4 lineup writes from 1.25
+		// (events_artists_set|remove, events_artist_invitations_resend|cancel).
+		expect(t.length).toBe(46);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",

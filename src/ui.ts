@@ -46,11 +46,17 @@ export function uiTool(
 	inputSchema: Record<string, unknown>,
 	// biome-ignore lint/suspicious/noExplicitAny: SDK signature, varies per tool.
 	cb: (args: any) => Promise<any>,
+	annotations?: { readOnlyHint?: boolean },
 ): void {
 	server.registerTool(
 		name,
-		// biome-ignore lint/suspicious/noExplicitAny: same — zod pins the shape.
-		{ description, inputSchema: inputSchema as any, _meta: UI_META },
+		{
+			description,
+			// biome-ignore lint/suspicious/noExplicitAny: same — zod pins the shape.
+			inputSchema: inputSchema as any,
+			_meta: UI_META,
+			...(annotations ? { annotations } : {}),
+		},
 		cb,
 	);
 }

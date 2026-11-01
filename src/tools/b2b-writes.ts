@@ -5,6 +5,8 @@ import { run } from "../api";
 import {
 	deleteDiscountsId,
 	deleteEventsId,
+	deleteEventsIdArtistInvitationsInvitationId,
+	deleteEventsIdArtistsOrganizationId,
 	deleteEventsIdDatesDateId,
 	deleteMembershipPlansId,
 	deleteStaffId,
@@ -30,6 +32,7 @@ import {
 	postCustomerTicketsIdCancel,
 	postDiscounts,
 	postEvents,
+	postEventsIdArtistInvitationsInvitationIdResend,
 	postEventsIdCancel,
 	postEventsIdDates,
 	postEventsIdPublish,
@@ -45,12 +48,18 @@ import {
 	postVenues,
 	postWebhooks,
 	postWorkspaces,
+	putEventsIdArtists,
 } from "../client/sdk.gen";
 
 /** Deletes/refunds/cancels: irreversibles. Piden confirmación humana explícita. */
 const destructive = { destructiveHint: true, idempotentHint: false } as const;
 /** Creates/publish: no borran datos, pero mutan. */
 const mutating = { destructiveHint: false, idempotentHint: false } as const;
+/** Removes data, but repeating the same call lands in the same state. */
+const destructiveIdempotent = {
+	destructiveHint: true,
+	idempotentHint: true,
+} as const;
 /** Remind the agent in the description, not only in the annotation. */
 const CONFIRM = " ⚠️ Irreversible: confirm with the human before running it.";
 
@@ -120,6 +129,97 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		{ id: z.string().describe("Event id") },
 		destructive,
 		async ({ id }) => run(postEventsIdCancel({ path: { id }, client })),
+	);
+
+	// ── Lineup (contract 1.25.0) ────────────────────────────────────────────
+	server.tool(
+		"events_artists_set",
+		"Replaces an event's whole lineup (PUT /events/{id}/artists). Send the " +
+			"FULL list in display order, not a diff: artists left out are unlinked, " +
+			"and `[]` clears the lineup. Get ids with `artists_search` first. Newly " +
+			"linked artists get a notification email. `inviteEmails` invites artists " +
+			"without an account (once per email and event; additive, it never " +
+			"cancels existing invitations). Ids that are not a registered artist come " +
+			"back in `warnings[]` as ARTIST_IDS_IGNORED — tell the human. To drop a " +
+			"single artist prefer `events_artists_remove`. If it would remove anyone, " +
+			"confirm with the human first. Limits: 50 ids, 20 emails, 20 changes/hour.",
+		{
+			eventId: z.string().describe("Event id"),
+			artistIds: z
+				.array(z.string().min(1).max(64))
+				.max(50)
+				.describe(
+					"Full lineup in order: artist workspace ids from artists_search",
+				),
+			inviteEmails: z
+				.array(z.string().email())
+				.max(20)
+				.optional()
+				.describe("Emails of artists without an account to invite"),
+		},
+		destructiveIdempotent,
+		async ({ eventId, ...body }) =>
+			run(putEventsIdArtists({ path: { id: eventId }, body, client })),
+	);
+	server.tool(
+		"events_artists_remove",
+		"Unlinks ONE artist from an event's lineup and leaves the rest intact " +
+			"(DELETE /events/{id}/artists/{organizationId}). Works for the event's " +
+			`owner, or for the artist removing itself.${CONFIRM}`,
+		{
+			eventId: z.string().describe("Event id"),
+			organizationId: z.string().describe("Artist workspace id to unlink"),
+		},
+		destructiveIdempotent,
+		async ({ eventId, organizationId }) =>
+			run(
+				deleteEventsIdArtistsOrganizationId({
+					path: { id: eventId, organizationId },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"events_artist_invitations_resend",
+		"Resends a pending or expired artist invitation email and renews it for " +
+			"14 days with the same link " +
+			"(POST /events/{id}/artist-invitations/{invitationId}/resend). Every call " +
+			"sends another email (max 3/hour per invitation): do not retry in a loop. " +
+			"409 INVITATION_ACCEPTED means the artist already joined.",
+		{
+			eventId: z.string().describe("Event id"),
+			invitationId: z
+				.string()
+				.describe("Invitation id from events_artist_invitations_list"),
+		},
+		mutating,
+		async ({ eventId, invitationId }) =>
+			run(
+				postEventsIdArtistInvitationsInvitationIdResend({
+					path: { id: eventId, invitationId },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"events_artist_invitations_cancel",
+		"Cancels (deletes) an artist invitation so its link stops working " +
+			"(DELETE /events/{id}/artist-invitations/{invitationId}). 409 " +
+			`INVITATION_ACCEPTED means the artist already joined: use \`events_artists_remove\` instead.${CONFIRM}`,
+		{
+			eventId: z.string().describe("Event id"),
+			invitationId: z
+				.string()
+				.describe("Invitation id from events_artist_invitations_list"),
+		},
+		destructiveIdempotent,
+		async ({ eventId, invitationId }) =>
+			run(
+				deleteEventsIdArtistInvitationsInvitationId({
+					path: { id: eventId, invitationId },
+					client,
+				}),
+			),
 	);
 	server.tool(
 		"event_dates_create",

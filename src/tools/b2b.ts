@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type Creds, makeB2bClient, run } from "../api";
 import {
 	getApiKeys,
+	getArtists,
 	getContentLives,
 	getContentLivesId,
 	getContentPosts,
@@ -18,6 +19,7 @@ import {
 	getDiscounts,
 	getEvents,
 	getEventsId,
+	getEventsIdArtistInvitations,
 	getEventsIdDates,
 	getMe,
 	getMembershipPlans,
@@ -46,6 +48,7 @@ import {
 	getTicketTypesId,
 	getVenues,
 	getVenuesId,
+	getWaitlist,
 	getWebhooks,
 } from "../client/sdk.gen";
 import { uiTool } from "../ui";
@@ -222,6 +225,62 @@ export function registerB2bTools(
 		"Detail of one event (GET /events/{id}).",
 		{ id },
 		async ({ id }) => run(getEventsId({ path: { id }, client })),
+	);
+
+	// ── Lineup (contract 1.25.0) ────────────────────────────────────────────
+	const readOnly = { readOnlyHint: true } as const;
+	server.tool(
+		"artists_search",
+		"Searches artists registered on FreeTicket by name, across all of " +
+			"FreeTicket and not only your workspaces (GET /artists). Use it to turn " +
+			"artist names into the ids `events_artists_set` takes. Returns only " +
+			"public brand data (id, name, slug, logoUrl). An artist that is not " +
+			"found has no account: invite them with `inviteEmails` in " +
+			"`events_artists_set` instead of guessing an id.",
+		{
+			q: z.string().min(2).max(100).describe("Artist name, 2-100 characters"),
+			...paging,
+		},
+		readOnly,
+		async ({ q, limit, cursor }) =>
+			run(
+				getArtists({
+					query: { q, limit: limit ? Number(limit) : undefined, cursor },
+					client,
+				}),
+			),
+	);
+	uiTool(
+		server,
+		"events_artist_invitations_list",
+		"Lists the PENDING and EXPIRED invitations sent to artists without an " +
+			"account for one event, newest first (GET /events/{id}/artist-invitations). " +
+			"Use it to check who has not signed up yet, or to get the invitationId " +
+			"for `events_artist_invitations_resend` / `_cancel`. Accepted invitations " +
+			"are not listed: those artists already show in the event's `artists`.",
+		{ eventId: z.string().describe("Event id") },
+		async ({ eventId }) =>
+			run(getEventsIdArtistInvitations({ path: { id: eventId }, client })),
+		readOnly,
+	);
+	uiTool(
+		server,
+		"waitlist_list",
+		"Lists the workspace's waitlist entries from its enterprise landing, " +
+			"newest first (GET /waitlist). Contains personal data (email/phone): " +
+			"requires ADMIN. `city` filters ignoring accents and case.",
+		{
+			city: z.string().optional().describe("City name"),
+			...paging,
+		},
+		async ({ city, limit, cursor }) =>
+			run(
+				getWaitlist({
+					query: { city, limit: limit ? Number(limit) : undefined, cursor },
+					client,
+				}),
+			),
+		readOnly,
 	);
 	uiTool(
 		server,

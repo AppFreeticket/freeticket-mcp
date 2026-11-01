@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it } from "vitest";
 import { makeB2bClient } from "../api";
+import { registerB2bTools } from "./b2b";
 import { registerB2bWriteTools } from "./b2b-writes";
 
 const stub = makeB2bClient({ apiUrl: "http://localhost", apiKey: "test" });
@@ -39,6 +40,8 @@ const DESTRUCTIVE = [
 	"events_cancel",
 	"staff_delete",
 	"customer_order_release",
+	"events_artists_remove",
+	"events_artist_invitations_cancel",
 ];
 
 describe("writes destructivos", () => {
@@ -70,5 +73,45 @@ describe("writes destructivos", () => {
 				`${name} has no annotations`,
 			).toBeDefined();
 		}
+	});
+});
+
+describe("lineup tools (contract 1.25.0)", () => {
+	function all(): Record<
+		string,
+		Registered & { annotations?: { readOnlyHint?: boolean } }
+	> {
+		const server = new McpServer({ name: "t", version: "0.0.0" });
+		registerB2bTools(server, stub, {
+			apiUrl: "http://localhost",
+			apiKey: "test",
+		});
+		registerB2bWriteTools(server, stub);
+		return (
+			server as unknown as { _registeredTools: Record<string, Registered> }
+		)._registeredTools;
+	}
+
+	// The annotation table agreed in free-admin#1155: the host's confirmation
+	// gate and its retry policy both hang off these hints.
+	it.each([
+		["artists_search", { readOnlyHint: true }],
+		["events_artist_invitations_list", { readOnlyHint: true }],
+		["events_artists_set", { destructiveHint: true, idempotentHint: true }],
+		["events_artists_remove", { destructiveHint: true, idempotentHint: true }],
+		[
+			"events_artist_invitations_resend",
+			{ destructiveHint: false, idempotentHint: false },
+		],
+		[
+			"events_artist_invitations_cancel",
+			{ destructiveHint: true, idempotentHint: true },
+		],
+	])("%s carries %j", (name, hints) => {
+		expect(all()[name]?.annotations).toMatchObject(hints);
+	});
+
+	it("events_artists_set warns that it replaces the whole lineup", () => {
+		expect(all().events_artists_set.description).toMatch(/FULL list/);
 	});
 });

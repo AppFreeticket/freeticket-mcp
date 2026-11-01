@@ -5,6 +5,24 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+B2B contract 1.20.0 → **1.25.0** (synced from free-admin's
+`feat/api-v1-lineup` branch, AppFreeticket/free-admin#1155 — not deployed yet).
+Additions only. **124 tools** (B2B 95 · superadmin 23 · public 6).
+
+### Added
+- Event lineup: `artists_search` (read-only; resolves artist names to ids),
+  `events_artists_set` (replaces the whole lineup in order, optional
+  `inviteEmails`; destructive + idempotent), `events_artists_remove`
+  (destructive + idempotent, asks for confirmation).
+- Artist invitations: `events_artist_invitations_list` (read-only),
+  `events_artist_invitations_resend` (sends an email on every call: not
+  idempotent), `events_artist_invitations_cancel` (destructive + idempotent,
+  asks for confirmation).
+- `waitlist_list` (read-only): the enterprise landing's waitlist, new in 1.21+.
+  `POST /waitlist` stays out on purpose (server-to-server sign-up).
+- `uiTool` now accepts tool annotations, so list tools can declare
+  `readOnlyHint`.
+
 ## [0.15.0] - 2026-10-20
 
 Brings all three contracts in line with production: B2B 1.7.0 → **1.20.0**,
