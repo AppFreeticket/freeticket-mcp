@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-11-01
+
+### Fixed
+- Every tool publishes `readOnlyHint`, `destructiveHint` and `openWorldHint` as booleans. Reads stay inside FreeTicket (`openWorldHint: false`). The only open-world writes are `sales_refund` (Mercado Pago), `tickets_resend`, `public_tickets_resend` (email) and `public_orders_create` (a Mercado Pago preference). Omitting `openWorldHint` on the other writes made the ChatGPT tool scan reject them.
+
 ## [0.15.0] - 2026-10-20
 
 Brings all three contracts in line with production: B2B 1.7.0 → **1.20.0**,
