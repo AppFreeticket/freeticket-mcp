@@ -11,30 +11,35 @@ branches, AppFreeticket/free-admin#1155, #1157 and #1156 — not deployed yet).
 Additions only. **134 tools** (B2B 105 · superadmin 23 · public 6).
 
 ### Added
-- Event lineup: `artists_search` (read-only; resolves artist names to ids),
-  `events_artists_set` (replaces the whole lineup in order, optional
-  `inviteEmails`; destructive + idempotent), `events_artists_remove`
-  (destructive + idempotent, asks for confirmation).
-- Artist invitations: `events_artist_invitations_list` (read-only),
-  `events_artist_invitations_resend` (sends an email on every call: not
-  idempotent), `events_artist_invitations_cancel` (destructive + idempotent,
-  asks for confirmation).
-- `waitlist_list` (read-only): the enterprise landing's waitlist, new in 1.21+.
+- Event lineup: `artists_search` (`read`), `events_artists_set` (replaces the
+  whole lineup; `write` destructive + idempotent + open-world, because linking
+  or inviting sends email), `events_artists_remove` (destructive + idempotent).
+- Artist invitations: `events_artist_invitations_list` (`read`, via `uiTool`),
+  `events_artist_invitations_resend` (open-world: every call sends an email,
+  not idempotent), `events_artist_invitations_cancel` (destructive + idempotent).
+- `waitlist_list` (`read`): the enterprise landing's waitlist, new in 1.21+.
   `POST /waitlist` stays out on purpose (server-to-server sign-up).
-- Scheduled publication: `events_schedule` (`publishAt` or `saleStartsAt`,
-  exactly one) and `events_unschedule`.
-- Presale windows: `presale_windows_list` (read-only), `presale_windows_create`,
+- Scheduled publication: `events_schedule` and `events_unschedule` (`write`).
+- Presale windows: `presale_windows_list` (`read`), `presale_windows_create`,
   `presale_windows_update` (idempotent) and `presale_windows_delete`
   (destructive, asks for confirmation).
-- Ticket operations: `sales_transfer` (destructive, not idempotent),
-  `tickets_checkin_undo` (destructive + idempotent), `sales_recipient_update`
-  (destructive: a new email voids the courtesy's QRs) — all ask for
-  confirmation — and `event_dates_courtesy_seats` (read-only).
+- Ticket operations: `sales_transfer` (destructive, not idempotent, open-world:
+  it emails the new holder), `tickets_checkin_undo` (destructive + idempotent),
+  `sales_recipient_update` (destructive and open-world: it resends the courtesy
+  tickets) and `event_dates_courtesy_seats` (`read`).
 - `events_update` accepts `slug`, `squareImageUrl`, `storyImageUrl`,
   `pulepCode`, `listedOnPortal`, `genre`, `subgenre`, `genreOther` and
   `audience`; `event_dates_create`/`event_dates_update` accept `maxPerCustomer`.
-- `uiTool` now accepts tool annotations, so list tools can declare
-  `readOnlyHint`.
+
+## [0.15.2] - 2026-11-01
+
+### Changed
+- Directory annotations are declared where the tool is registered, through `read()` and `write()` in `src/tool-meta.ts`. The post-registration pass that inferred a write from a missing `destructiveHint` and filled `openWorldHint` from a name list is gone. The wire result is the same: every tool still publishes the three booleans, and only refunds, ticket emails and the public checkout preference are open-world.
+
+## [0.15.1] - 2026-11-01
+
+### Fixed
+- Every tool publishes `readOnlyHint`, `destructiveHint` and `openWorldHint` as booleans. Reads stay inside FreeTicket (`openWorldHint: false`). The only open-world writes are `sales_refund` (Mercado Pago), `tickets_resend`, `public_tickets_resend` (email) and `public_orders_create` (a Mercado Pago preference). Omitting `openWorldHint` on the other writes made the ChatGPT tool scan reject them.
 
 ## [0.15.0] - 2026-10-20
 

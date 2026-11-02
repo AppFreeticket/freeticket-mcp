@@ -101,15 +101,21 @@ describe("lineup tools (contract 1.25.0)", () => {
 	it.each([
 		["artists_search", { readOnlyHint: true }],
 		["events_artist_invitations_list", { readOnlyHint: true }],
-		["events_artists_set", { destructiveHint: true, idempotentHint: true }],
-		["events_artists_remove", { destructiveHint: true, idempotentHint: true }],
+		[
+			"events_artists_set",
+			{ destructiveHint: true, idempotentHint: true, openWorldHint: true },
+		],
+		[
+			"events_artists_remove",
+			{ destructiveHint: true, idempotentHint: true, openWorldHint: false },
+		],
 		[
 			"events_artist_invitations_resend",
-			{ destructiveHint: false, idempotentHint: false },
+			{ destructiveHint: false, idempotentHint: false, openWorldHint: true },
 		],
 		[
 			"events_artist_invitations_cancel",
-			{ destructiveHint: true, idempotentHint: true },
+			{ destructiveHint: true, idempotentHint: true, openWorldHint: false },
 		],
 	])("%s carries %j", (name, hints) => {
 		expect(all()[name]?.annotations).toMatchObject(hints);
@@ -147,9 +153,15 @@ describe("dashboard-parity tools (contract 1.25.0)", () => {
 		["presale_windows_create", { destructiveHint: false }],
 		["presale_windows_update", { destructiveHint: false }],
 		["presale_windows_delete", { destructiveHint: true }],
-		["sales_transfer", { destructiveHint: true, idempotentHint: false }],
+		[
+			"sales_transfer",
+			{ destructiveHint: true, idempotentHint: false, openWorldHint: true },
+		],
 		["tickets_checkin_undo", { destructiveHint: true, idempotentHint: true }],
-		["sales_recipient_update", { destructiveHint: true }],
+		[
+			"sales_recipient_update",
+			{ destructiveHint: true, idempotentHint: false, openWorldHint: true },
+		],
 		["event_dates_courtesy_seats", { readOnlyHint: true }],
 	])("%s carries %j", (name, hints) => {
 		expect(tools[name]?.annotations).toMatchObject(hints);
