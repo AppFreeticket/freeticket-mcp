@@ -31,12 +31,25 @@ describe("tool annotations", () => {
 		expect(tools.length).toBeGreaterThan(100);
 	});
 
-	it.each(tools)("$name has a title and explicit read/destructive hints", ({
-		a,
-	}) => {
+	it.each(tools)("$name has a title and the directory booleans", ({ a }) => {
 		expect(typeof a.title).toBe("string");
+		expect((a.title as string).length).toBeGreaterThan(0);
 		expect(typeof a.readOnlyHint).toBe("boolean");
 		expect(typeof a.destructiveHint).toBe("boolean");
+		expect(typeof a.openWorldHint).toBe("boolean");
+	});
+
+	it("marks only outbound writes as open world", () => {
+		const open = tools
+			.filter((t) => t.a.openWorldHint === true)
+			.map((t) => t.name)
+			.sort();
+		expect(open).toEqual([
+			"public_orders_create",
+			"public_tickets_resend",
+			"sales_refund",
+			"tickets_resend",
+		]);
 	});
 
 	it("marks reads read-only and deletes/cancels/refunds destructive", () => {

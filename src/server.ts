@@ -12,7 +12,7 @@ import { registerB2bWriteTools } from "./tools/b2b-writes";
 import { registerPublicTools } from "./tools/public";
 import { registerUi } from "./ui";
 
-export const VERSION = "0.15.0";
+export const VERSION = "0.15.1";
 
 /**
  * Builds an isolated McpServer for one session. Every session carries its own
@@ -48,12 +48,25 @@ export function buildServer(creds: Creds): McpServer {
 }
 
 /**
+ * Writes that leave FreeTicket. Everything else stays inside the caller's
+ * workspace or the published catalogue, so `openWorldHint` is false.
+ * ChatGPT rejects a tool that omits the key (#37).
+ */
+const OPEN_WORLD_WRITES = new Set([
+	"public_orders_create",
+	"public_tickets_resend",
+	"sales_refund",
+	"tickets_resend",
+]);
+
+/**
  * Per the MCP spec a tool without `readOnlyHint` is assumed to write, and
  * `destructiveHint` then defaults to true: every bare read looked like a
  * destructive write to hosts (claude.ai asks to approve each one, and the
  * Anthropic connector directory rejects tools without hints or a title). Reads
  * register with no annotations, writes always carry `destructiveHint`, so the
- * rule is: no destructiveHint → read. Every tool also gets a `title`.
+ * rule is: no destructiveHint → read. Every tool also gets a `title` and an
+ * explicit `openWorldHint`.
  */
 function annotate(server: McpServer): void {
 	// ponytail: SDK-private map (stable through 1.x); swap for a per-call
@@ -70,18 +83,13 @@ function annotate(server: McpServer): void {
 		const a = tool.annotations ?? {};
 		const write = a.destructiveHint !== undefined;
 		tool.annotations = {
+			...a,
 			title: a.title ?? tool.title ?? titleOf(name),
 			readOnlyHint: !write,
-			// Reads only touch FreeTicket's own data. Writes keep the spec default
-			// (open world): refunds hit Mercado Pago, resends send email.
-			...(write
-				? {}
-				: {
-						destructiveHint: false,
-						idempotentHint: true,
-						openWorldHint: false,
-					}),
-			...a,
+			destructiveHint: write ? a.destructiveHint === true : false,
+			idempotentHint:
+				typeof a.idempotentHint === "boolean" ? a.idempotentHint : !write,
+			openWorldHint: write && OPEN_WORLD_WRITES.has(name),
 		};
 	}
 }
