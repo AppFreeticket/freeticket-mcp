@@ -97,15 +97,21 @@ describe("lineup tools (contract 1.25.0)", () => {
 	it.each([
 		["artists_search", { readOnlyHint: true }],
 		["events_artist_invitations_list", { readOnlyHint: true }],
-		["events_artists_set", { destructiveHint: true, idempotentHint: true }],
-		["events_artists_remove", { destructiveHint: true, idempotentHint: true }],
+		[
+			"events_artists_set",
+			{ destructiveHint: true, idempotentHint: true, openWorldHint: true },
+		],
+		[
+			"events_artists_remove",
+			{ destructiveHint: true, idempotentHint: true, openWorldHint: false },
+		],
 		[
 			"events_artist_invitations_resend",
-			{ destructiveHint: false, idempotentHint: false },
+			{ destructiveHint: false, idempotentHint: false, openWorldHint: true },
 		],
 		[
 			"events_artist_invitations_cancel",
-			{ destructiveHint: true, idempotentHint: true },
+			{ destructiveHint: true, idempotentHint: true, openWorldHint: false },
 		],
 	])("%s carries %j", (name, hints) => {
 		expect(all()[name]?.annotations).toMatchObject(hints);

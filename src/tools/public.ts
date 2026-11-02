@@ -10,6 +10,7 @@ import {
 	postOrders,
 	postTicketsCodeResend,
 } from "../public-client/sdk.gen";
+import { read, write } from "../tool-meta";
 import { uiTool } from "../ui";
 
 /**
@@ -24,26 +25,34 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 		"public_events_list",
 		"Public catalogue of published events (GET /public/events). B2C discovery, no login.",
 		{
-			q: z.string().optional().describe("Búsqueda por nombre/descripción"),
-			city: z.string().optional().describe("Filtrar por ciudad"),
+			q: z.string().optional().describe("Search by name/description"),
+			city: z.string().optional().describe("Filter by venue city"),
 			from: z.string().optional().describe("Dates from (ISO 8601)"),
-			to: z.string().optional().describe("Funciones hasta (ISO 8601)"),
-			page: z.string().optional().describe("Página (default 1)"),
-			pageSize: z.string().optional().describe("Tamaño (default 20, máx 50)"),
+			to: z.string().optional().describe("Dates until (ISO 8601)"),
+			page: z.number().int().min(1).optional().describe("Page (default 1)"),
+			pageSize: z
+				.number()
+				.int()
+				.min(1)
+				.max(50)
+				.optional()
+				.describe("Page size (default 20, max 50)"),
 			sort: z.enum(["date_asc", "price_asc", "price_desc"]).optional(),
 		},
 		async (q) => run(getEvents({ query: q, client })),
 	);
 	server.tool(
 		"public_events_get",
-		"Detalle público de un evento por slug (GET /public/events/{slug}).",
+		"Public detail of one event by slug (GET /public/events/{slug}).",
 		{ slug: z.string().describe("Event slug") },
+		read("public_events_get"),
 		async ({ slug }) => run(getEventsSlug({ path: { slug }, client })),
 	);
 	server.tool(
 		"public_events_availability",
 		"Live stock per date and ticket type (GET /public/events/{slug}/availability). Check it before building an order.",
 		{ slug: z.string().describe("Event slug") },
+		read("public_events_availability"),
 		async ({ slug }) =>
 			run(getEventsSlugAvailability({ path: { slug }, client })),
 	);
@@ -65,9 +74,10 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 					}),
 				)
 				.min(1)
-				.describe("Tipos de ticket y cantidades"),
+				.describe("Ticket types and quantities"),
 		},
-		{ destructiveHint: false, idempotentHint: false },
+		// Opens an order and a Mercado Pago preference: reaches outside FreeTicket.
+		write("public_orders_create", { destructive: false, openWorld: true }),
 		async (body) => run(postOrders({ body, client })),
 	);
 	server.tool(
@@ -76,6 +86,7 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 		{
 			id: z.string().describe("Order id (returned by public_orders_create)"),
 		},
+		read("public_orders_get"),
 		async ({ id }) => run(getOrdersId({ path: { id }, client })),
 	);
 	server.tool(
@@ -89,6 +100,8 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 				.optional()
 				.describe("Optional: must match the buyer email"),
 		},
+		// A write: it sends an email. Without hints it was announced as a read.
+		write("public_tickets_resend", { destructive: false, openWorld: true }),
 		async ({ code, email }) =>
 			run(
 				postTicketsCodeResend({
