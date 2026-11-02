@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.15.2] - 2026-11-01
+
+### Changed
+- Directory annotations are declared where the tool is registered, through `read()` and `write()` in `src/tool-meta.ts`. The post-registration pass that inferred a write from a missing `destructiveHint` and filled `openWorldHint` from a name list is gone. The wire result is the same: every tool still publishes the three booleans, and only refunds, ticket emails and the public checkout preference are open-world.
+
 ## [0.15.1] - 2026-11-01
 
 ### Fixed
