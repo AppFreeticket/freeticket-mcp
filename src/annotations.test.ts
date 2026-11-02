@@ -4,7 +4,8 @@ import { buildServer } from "./server";
 /**
  * Hosts gate tools by their hints: a read without `readOnlyHint` is treated as
  * a destructive write (spec defaults), and the Anthropic connector directory
- * requires a title plus readOnly/destructive hints on every tool.
+ * requires a title plus explicit readOnly, destructive and open-world hints.
+ * Those fields are set at registration (`read` / `write` in tool-meta.ts).
  */
 const server = buildServer({
 	apiUrl: "http://127.0.0.1:9",

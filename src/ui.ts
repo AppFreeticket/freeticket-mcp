@@ -22,6 +22,7 @@
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { BRAND, FAVICON_SVG } from "./brand";
+import { read } from "./tool-meta";
 
 /** The mimeType the spec requires for an HTML view. */
 export const UI_MIME = "text/html;profile=mcp-app";
@@ -49,8 +50,13 @@ export function uiTool(
 ): void {
 	server.registerTool(
 		name,
-		// biome-ignore lint/suspicious/noExplicitAny: same — zod pins the shape.
-		{ description, inputSchema: inputSchema as any, _meta: UI_META },
+		{
+			description,
+			// biome-ignore lint/suspicious/noExplicitAny: same — zod pins the shape.
+			inputSchema: inputSchema as any,
+			annotations: read(name),
+			_meta: UI_META,
+		},
 		cb,
 	);
 }

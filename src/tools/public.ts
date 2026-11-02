@@ -10,6 +10,7 @@ import {
 	postOrders,
 	postTicketsCodeResend,
 } from "../public-client/sdk.gen";
+import { read, write } from "../tool-meta";
 import { uiTool } from "../ui";
 
 /**
@@ -44,12 +45,14 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 		"public_events_get",
 		"Public detail of one event by slug (GET /public/events/{slug}).",
 		{ slug: z.string().describe("Event slug") },
+		read("public_events_get"),
 		async ({ slug }) => run(getEventsSlug({ path: { slug }, client })),
 	);
 	server.tool(
 		"public_events_availability",
 		"Live stock per date and ticket type (GET /public/events/{slug}/availability). Check it before building an order.",
 		{ slug: z.string().describe("Event slug") },
+		read("public_events_availability"),
 		async ({ slug }) =>
 			run(getEventsSlugAvailability({ path: { slug }, client })),
 	);
@@ -74,7 +77,7 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 				.describe("Ticket types and quantities"),
 		},
 		// Opens an order and a Mercado Pago preference: reaches outside FreeTicket.
-		{ destructiveHint: false, idempotentHint: false, openWorldHint: true },
+		write("public_orders_create", { destructive: false, openWorld: true }),
 		async (body) => run(postOrders({ body, client })),
 	);
 	server.tool(
@@ -83,6 +86,7 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 		{
 			id: z.string().describe("Order id (returned by public_orders_create)"),
 		},
+		read("public_orders_get"),
 		async ({ id }) => run(getOrdersId({ path: { id }, client })),
 	);
 	server.tool(
@@ -97,7 +101,7 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 				.describe("Optional: must match the buyer email"),
 		},
 		// A write: it sends an email. Without hints it was announced as a read.
-		{ destructiveHint: false, idempotentHint: false, openWorldHint: true },
+		write("public_tickets_resend", { destructive: false, openWorld: true }),
 		async ({ code, email }) =>
 			run(
 				postTicketsCodeResend({
