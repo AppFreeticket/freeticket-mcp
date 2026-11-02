@@ -39,6 +39,16 @@ export interface Sealed {
 	ch?: string;
 	/** redirect_uri — solo en authorization codes */
 	ru?: string;
+	/** registered redirect_uris — only in client ids */
+	rus?: string[];
+	/** registered client_name — only in client ids */
+	n?: string;
+	/** client_id the code was issued to — only in authorization codes */
+	c?: string;
+	/** token type (its prefix). Sealed since client ids exist: /register hands
+	 * anybody a sealed blob, and without it that blob opened under another
+	 * prefix. Payloads sealed before carry none and stay valid. */
+	t?: string;
 	/** expiración, epoch en segundos */
 	exp: number;
 }
@@ -49,6 +59,73 @@ export const CODE_PREFIX = "ftc_";
 export const ACCESS_TTL = 30 * 24 * 3600;
 export const REFRESH_TTL = 90 * 24 * 3600;
 export const CODE_TTL = 300;
+export const CLIENT_PREFIX = "ftcl_";
+export const CLIENT_TTL = 10 * 365 * 24 * 3600;
+
+/**
+ * Callbacks of the MCP clients FreeTicket is used from. A client_id that is
+ * not sealed (registered before ids were sealed, or after a secret rotation)
+ * may only redirect to one of these exact URLs or to loopback. Exact URLs, not
+ * hosts: some of these hosts run open redirectors on other paths. The consent
+ * page warns about any host not listed here.
+ */
+export const KNOWN_CALLBACKS = [
+	"https://claude.ai/api/mcp/auth_callback",
+	"https://claude.com/api/mcp/auth_callback",
+	"https://chatgpt.com/connector_platform_oauth_redirect",
+	"https://vscode.dev/redirect",
+	"https://insiders.vscode.dev/redirect",
+];
+const KNOWN_HOSTS = new Set(KNOWN_CALLBACKS.map((u) => new URL(u).host));
+const MAX_REDIRECT_LENGTH = 2048;
+
+export interface RedirectCheck {
+	ok: boolean;
+	/** client_name sealed at registration, when the client_id is sealed */
+	clientName?: string;
+	host?: string;
+	/** true when the destination is neither loopback nor a known client */
+	unknownHost?: boolean;
+}
+
+/**
+ * Validates a redirect_uri against the client that asks for it. Registration
+ * is open (RFC 7591, stateless), so the client_id is the sealed list of its
+ * redirect_uris: a redirect that was not registered with that id is refused,
+ * and a legitimate client_id cannot be reused to send the code elsewhere.
+ * Loopback is always allowed (RFC 8252: the port varies per run, and only the
+ * user's own machine can receive it).
+ */
+export function checkRedirect(
+	clientId: string,
+	redirectUri: string,
+	secret: string,
+): RedirectCheck {
+	let u: URL;
+	try {
+		u = new URL(redirectUri);
+	} catch {
+		return { ok: false };
+	}
+	// RFC 6749 §3.1.2: no fragment.
+	if (redirectUri.length > MAX_REDIRECT_LENGTH || u.hash) return { ok: false };
+	const loopback =
+		(u.protocol === "http:" || u.protocol === "https:") &&
+		(u.hostname === "localhost" || u.hostname === "127.0.0.1");
+	if (u.protocol !== "https:" && !loopback) return { ok: false };
+	const base = {
+		host: u.host,
+		unknownHost: !loopback && !KNOWN_HOSTS.has(u.host),
+	};
+	const client = open(clientId, secret, CLIENT_PREFIX);
+	if (client)
+		return {
+			...base,
+			ok: loopback || (client.rus ?? []).includes(redirectUri),
+			clientName: client.n,
+		};
+	return { ...base, ok: loopback || KNOWN_CALLBACKS.includes(redirectUri) };
+}
 
 /** Respuesta de POST /auth/device/code de free-admin (contrato B2B). */
 export interface DeviceStart {
@@ -66,7 +143,7 @@ export function seal(payload: Sealed, secret: string, prefix: string): string {
 	const iv = randomBytes(12);
 	const cipher = createCipheriv("aes-256-gcm", keyFrom(secret), iv);
 	const ct = Buffer.concat([
-		cipher.update(JSON.stringify(payload), "utf8"),
+		cipher.update(JSON.stringify({ ...payload, t: prefix }), "utf8"),
 		cipher.final(),
 	]);
 	return (
@@ -92,6 +169,10 @@ export function open(
 		const p = JSON.parse(
 			Buffer.concat([d.update(raw.subarray(28)), d.final()]).toString("utf8"),
 		) as Sealed;
+		// A blob sealed as one type never opens as another. Untyped payloads
+		// predate the field, and no client id was ever sealed without it.
+		if (p.t !== undefined ? p.t !== prefix : prefix === CLIENT_PREFIX)
+			return null;
 		return p.exp > Date.now() / 1000 ? p : null;
 	} catch {
 		return null;
@@ -144,9 +225,18 @@ const esc = (s: string) =>
  */
 export function consentPage(
 	params: URLSearchParams,
-	opts: { device?: DeviceStart; error?: string } = {},
+	opts: { device?: DeviceStart; error?: string; redirect?: RedirectCheck } = {},
 ): string {
-	const { device, error } = opts;
+	const { device, error, redirect } = opts;
+	// Who gets the connection. Registration is open, so client_name alone proves
+	// nothing: the destination host is what the user has to recognise.
+	const target = redirect?.host
+		? `<div class="target">Vas a conectar <b>${esc((!redirect.unknownHost && redirect.clientName) || redirect.host)}</b>.<br>Al aprobar, volverás a <b>${esc(redirect.host)}</b>.</div>${
+				redirect.unknownHost
+					? `<div class="err">Ese destino no es un cliente conocido. Continúa solo si tú iniciaste esta conexión.</div>`
+					: ""
+			}`
+		: "";
 	const hidden = [
 		"client_id",
 		"redirect_uri",
@@ -184,12 +274,15 @@ export function consentPage(
     (() => {
       const cfg = ${JSON.stringify({
 				dc: device.device_code,
+				ci: params.get("client_id") ?? "",
 				iv: device.interval,
 				exp: device.expires_in,
 				ru: params.get("redirect_uri") ?? "",
 				ch: params.get("code_challenge") ?? "",
 				st: params.get("state") ?? "",
-			})};
+				// `<` escaped: these come from the query string, and a raw
+				// "</script>" in state or code_challenge would end this block.
+			}).replace(/</g, "\\u003c")};
       const status = document.getElementById("status");
       const deadline = Date.now() + cfg.exp * 1000;
       let iv = cfg.iv;
@@ -197,7 +290,7 @@ export function consentPage(
         fetch("/device-token", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ redirect_uri: cfg.ru, code_challenge: cfg.ch, state: cfg.st, ...body }),
+          body: JSON.stringify({ client_id: cfg.ci, redirect_uri: cfg.ru, code_challenge: cfg.ch, state: cfg.st, ...body }),
         }).then((r) => r.json());
       const finish = (j) => {
         if (j.redirect) { status.textContent = "Conectado. Volviendo…"; location.href = j.redirect; return true; }
@@ -258,6 +351,7 @@ export function consentPage(
   .code{font-family:ui-monospace,monospace;font-size:1.3rem;font-weight:600;letter-spacing:.15em;
     text-align:center;background:var(--input-background);border:1px dashed var(--border);
     border-radius:var(--radius-button);padding:.55rem;margin:.75rem 0 0}
+  .target{font-size:.85rem;line-height:1.45;margin:.25rem 0 1rem}
   .status{text-align:center;margin-top:1rem}
   .status.bad{color:var(--destructive)}
   details{margin-top:1.5rem;border-top:1px solid var(--border);padding-top:.9rem}
@@ -267,6 +361,7 @@ export function consentPage(
   <div class="card">
     <img class="logo" src="/favicon.svg" alt="FreeTicket">
     <h1>Conectar FreeTicket</h1>
+    ${target}
     ${device && error ? `<div class="err">${esc(error)}</div>` : ""}
     ${device ? deviceSection : manualForm}
     <p class="foot">La conexión usa tus permisos de FreeTicket y puedes revocarla cerrando sesión en el panel.</p>

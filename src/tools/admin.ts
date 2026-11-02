@@ -34,12 +34,10 @@ import {
 	putFeatureFlagsKey,
 } from "../admin-client/sdk.gen";
 import { run } from "../api";
+import { read, write } from "../tool-meta";
 import { UI_META, uiTool } from "../ui";
 
-const destructive = { destructiveHint: true, idempotentHint: false } as const;
-const mutating = { destructiveHint: false, idempotentHint: false } as const;
 const CONFIRM = " ⚠️ Sensitive cross-tenant action: confirm with the human.";
-const readOnly = { readOnlyHint: true, idempotentHint: true } as const;
 const CRM_READ_ONLY =
 	" Solo lectura: lanzar, avanzar lotes, frenar o cancelar campañas no se " +
 	"hace desde el MCP, sino con el CLI (`ft admin crm`) o el panel.";
@@ -55,6 +53,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	server.tool(
 		"admin_whoami",
 		"Identity of the superadmin in the active session (GET /api/admin/me).",
+		read("admin_whoami"),
 		async () => run(getMe({ client })),
 	);
 
@@ -93,6 +92,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				"secret. Minting and revoking is done with the CLI (`ft admin tokens`), " +
 				"not from here.",
 			inputSchema: {},
+			annotations: read("admin_tokens"),
 			_meta: UI_META,
 		},
 		async () => run(getTokens({ client })),
@@ -117,6 +117,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_workspaces_get",
 		"Detalle de un workspace/tenant (GET /api/admin/workspaces/{id}).",
 		{ id: z.string().describe("Workspace id") },
+		read("admin_workspaces_get"),
 		async ({ id }) => run(getWorkspacesId({ path: { id }, client })),
 	);
 	server.tool(
@@ -129,7 +130,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			country: z.string(),
 			email: z.string().email().optional().describe("Owner email"),
 		},
-		mutating,
+		write("admin_workspaces_create", { destructive: false }),
 		async (body) => run(postWorkspaces({ body, client })),
 	);
 	server.tool(
@@ -162,7 +163,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.nullish()
 				.describe("Marks the domain as verified. null reverts it."),
 		},
-		mutating,
+		write("admin_workspaces_update", { destructive: false }),
 		async ({ id, ...body }) =>
 			run(patchWorkspacesId({ path: { id }, body, client })),
 	);
@@ -172,6 +173,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			"`planSlug`/`planName` (null if none) and `stripeLinked` — check it " +
 			"before reassigning (GET /api/admin/workspaces/{id}/plan).",
 		{ id: z.string().describe("Workspace id") },
+		read("admin_workspaces_plan_get"),
 		async ({ id }) => run(getWorkspacesIdPlan({ path: { id }, client })),
 	);
 	server.tool(
@@ -186,7 +188,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.enum(["spark", "star", "icon", "legend"])
 				.describe("Tier a activar (`legend` es enterprise)"),
 		},
-		destructive,
+		write("admin_workspaces_assign_plan", { destructive: true }),
 		async ({ id, ...body }) =>
 			run(postWorkspacesIdPlan({ path: { id }, body, client })),
 	);
@@ -194,7 +196,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_workspaces_suspend",
 		`Suspende un workspace/tenant (POST /api/admin/workspaces/{id}/suspend).${CONFIRM}`,
 		{ id: z.string().describe("Workspace id") },
-		destructive,
+		write("admin_workspaces_suspend", { destructive: true }),
 		async ({ id }) => run(postWorkspacesIdSuspend({ path: { id }, client })),
 	);
 	server.tool(
@@ -204,14 +206,14 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			"suspended first and have no CONFIRMED sale (409 otherwise). Does not " +
 			`cancel Stripe nor anonymize data.${CONFIRM}`,
 		{ id: z.string().describe("Workspace id") },
-		destructive,
+		write("admin_workspaces_delete", { destructive: true }),
 		async ({ id }) => run(deleteWorkspacesId({ path: { id }, client })),
 	);
 	server.tool(
 		"admin_workspaces_restore",
 		"Restaura un workspace suspendido (POST /api/admin/workspaces/{id}/restore).",
 		{ id: z.string().describe("Workspace id") },
-		mutating,
+		write("admin_workspaces_restore", { destructive: false }),
 		async ({ id }) => run(postWorkspacesIdRestore({ path: { id }, client })),
 	);
 
@@ -220,6 +222,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_users_get",
 		"Detalle de un usuario global (GET /api/admin/users/{id}).",
 		{ id: z.string().describe("User id") },
+		read("admin_users_get"),
 		async ({ id }) => run(getUsersId({ path: { id }, client })),
 	);
 	server.tool(
@@ -232,7 +235,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.optional(),
 			banned: z.boolean().optional(),
 		},
-		mutating,
+		write("admin_users_update", { destructive: false }),
 		async ({ id, ...body }) =>
 			run(patchUsersId({ path: { id }, body, client })),
 	);
@@ -243,13 +246,13 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			targetUserId: z.string().optional().describe("Usuario a impersonar"),
 			workspaceId: z.string().optional().describe("Workspace de contexto"),
 		},
-		destructive,
+		write("admin_impersonate", { destructive: true }),
 		async (body) => run(postImpersonate({ body, client })),
 	);
 	server.tool(
 		"admin_impersonate_stop",
 		"Ends the active impersonation (POST /api/admin/impersonate/stop).",
-		mutating,
+		write("admin_impersonate_stop", { destructive: false }),
 		async () => run(postImpersonateStop({ client })),
 	);
 
@@ -265,6 +268,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_platform_plans_get",
 		"Detalle de un plan de plataforma (GET /api/admin/platform-plans/{id}).",
 		{ id: z.string().describe("Platform plan id") },
+		read("admin_platform_plans_get"),
 		async ({ id }) => run(getPlatformPlansId({ path: { id }, client })),
 	);
 	server.tool(
@@ -289,7 +293,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			customDomain: z.boolean().optional(),
 			analytics: z.boolean().optional(),
 		},
-		mutating,
+		write("admin_platform_plans_create", { destructive: false }),
 		async (body) => run(postPlatformPlans({ body, client })),
 	);
 	server.tool(
@@ -315,7 +319,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			customDomain: z.boolean().optional(),
 			analytics: z.boolean().optional(),
 		},
-		mutating,
+		write("admin_platform_plans_update", { destructive: false }),
 		async ({ id, ...body }) =>
 			run(patchPlatformPlansId({ path: { id }, body, client })),
 	);
@@ -338,7 +342,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.describe("Plan or workspace id when scope is not global"),
 			enabled: z.boolean(),
 		},
-		mutating,
+		write("admin_feature_flags_set", { destructive: false }),
 		async ({ key, ...body }) =>
 			run(putFeatureFlagsKey({ path: { key }, body, client })),
 	);
@@ -375,7 +379,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_crm_campaigns_get",
 		`Detalle de una campaña del CRM maestro: filtro, firma, contadores y lotes (GET /api/admin/crm/campaigns/{id}).${CRM_READ_ONLY}`,
 		{ id: z.string().describe("Campaign id") },
-		readOnly,
+		read("admin_crm_campaigns_get"),
 		async ({ id }) => run(getCrmCampaignsId({ path: { id }, client })),
 	);
 	server.tool(
@@ -413,7 +417,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 					"Quién firma. Solo suma las bajas de ese remitente; nunca agrega gente.",
 				),
 		},
-		readOnly,
+		read("admin_crm_audience_preview"),
 		async (body) => run(postCrmAudiencePreview({ body, client })),
 	);
 	uiTool(
@@ -427,7 +431,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"admin_crm_options",
 		"Opciones para armar un filtro del CRM: ciudades, facetas (género/formato), " +
 			"planes de membresía y plantillas (GET /api/admin/crm/options).",
-		readOnly,
+		read("admin_crm_options"),
 		async () => run(getCrmOptions({ client })),
 	);
 	uiTool(
@@ -458,7 +462,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.max(50)
 				.describe("Ids de shows (1 a 50)"),
 		},
-		readOnly,
+		read("admin_crm_event_dates"),
 		async ({ eventIds }) =>
 			run(
 				getCrmEventDates({ query: { eventIds: eventIds.join(",") }, client }),

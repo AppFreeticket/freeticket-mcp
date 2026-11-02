@@ -5,6 +5,8 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.15.3] - 2026-11-01
+
 Superadmin contract 1.5.1 → **1.7.0** (CRM master). Additions only.
 **124 tools** (B2B 88 · superadmin 30 · public 6).
 
@@ -13,7 +15,7 @@ Superadmin contract 1.5.1 → **1.7.0** (CRM master). Additions only.
   `admin_crm_campaigns_get`, `admin_crm_audience_preview` (counts the audience
   of a filter and returns a server-masked sample; creates and sends nothing),
   `admin_crm_quota`, `admin_crm_options`, `admin_crm_events` and
-  `admin_crm_event_dates`.
+  `admin_crm_event_dates`. Each one is registered with `read()`.
 - The coverage sweep reads `x-ft-mcp: { expose: false, reason }` from the
   spec: those operations count as excluded with the contract's own reason,
   and the test fails if any tool calls them.
@@ -23,6 +25,16 @@ Superadmin contract 1.5.1 → **1.7.0** (CRM master). Additions only.
   `/crm/campaigns/{id}/batches/next`, `/crm/campaigns/{id}/batches/stop` and
   `/crm/campaigns/{id}/cancel`. They send real messages to buyers; they stay
   in the CLI (`ft admin crm`) and the panel.
+
+## [0.15.2] - 2026-11-01
+
+### Changed
+- Directory annotations are declared where the tool is registered, through `read()` and `write()` in `src/tool-meta.ts`. The post-registration pass that inferred a write from a missing `destructiveHint` and filled `openWorldHint` from a name list is gone. The wire result is the same: every tool still publishes the three booleans, and only refunds, ticket emails and the public checkout preference are open-world.
+
+## [0.15.1] - 2026-11-01
+
+### Fixed
+- Every tool publishes `readOnlyHint`, `destructiveHint` and `openWorldHint` as booleans. Reads stay inside FreeTicket (`openWorldHint: false`). The only open-world writes are `sales_refund` (Mercado Pago), `tickets_resend`, `public_tickets_resend` (email) and `public_orders_create` (a Mercado Pago preference). Omitting `openWorldHint` on the other writes made the ChatGPT tool scan reject them.
 
 ## [0.15.0] - 2026-10-20
 
