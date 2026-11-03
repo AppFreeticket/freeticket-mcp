@@ -1,6 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+	operations,
+	root,
+	SPECS,
+	type SpecFile,
+	toolFiles,
+} from "./test-support/contract";
 
 /**
  * Contract sweep: every operation of the three specs either has a tool, or is
@@ -11,7 +18,6 @@ import { describe, expect, it } from "vitest";
  * The match is by operationId against the tool sources: the generated client
  * exports one function per operationId, so if the name shows up, a tool exists.
  */
-const root = join(import.meta.dirname, "..");
 /**
  * Each spec is matched only against the tools that use ITS client. A single
  * merged source let one spec mask another: `postWorkspaces` of /api/admin
@@ -78,53 +84,29 @@ const EXCLUDED: Record<string, string> = {
 		"charges a Brick card token — card data never passes through an agent",
 	postCustomerOrdersIdPaymentPse:
 		"PSE redirect of the landing page checkout, which the MCP does not open",
+	// Headless merch store of an enterprise landing (contract 1.36): placing an
+	// order takes the buyer's ID document and phone and holds stock, and paying
+	// it charges a Brick card token. Same line as the ticket checkout above; the
+	// catalog and the order lookup are tools (merch_catalog, merch_orders_lookup).
+	postMerchOrders:
+		"landing page merch checkout (buyer ID document, stock hold) — needs the browser",
+	postMerchOrdersCodePaymentCard:
+		"charges a Brick card token — card data never passes through an agent",
 };
-
-type Op = { id: string; where: string; hidden?: string };
 
 /**
  * The contract can mark an operation `x-ft-mcp: { expose: false, reason }`:
  * free-admin decides, next to the route, that agents must not get it (the CRM
  * writes send real email and WhatsApp to buyers). Those count as excluded with
  * the spec's own reason, and must NOT show up in the tools — the opposite of
- * the coverage rule.
+ * the coverage rule, checked across every tool file at the end of this file.
  */
-function operations(specFile: string): Op[] {
-	const spec = JSON.parse(readFileSync(join(root, specFile), "utf8")) as {
-		paths: Record<
-			string,
-			Record<
-				string,
-				{
-					operationId?: string;
-					"x-ft-mcp"?: { expose?: boolean; reason?: string };
-				}
-			>
-		>;
-	};
-	const out: Op[] = [];
-	for (const [path, item] of Object.entries(spec.paths ?? {}))
-		for (const [method, op] of Object.entries(item)) {
-			if (!["get", "post", "patch", "put", "delete"].includes(method)) continue;
-			if (!op.operationId) continue;
-			const mcp = op["x-ft-mcp"];
-			out.push({
-				id: op.operationId,
-				where: `${method.toUpperCase()} ${path}`,
-				...(mcp?.expose === false
-					? { hidden: mcp.reason?.trim() || "(no reason)" }
-					: {}),
-			});
-		}
-	return out;
-}
-
 describe.each([
-	["B2B /api/v1", "openapi.json", ["b2b.ts", "b2b-writes.ts"], 103],
+	["B2B /api/v1", "openapi.json", ["b2b.ts", "b2b-writes.ts"], 200],
 	["superadmin /api/admin", "admin-openapi.json", ["admin.ts"], 36],
 	["public /api/public", "public-openapi.json", ["public.ts"], 6],
 ])("contract %s", (_label, file, files, minOps) => {
-	const ops = operations(file);
+	const ops = operations(file as SpecFile);
 	const source = sourceOf(files);
 
 	it("exposes every operation as a tool (or excludes it with a reason)", () => {
@@ -133,14 +115,6 @@ describe.each([
 			.filter((o) => !new RegExp(`\\b${o.id}\\b`).test(source))
 			.map((o) => `${o.where} [${o.id}]`);
 		expect(uncovered).toEqual([]);
-	});
-
-	it("keeps out every operation the contract marks x-ft-mcp.expose=false", () => {
-		const leaked = ops
-			.filter((o) => o.hidden)
-			.filter((o) => new RegExp(`\\b${o.id}\\b`).test(source))
-			.map((o) => `${o.where} [${o.id}]: ${o.hidden}`);
-		expect(leaked).toEqual([]);
 	});
 
 	it("every x-ft-mcp.expose=false carries its reason", () => {
@@ -157,8 +131,7 @@ describe.each([
 
 it("does not duplicate in EXCLUDED what the contract already hides", () => {
 	// Two sources for the same rule drift apart: the spec's reason wins.
-	const hidden = ["openapi.json", "admin-openapi.json", "public-openapi.json"]
-		.flatMap(operations)
+	const hidden = SPECS.flatMap(operations)
 		.filter((o) => o.hidden)
 		.map((o) => o.id);
 	expect(hidden.filter((id) => EXCLUDED[id])).toEqual([]);
@@ -166,10 +139,24 @@ it("does not duplicate in EXCLUDED what the contract already hides", () => {
 
 it("carries no exclusions for operations the contract no longer has", () => {
 	// An orphaned exclusion is a rule nobody has looked at again.
-	const ids = new Set(
-		["openapi.json", "admin-openapi.json", "public-openapi.json"]
-			.flatMap(operations)
-			.map((o) => o.id),
-	);
+	const ids = new Set(SPECS.flatMap(operations).map((o) => o.id));
 	expect(Object.keys(EXCLUDED).filter((id) => !ids.has(id))).toEqual([]);
+});
+
+it("no tool file calls an excluded or x-ft-mcp.expose=false operation", () => {
+	// Checked against EVERY file under src/tools, not just the ones that use the
+	// spec's own client: a CRM write wired into b2b-writes.ts, or an EXCLUDED
+	// credential mint added to admin.ts, must fail here too. The coverage rule
+	// above accepts a bare mention (a comment counts); this one looks for a
+	// call, or an aliased import that would hide the call.
+	const banned = SPECS.flatMap(operations)
+		.filter((o) => o.hidden || EXCLUDED[o.id])
+		.map((o) => ({ ...o, why: o.hidden ?? EXCLUDED[o.id] }));
+	expect(banned.length).toBeGreaterThanOrEqual(Object.keys(EXCLUDED).length);
+	const leaked: string[] = [];
+	for (const { file, text } of toolFiles())
+		for (const o of banned)
+			if (new RegExp(`\\b${o.id}(\\s*\\(|\\s+as\\b)`).test(text))
+				leaked.push(`${file}: ${o.where} [${o.id}] — ${o.why}`);
+	expect(leaked).toEqual([]);
 });

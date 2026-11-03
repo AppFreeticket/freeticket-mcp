@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket Admin API",
-		"version": "1.7.0",
+		"version": "1.8.0",
 		"description": "API REST de superadmin de FreeTicket (cross-tenant). Autenticación por sesión de plataforma (staff con rol SUPER_ADMIN) o por service token (PAT) vía `Authorization: Bearer <token>` — NO usa API key de tenant. Aislada del contrato B2B /api/v1."
 	},
 	"servers": [
@@ -3427,7 +3427,14 @@
 					},
 					"role": {
 						"type": "string",
-						"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
+						"enum": [
+							"SUPER_ADMIN",
+							"ADMIN",
+							"STAFF",
+							"VIEWER",
+							"MINCULTURA",
+							"MERCH_MANAGER"
+						]
 					}
 				},
 				"required": ["userId", "name", "email", "role"],
@@ -3441,14 +3448,7 @@
 				"type": "object",
 				"properties": {
 					"nextCursor": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"hasMore": {
 						"type": "boolean"
@@ -3480,57 +3480,22 @@
 						"type": "boolean"
 					},
 					"webTemplate": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"customDomain": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"customDomainVerifiedAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"suspended": {
 						"type": "boolean"
 					},
 					"suspendedAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"deletedAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"createdAt": {
 						"type": "string"
@@ -3577,7 +3542,7 @@
 					"email": {
 						"type": "string",
 						"format": "email",
-						"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+						"pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
 					}
 				},
 				"required": ["name", "slug", "type", "country"],
@@ -3631,7 +3596,7 @@
 							{
 								"type": "string",
 								"format": "date-time",
-								"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+								"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
 							},
 							{
 								"type": "null"
@@ -3665,14 +3630,7 @@
 						"type": "string"
 					},
 					"previousPlanSlug": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					}
 				},
 				"required": ["workspaceId", "planSlug", "planName", "previousPlanSlug"],
@@ -3685,34 +3643,13 @@
 						"type": "string"
 					},
 					"orgId": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"planSlug": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"planName": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"status": {
 						"anyOf": [
@@ -3726,47 +3663,19 @@
 						]
 					},
 					"startedAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"expiresAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"cancelledAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"stripeLinked": {
 						"type": "boolean"
 					},
 					"paymentOption": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					}
 				},
 				"required": [
@@ -3816,30 +3725,23 @@
 					},
 					"role": {
 						"type": "string",
-						"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
+						"enum": [
+							"SUPER_ADMIN",
+							"ADMIN",
+							"STAFF",
+							"VIEWER",
+							"MINCULTURA",
+							"MERCH_MANAGER"
+						]
 					},
 					"banned": {
 						"type": "boolean"
 					},
 					"bannedAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"homeOrganizationId": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"workspaces": {
 						"type": "array",
@@ -3869,7 +3771,14 @@
 				"properties": {
 					"role": {
 						"type": "string",
-						"enum": ["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]
+						"enum": [
+							"SUPER_ADMIN",
+							"ADMIN",
+							"STAFF",
+							"VIEWER",
+							"MINCULTURA",
+							"MERCH_MANAGER"
+						]
 					},
 					"banned": {
 						"type": "boolean"
@@ -3907,14 +3816,7 @@
 						"type": "string"
 					},
 					"targetOrgId": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					}
 				},
 				"required": [
@@ -3945,14 +3847,7 @@
 						"type": "number"
 					},
 					"priceBiannual": {
-						"anyOf": [
-							{
-								"type": "number"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["number", "null"]
 					},
 					"maxEvents": {
 						"anyOf": [
@@ -4213,27 +4108,13 @@
 						"$ref": "#/components/schemas/FeatureFlagScope"
 					},
 					"scopeId": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"enabled": {
 						"type": "boolean"
 					},
 					"updatedBy": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"updatedAt": {
 						"type": "string"
@@ -4301,14 +4182,7 @@
 						]
 					},
 					"ipAddress": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"createdAt": {
 						"type": "string"
@@ -4340,34 +4214,13 @@
 						"type": "string"
 					},
 					"lastUsedAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"expiresAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"revokedAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"createdAt": {
 						"type": "string"
@@ -4400,24 +4253,10 @@
 						"type": "string"
 					},
 					"expiresAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"lastUsedAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					}
 				},
 				"required": [
@@ -4440,7 +4279,7 @@
 					"expiresAt": {
 						"type": "string",
 						"format": "date-time",
-						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
 					}
 				},
 				"required": ["name"],
@@ -4795,24 +4634,10 @@
 						"type": "string"
 					},
 					"imageUrl": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"templateName": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"promotedEvent": {
 						"anyOf": [
@@ -4937,24 +4762,10 @@
 									"description": "ISO 8601"
 								},
 								"eventName": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								},
 								"utmSource": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								}
 							},
 							"required": [
@@ -5072,27 +4883,13 @@
 							"type": "object",
 							"properties": {
 								"name": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								},
 								"emailMasked": {
 									"type": "string"
 								},
 								"phoneMasked": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								},
 								"lastPurchaseAt": {
 									"anyOf": [
@@ -5152,14 +4949,7 @@
 												"type": "string"
 											},
 											"logoUrl": {
-												"anyOf": [
-													{
-														"type": "string"
-													},
-													{
-														"type": "null"
-													}
-												]
+												"type": ["string", "null"]
 											}
 										},
 										"required": ["id", "name", "logoUrl"],
@@ -5362,24 +5152,10 @@
 									"type": "string"
 								},
 								"footerText": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								},
 								"urlButtonText": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								}
 							},
 							"required": ["name", "language", "hasImageHeader", "body"],
@@ -5387,14 +5163,7 @@
 						}
 					},
 					"whatsappBlockedReason": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					}
 				},
 				"required": [
@@ -5457,24 +5226,10 @@
 						"maximum": 9007199254740991
 					},
 					"venueName": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"city": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"status": {
 						"type": "string"
@@ -5512,37 +5267,16 @@
 						"description": "ISO 8601"
 					},
 					"label": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"status": {
 						"type": "string"
 					},
 					"venueName": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"city": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"past": {
 						"type": "boolean"
@@ -5644,14 +5378,7 @@
 					},
 					"templateName": {
 						"description": "Plantilla de WhatsApp aprobada (obligatoria por WhatsApp; el correo la rechaza). Ver `GET /crm/options`.",
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"subject": {
 						"type": "string",

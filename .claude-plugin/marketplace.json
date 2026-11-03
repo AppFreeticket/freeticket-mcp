@@ -1,0 +1,18 @@
+{
+	"$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+	"name": "freeticket",
+	"description": "Official FreeTicket plugins for Claude Code.",
+	"owner": {
+		"name": "FreeTicket",
+		"url": "https://appfreeticket.com"
+	},
+	"plugins": [
+		{
+			"name": "freeticket",
+			"source": "./",
+			"description": "FreeTicket MCP server (remote, OAuth) plus skills to publish an event end to end and close a show day.",
+			"category": "productivity",
+			"tags": ["ticketing", "events", "mcp"]
+		}
+	]
+}

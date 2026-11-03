@@ -5,6 +5,215 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-03
+
+Brings the B2B contract to **1.36.0** (superadmin 1.8.0 and public 0.10.1
+unchanged in shape), emitted from free-admin `main` (80e6ce9) with
+`pnpm openapi:emit*` (production was not reachable to compare). Every
+operation the 0.17–0.19 tools call is in that `main` spec, so they no longer
+depend on an unmerged free-admin branch. Merges `main` (0.15.3, #28): the seven
+superadmin CRM reads keep #28's implementation (`admin_crm_campaigns`,
+`eventIds` as an array) and the coverage sweep keeps #28's rule — operations
+the contract marks `x-ft-mcp: { expose: false }` are excluded by the spec's own
+reason, not duplicated in `EXCLUDED`. Replaces the open PRs #34 and #35.
+One rename (see Changed). **221 tools** (B2B 185 · superadmin 30 · public 6), 49 with a
+view.
+
+### Added
+- Transfers and courtesies (from #35): `sales_transfer` (destructive, not
+  idempotent, open-world: voids the QR and emails the new holder),
+  `sales_recipient_update` (destructive, open-world: corrects a courtesy's
+  recipient, voids the QRs if the email changes and resends) and
+  `event_dates_courtesy_seats` (read: blocked seats that can be issued as
+  courtesies).
+- Door: `tickets_checkin_undo` (destructive, idempotent, ADMIN only),
+  `events_validators_list` (view) and `events_validators_add` (open-world: may
+  create a STAFF account and email the invitation).
+- Event viewers, read-only stats access: `events_viewers_list` (view),
+  `events_viewers_add` (open-world: emails the link) and
+  `events_viewers_delete` (destructive).
+- Staff: `staff_access_set` (PUT, full replace of the access: destructive,
+  idempotent) and `staff_resend_invite` (open-world).
+- Enterprise landing merch store: `merch_catalog` and `merch_orders_lookup`
+  (a POST that only reads, needs the buyer session).
+- Claude plugin directory metadata: `icon` (`assets/icon.png`, 512×512 PNG)
+  and `privacyPolicyUrl` (`https://appfreeticket.com/legal/privacidad`) in
+  `.claude-plugin/plugin.json`; a Support and privacy section in the README.
+
+### Changed
+- **BREAKING**: `admin_crm_campaigns_list` is now `admin_crm_campaigns`
+  (#28's name wins the merge). Agents or skills that call the old name get
+  "tool not found".
+- `openWorldHint` corrected to `true` on writes that leave FreeTicket through
+  free-admin: `staff_create` (emails the invitation), `subscriptions_cancel`
+  and `customer_subscription_cancel` (cancel the recurring charge in Stripe /
+  Mercado Pago) and `admin_workspaces_assign_plan` (cancels the tenant's Stripe
+  subscription first). "Leaves FreeTicket" now explicitly covers payment
+  gateways and outbound email (`write()` in `src/tool-meta.ts`).
+- Tests: `readOnlyHint` is checked against the HTTP methods each tool calls in
+  the spec (POST reads allowlisted with a reason), the destructive set is exact
+  across B2B and superadmin, excluded or `expose: false` operations are banned
+  from every tool file, and the request of five multi-id/header tools is
+  asserted end to end against a fake `fetch`.
+
+### Not exposed (excluded with a reason in `src/coverage.test.ts`)
+- `POST /merch/orders` (landing checkout with the buyer's ID document and a
+  stock hold) and `POST /merch/orders/{code}/payment/card` (charges a Brick
+  card token), on the same grounds as the ticket landing checkout.
+
+## [0.19.0] - 2026-11-03
+
+Brings the B2B contract to **1.32.0** (superadmin 1.8.0 and public 0.10.1
+unchanged): lots 4 (1.31.0) and 5 (1.32.0) of the dashboard parity. The spec
+comes from free-admin commit `1ceb2ea` on branch
+`claude/funny-albattani-iz4k0r` (PR AppFreeticket/free-admin#1169), **not yet
+merged to `main` nor deployed**: these tools answer 404 against production
+until that PR ships. Additions only. **208 tools** (B2B 172 · superadmin 30 ·
+public 6), 48 with a view.
+
+### Added
+- On-demand videos (Mux): `content_videos_update`,
+  `content_videos_set_published` (open-world: publishing notifies members),
+  `content_videos_set_series` and `content_videos_delete` (destructive,
+  open-world: deletes the Mux asset). Uploading stays in the dashboard.
+- Video series: `content_series_list` (view), `content_series_create`,
+  `content_series_update`, `content_series_set_published` and
+  `content_series_delete` (destructive; its videos are left loose).
+- Live streams (Mux): `content_lives_create`, `content_lives_update`,
+  `content_lives_reset_key` (destructive: the old key dies at once),
+  `content_lives_delete` (destructive) and `content_lives_chat` (personal
+  data). The three Mux calls are open-world.
+- Website and profile: `website_get`, `website_put`, `website_set_published`,
+  `organization_profile_get`, `organization_profile_update`,
+  `organization_update` and `organization_analytics_update` (GA4).
+  `website_put` is a **full replacement** (every `null` wipes a field, and
+  five of its columns are shared with the profile), so it is annotated
+  destructive and asks for confirmation although the contract does not flag
+  it `x-ft-destructive`.
+- Ticket templates: `ticket_templates_list` (view), `ticket_templates_create`,
+  `ticket_templates_update`, `ticket_templates_delete` (destructive) and
+  `ticket_templates_instantiate` (creates a ticket type on a date from a
+  template).
+- Box-office QR codes: `master_qrs_list` (view), `master_qrs_create`,
+  `master_qrs_update`, `master_qrs_set_active` and `master_qrs_delete`
+  (destructive).
+
+### Security
+- Secrets in results: `content_lives_create` / `content_lives_reset_key`
+  return the live's `streamKey`, and `master_qrs_list` / `_create` /
+  `_update` return the QR `code` and `url`. Their descriptions mark the value
+  as SECRET: the agent must not echo it into the chat or docs unless the
+  human explicitly asks, nor paste it in shared places. The server keeps no
+  log or store of tool results (stateless HTTP transport; stderr only gets
+  transport errors), so the value lives only in the client's transcript.
+
+## [0.18.0] - 2026-11-03
+
+Brings the B2B contract to **1.30.0** (superadmin 1.8.0 and public 0.10.1
+unchanged). The spec comes from free-admin commit `e97f2e5` on branch
+`claude/funny-albattani-iz4k0r` (PR AppFreeticket/free-admin#1169), **not yet
+merged to `main` nor deployed**: these tools answer 404 against production
+until that PR ships. Additions only. **177 tools** (B2B 141 · superadmin 30 ·
+public 6), 45 with a view.
+
+### Added
+- Digital products and courses: `products_list` (view), `products_get`,
+  `products_create`, `products_update`, `products_set_status` (idempotent)
+  and `products_delete` (destructive, soft delete with no restore). The
+  POST/PATCH input models the contract's nested course tree as is
+  (modules → lessons → resources / quiz). `products_update` with `modules`
+  **replaces the whole tree** (whatever the list leaves out is deleted with
+  buyers' progress), so it carries `destructiveHint`, and `openWorldHint`
+  because new lessons on a published course notify buyers. Files and lesson
+  videos cannot be uploaded through the API: they must be uploaded in the
+  dashboard first and referenced by path/id.
+- Skill `course-builder`.
+
+## [0.17.0] - 2026-11-03
+
+Brings the B2B contract to **1.29.0** (superadmin 1.8.0 and public 0.10.1
+unchanged). The spec comes from free-admin commit `318278a` on branch
+`claude/funny-albattani-iz4k0r` (PR AppFreeticket/free-admin#1169), **not yet
+merged to `main` nor deployed**: these tools answer 404 against production
+until that PR ships. Additions only. **171 tools** (B2B 135 · superadmin 30 ·
+public 6), 44 with a view.
+
+### Added
+- Show day: `reports_live_attendance` (dates happening now with check-in
+  progress), `event_dates_access_close_status` and
+  `event_dates_access_close_sign` (freezes the check-in count as the official
+  record and emails it; destructive, open-world, sends `confirm: true`).
+- Payments: `sales_payment_intents` (checkout funnel and abandoned journeys of
+  one event) and `sales_abandon` (PENDING sale with no payment started →
+  ABANDONED, releases stock; destructive).
+- Community posts and comments: `content_posts_update`, `content_posts_pin`,
+  `content_posts_delete` and `content_comments_delete` (destructive).
+- Community channels: `content_channels_list`, `content_channels_create`,
+  `content_channels_update`, `content_channels_reorder`,
+  `content_channels_archive` (destructive: no unarchive).
+- Community moderation: `content_moderation_queue`, `content_moderation_bans`,
+  `content_member_posts_list`, `content_comments_hide`,
+  `content_comments_unhide`, `content_comments_ignore_reports`,
+  `content_member_posts_approve`, `content_member_posts_reject` and
+  `content_member_posts_remove` (destructive), `content_members_ban`
+  (destructive) and `content_members_unban`.
+- Community meetups: `content_meetups_list`, `content_meetups_get`,
+  `content_meetups_create`, `content_meetups_update`,
+  `content_meetups_publish` (open-world: queues an email to the whole
+  community), `content_meetups_cancel` (destructive, open-world),
+  `content_meetups_rsvp_review` (open-world) and `content_meetups_attendance`.
+- Skill `community-moderation`.
+
+### Changed
+- Skill `show-day-close` uses `reports_live_attendance`, the access-close
+  status (signing only on explicit human request) and `sales_payment_intents`
+  for stuck payments.
+- `src/tools/b2b-writes.test.ts` checks every operation flagged
+  `x-ft-destructive`, including the previously missing
+  `presale_windows_delete`.
+
+## [0.16.0] - 2026-11-03
+
+Brings all three contracts in line with free-admin `main`: B2B 1.20.0 →
+**1.27.0**, superadmin 1.5.1 → **1.8.0**, public 0.9.1 → **0.10.1**. The specs
+were taken from free-admin's committed `openapi.json`, `admin-openapi.json`
+and `public-openapi.json` at `main` (cb33afb), not from production, which may
+lag. Additions only. **138 tools** (B2B 102 · superadmin 30 · public 6), 37
+with a view.
+
+### Added
+- Scheduling: `events_schedule` (`publishAt` auto-publishes a draft;
+  `saleStartsAt` publishes now and opens sales later) and `events_unschedule`.
+- Lineup: `artists_search`, `events_artists_set` (replaces the whole ordered
+  lineup and emails new artists; destructive, open-world),
+  `events_artists_delete`, `event_artist_invitations_list`,
+  `event_artist_invitations_resend` (open-world) and
+  `event_artist_invitations_cancel`.
+- Member presales: `presale_windows_list`, `presale_windows_create`,
+  `presale_windows_update`, `presale_windows_delete` (destructive, as the
+  contract's `x-ft-destructive` says).
+- Landing waitlist: `waitlist_join` (enterprise key, optional buyer session)
+  and `waitlist_list`.
+- **Claude plugin and marketplace.** `.claude-plugin/plugin.json`,
+  `.claude-plugin/marketplace.json` (plugin at the repo root) and `.mcp.json`
+  pointing at the remote server over OAuth. Install with
+  `/plugin marketplace add AppFreeticket/freeticket-mcp` and
+  `/plugin install freeticket@freeticket`. Two skills: `publish-event` and
+  `show-day-close`. `src/plugin.test.ts` keeps the manifest version equal to
+  `package.json`, the names in step, and every tool a skill names registered.
+
+### Changed
+- `events_update` reaches every field of the contract's `EventUpdate`:
+  `slug`, `squareImageUrl`, `storyImageUrl`, `pulepCode`, `listedOnPortal`,
+  `genre`, `subgenre`, `genreOther`, `audience`.
+- `event_dates_create` / `event_dates_update` take `streamType` and
+  `maxPerCustomer`; the update also takes `status`.
+- `ticket_types_create` / `ticket_types_update` take `saleStartsAt`,
+  `saleEndsAt` and `seatsioCategoryKey`.
+- `staff_update_role` accepts the new `MERCH_MANAGER` role.
+- The seven superadmin CRM master reads came with 0.15.3 (#28); this
+  release keeps that implementation and does not add a second one.
+
 ## [0.15.3] - 2026-11-01
 
 Superadmin contract 1.5.1 → **1.7.0** (CRM master). Additions only.

@@ -18,6 +18,7 @@ export type Warning = {
 	accessibleWorkspaces?: number;
 	suggestedWorkspaceId?: string;
 	suggestedWorkspaceName?: string;
+	ids?: Array<string>;
 };
 
 export type Page = {
@@ -39,7 +40,13 @@ export type WorkspaceAccess = {
 	/**
 	 * The user's effective role IN THIS workspace.
 	 */
-	role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
+	role:
+		| "SUPER_ADMIN"
+		| "ADMIN"
+		| "STAFF"
+		| "VIEWER"
+		| "MINCULTURA"
+		| "MERCH_MANAGER";
 	/**
 	 * Enabled sections (slugs). null = unrestricted; [] = access expired or revoked.
 	 */
@@ -53,7 +60,13 @@ export type Me = {
 	/**
 	 * DEPRECATED: effective role in the ACTIVE workspace. Use the `role` of each `workspaces` row instead. Kept for compatibility with already-published clients.
 	 */
-	role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
+	role:
+		| "SUPER_ADMIN"
+		| "ADMIN"
+		| "STAFF"
+		| "VIEWER"
+		| "MINCULTURA"
+		| "MERCH_MANAGER";
 	activeWorkspaceId: string | null;
 	workspaces: Array<WorkspaceAccess>;
 };
@@ -95,7 +108,13 @@ export type DeviceTokenResponse = {
 	user: {
 		id: string;
 		email: string;
-		role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
+		role:
+			| "SUPER_ADMIN"
+			| "ADMIN"
+			| "STAFF"
+			| "VIEWER"
+			| "MINCULTURA"
+			| "MERCH_MANAGER";
 	};
 	workspaces: Array<Workspace>;
 };
@@ -162,6 +181,22 @@ export type Event = {
 	access: "owner" | "artist";
 	nextDate?: EventNextDate | null;
 	artists?: Array<EventArtist>;
+	/**
+	 * Scheduled publication instant (ISO 8601, UTC) of a DRAFT event; null = not scheduled. See `POST /events/{id}/schedule`.
+	 */
+	publishAt?: string | null;
+	/**
+	 * PULEP registration code (Colombian Ministry of Culture). Required for performing-arts events with capacity above 400.
+	 */
+	pulepCode?: string | null;
+	/**
+	 * false = hidden from portal discovery (listings, search, home); still reachable by direct link.
+	 */
+	listedOnPortal?: boolean;
+	/**
+	 * Free-text event type, only when the genre is "otro".
+	 */
+	genreOther?: string | null;
 	createdAt: string;
 	updatedAt: string;
 };
@@ -231,9 +266,13 @@ export type EventDate = {
 	/**
 	 * seats.io event key. Read-only: issued by automatic provisioning; writing it by hand orphans seats already sold.
 	 */
-	seatsioEventKey: string | null;
+	readonly seatsioEventKey: string | null;
 	status: "DRAFT" | "PUBLISHED" | "SOLD_OUT" | "CANCELLED" | "COMPLETED";
 	streamType: string;
+	/**
+	 * Cumulative per-buyer cap across ALL ticket types of this date. null = no date-level cap (each ticket type's own cap applies).
+	 */
+	maxPerCustomer?: number | null;
 	createdAt: string;
 };
 
@@ -254,6 +293,60 @@ export type EventUpdate = {
 	description?: string | null;
 	venueId?: string | null;
 	coverImageUrl?: string | null;
+	/**
+	 * Public URL slug. Must be unique across live events (409 `SLUG_TAKEN`).
+	 */
+	slug?: string;
+	squareImageUrl?: string | null;
+	storyImageUrl?: string | null;
+	/**
+	 * PULEP code. Required (422 `PULEP_REQUIRED`) when the event is performing arts (or has no genre) and its capacity per date exceeds 400.
+	 */
+	pulepCode?: string | null;
+	listedOnPortal?: boolean;
+	/**
+	 * Event type from the taxonomy.
+	 */
+	genre?:
+		| "comedia"
+		| "musica"
+		| "teatro"
+		| "danza"
+		| "cultura"
+		| "familiar"
+		| "fiesta"
+		| "deporte"
+		| "conferencia"
+		| "otro";
+	/**
+	 * Subtype; must belong to `genre`, which must be sent in the same request. null = no subtype.
+	 */
+	subgenre?:
+		| (
+				| "stand_up"
+				| "impro"
+				| "sketch"
+				| "satira"
+				| "rock"
+				| "indie"
+				| "pop"
+				| "urbano"
+				| "salsa"
+				| "vallenato"
+				| "electronica"
+				| "tributo"
+				| "opera"
+				| "musical"
+		  )
+		| null;
+	/**
+	 * Free-text type. Required when `genre` is "otro".
+	 */
+	genreOther?: string;
+	/**
+	 * Minimum age classification. null = unspecified.
+	 */
+	audience?: ("todo_publico" | "mayores_14" | "mayores_18" | "infantil") | null;
 };
 
 export type EventDateCreate = {
@@ -264,6 +357,7 @@ export type EventDateCreate = {
 	timezone: string;
 	venueId?: string | null;
 	streamType?: "PRESENCIAL" | "ONLINE" | "HIBRIDO";
+	maxPerCustomer?: number | null;
 };
 
 export type EventDateUpdate = {
@@ -275,6 +369,7 @@ export type EventDateUpdate = {
 	venueId?: string | null;
 	streamType?: "PRESENCIAL" | "ONLINE" | "HIBRIDO";
 	status?: "DRAFT" | "PUBLISHED" | "SOLD_OUT" | "CANCELLED" | "COMPLETED";
+	maxPerCustomer?: number | null;
 };
 
 export type TicketTypeCreate = {
@@ -307,6 +402,51 @@ export type TicketTypeUpdate = {
 	saleStartsAt?: string | null;
 	saleEndsAt?: string | null;
 	seatsioCategoryKey?: string | null;
+};
+
+export type EventSchedule = {
+	/**
+	 * Publish the DRAFT automatically at this instant (UTC). Must be in the future and before at least one of its dates.
+	 */
+	publishAt?: string;
+	/**
+	 * Publish the DRAFT NOW and open ticket sales at this instant (UTC): sets `saleStartsAt` on every ticket type of the upcoming dates. Must be in the future and before the first upcoming date.
+	 */
+	saleStartsAt?: string;
+};
+
+export type PresaleWindow = {
+	id: string;
+	ticketTypeId: string;
+	/**
+	 * Membership plan whose active members get early access.
+	 */
+	planId: string;
+	presaleStartsAt: string;
+	presaleEndsAt: string;
+	/**
+	 * Sub-cap of tickets sellable during the presale. null = shares the ticket type's whole capacity.
+	 */
+	presaleCapacity: number | null;
+	isActive: boolean;
+	createdAt: string;
+	updatedAt: string;
+};
+
+export type PresaleWindowCreate = {
+	planId: string;
+	presaleStartsAt: string;
+	presaleEndsAt: string;
+	presaleCapacity?: number | null;
+	isActive?: boolean;
+};
+
+export type PresaleWindowUpdate = {
+	planId?: string;
+	presaleStartsAt?: string;
+	presaleEndsAt?: string;
+	presaleCapacity?: number | null;
+	isActive?: boolean;
 };
 
 export type SaleItem = {
@@ -455,7 +595,13 @@ export type StaffUser = {
 	id: string;
 	name: string;
 	email: string;
-	role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
+	role:
+		| "SUPER_ADMIN"
+		| "ADMIN"
+		| "STAFF"
+		| "VIEWER"
+		| "MINCULTURA"
+		| "MERCH_MANAGER";
 	organizationId: string | null;
 	workspaceId?: string;
 	workspaceName?: string;
@@ -468,7 +614,13 @@ export type StaffCreate = {
 };
 
 export type RoleUpdate = {
-	role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
+	role:
+		| "SUPER_ADMIN"
+		| "ADMIN"
+		| "STAFF"
+		| "VIEWER"
+		| "MINCULTURA"
+		| "MERCH_MANAGER";
 };
 
 export type ReportSummary = {
@@ -571,21 +723,135 @@ export type ExportSubscriber = {
 	expiresAt: string | null;
 };
 
-export type ContentVideo = {
+export type EventArtistsReplace = {
+	artistIds: Array<string>;
+	inviteEmails?: Array<string>;
+};
+
+export type ArtistSummary = {
 	id: string;
-	title: string;
-	description: string | null;
-	durationSeconds: number | null;
-	posterUrl: string | null;
-	series: {
-		id: string;
-		title: string;
-	} | null;
+	name: string;
+	slug: string | null;
+	logoUrl: string | null;
+};
+
+export type ArtistInvitation = {
+	id: string;
+	email: string;
+	status: "PENDING" | "EXPIRED";
+	expiresAt: string;
+	createdAt: string;
+};
+
+export type EventArtistUnlink = {
+	eventId: string;
+	organizationId: string;
+	unlinked: boolean;
+};
+
+export type ArtistInvitationDeleted = {
+	id: string;
+	deleted: true;
+};
+
+export type EventViewer = {
+	id: string;
+	email: string;
+	createdAt: string;
+};
+
+export type EventViewerInvite = {
+	email: string;
+};
+
+export type EventViewerInviteResult = {
+	id: string;
+	email: string;
+	createdAt: string;
 	/**
-	 * true = only current members of the organization can play it.
+	 * Deprecated, never sent: it revealed whether the email already had a FreeTicket account.
+	 * @deprecated
 	 */
-	memberOnly: boolean;
-	publishedAt: string | null;
+	newAccount?: boolean;
+};
+
+export type EventViewerRevoke = {
+	id: string;
+	eventId: string;
+	revoked: boolean;
+};
+
+export type EventValidator = {
+	id: string;
+	/**
+	 * Only present when the person is a member of the active workspace.
+	 */
+	userId?: string;
+	/**
+	 * Only present when the person is a member of the active workspace.
+	 */
+	name?: string;
+	email: string;
+	isActive: boolean;
+	allEvents: boolean;
+};
+
+export type EventValidatorCreate = {
+	name: string;
+	email: string;
+};
+
+export type EventValidatorCreateResult = {
+	id: string;
+	/**
+	 * Only present when the person is a member of the active workspace.
+	 */
+	userId?: string;
+	/**
+	 * Only present when the person is a member of the active workspace.
+	 */
+	name?: string;
+	email: string;
+	isActive: boolean;
+	allEvents: boolean;
+	invited: boolean;
+};
+
+export type StaffInviteResend = {
+	id: string;
+	email: string;
+	sent: boolean;
+};
+
+export type StaffAccessUpdate = {
+	accessType: "admin" | "validador" | "personalizado" | "lectura";
+	sections?: Array<
+		| "inicio"
+		| "eventos"
+		| "validar"
+		| "membresias"
+		| "contenido"
+		| "productos"
+		| "pagina_web"
+		| "comunicacion"
+		| "informes"
+		| "liquidaciones"
+		| "tienda"
+		| "perfil"
+	>;
+	validatorEventIds?: Array<string>;
+	viewerEventIds?: Array<string>;
+	expiresAt?: string | null;
+};
+
+export type StaffAccess = {
+	userId: string;
+	accessType: "admin" | "validador" | "personalizado" | "lectura";
+	role: "ADMIN" | "STAFF" | "VIEWER";
+	sections: Array<string>;
+	validatorEventIds: Array<string>;
+	viewerEventIds: Array<string>;
+	expiresAt: string | null;
 };
 
 export type SaleCreate = {
@@ -650,6 +916,51 @@ export type SaleRefundResult = {
 	};
 };
 
+export type SaleItemTransferRequest = {
+	email: string;
+};
+
+export type SaleItemTransfer = {
+	saleId: string;
+	itemId: string;
+	/**
+	 * New ticket code (the previous QR is void).
+	 */
+	ticketCode: string;
+	holderName: string;
+	holderEmail: string;
+	transferredAt: string;
+};
+
+export type CourtesyRecipientUpdate = {
+	name: string;
+	email: string;
+};
+
+export type CourtesyRecipient = {
+	saleId: string;
+	name: string;
+	email: string;
+	resent: boolean;
+	/**
+	 * true when the email changed: the previous QR codes are void (transferred tickets keep theirs).
+	 */
+	ticketCodesRotated: boolean;
+};
+
+export type CourtesySeats = {
+	eventDateId: string;
+	eventId: string;
+	ticketTypes: Array<{
+		ticketTypeId: string;
+		name: string;
+		/**
+		 * Blocked seat labels of this ticket type's category that no live sale claims, in natural order.
+		 */
+		labels: Array<string>;
+	}>;
+};
+
 export type ReportByEventRow = {
 	eventId: string;
 	eventName: string;
@@ -712,6 +1023,8 @@ export type Settlement = {
 	allocations: Array<{
 		bankAccountId: string;
 		percentage: number;
+		amount?: number;
+		mode?: "PERCENT" | "AMOUNT";
 	}>;
 	requestedAt: string | null;
 	paidAt: string | null;
@@ -840,6 +1153,12 @@ export type TicketReassign = {
 	seatLabel?: string;
 };
 
+export type ResendTicket = {
+	ticketCode: string;
+	sentTo: string;
+	sentAt: string;
+};
+
 export type CheckinResult = {
 	ticketCode: string;
 	checkedInAt: string | null;
@@ -849,6 +1168,16 @@ export type CheckinResult = {
 
 export type CheckinRequest = {
 	source?: ("pdf" | "web" | "apple" | "google") | null;
+};
+
+export type CheckinUndoResult = {
+	ticketCode: string;
+	/**
+	 * true when this call reverted the check-in; false when the ticket was not checked in (idempotent no-op).
+	 */
+	undone: boolean;
+	previousCheckedInAt: string | null;
+	previousCheckedInBy: string | null;
 };
 
 export type TicketAccess = {
@@ -1297,6 +1626,410 @@ export type CustomerOrderStatus = {
 	tickets: Array<CustomerTicketItem> | null;
 };
 
+export type CustomerOrderItem = {
+	ticketTypeId: string;
+	quantity: number;
+	/**
+	 * seats.io labels. Only for seated events.
+	 */
+	seats?: Array<string>;
+};
+
+export type CustomerOrderCreateRequest = {
+	eventDateId: string;
+	items: [CustomerOrderItem];
+	/**
+	 * Hold token of the seats.io map session. Required if seats are sent.
+	 */
+	holdToken?: string;
+	discountCode?: string;
+	buyer: {
+		name: string;
+		phone: string;
+		idType: "CC" | "CE" | "NIT" | "PP" | "TI" | "PEP";
+		idNumber: string;
+		/**
+		 * Check digit. Required if idType is NIT.
+		 */
+		nitDigit?: string;
+	};
+	/**
+	 * Absolute URL of the landing page the buyer returns to. Validated against the enterprise domain allowlist and the workspace that owns the event; if it fails validation it is ignored and the purchase proceeds as usual.
+	 */
+	returnUrl: string;
+};
+
+export type ContentVideo = {
+	id: string;
+	title: string;
+	description: string | null;
+	durationSeconds: number | null;
+	posterUrl: string | null;
+	series: {
+		id: string;
+		title: string;
+	} | null;
+	/**
+	 * true = only current members of the organization can play it.
+	 */
+	memberOnly: boolean;
+	publishedAt: string | null;
+};
+
+export type ContentPostUpdate = {
+	/**
+	 * TEXT/IMAGE posts only. An ARTICLE stays an ARTICLE (and vice versa).
+	 */
+	type?: "TEXT" | "IMAGE";
+	content?: string;
+	/**
+	 * ARTICLE posts: the cover image. null removes it.
+	 */
+	imageUrl?: string | null;
+	locked?: boolean;
+	/**
+	 * null unlinks the event.
+	 */
+	eventId?: string | null;
+	/**
+	 * TEXT/IMAGE posts only. Active channel of the workspace; null moves it back to Announcements.
+	 */
+	channelId?: string | null;
+	/**
+	 * Reschedules the post (and its member notification, if any).
+	 */
+	publishedAt?: string;
+	title?: string;
+	subtitle?: string | null;
+	body?: string;
+	/**
+	 * ARTICLE only. null re-derives it from the title.
+	 */
+	slug?: string | null;
+};
+
+export type ContentPostPin = {
+	pinned: boolean;
+};
+
+export type ContentPostPinned = {
+	id: string;
+	/**
+	 * null when unpinned. At most one pinned post per workspace.
+	 */
+	pinnedAt: string | null;
+};
+
+export type ContentCommentDeleted = {
+	id: string;
+	deleted: true;
+	/**
+	 * The comment plus its live replies (top-level comments).
+	 */
+	deletedIds: Array<string>;
+};
+
+export type CommunityChannel = {
+	id: string;
+	kind: "ANNOUNCEMENTS" | "GENERAL" | "CITY" | "CUSTOM";
+	name: string;
+	/**
+	 * Tab URL slug. Does not change on rename.
+	 */
+	slug: string;
+	description: string | null;
+	city: string | null;
+	whoCanPost: "STAFF" | "MEMBERS";
+	requiresApproval: boolean;
+	position: number;
+};
+
+export type CommunityChannelCreate = {
+	kind: "CITY" | "CUSTOM";
+	name: string;
+	description?: string | null;
+	/**
+	 * Required when kind=CITY; ignored otherwise.
+	 */
+	city?: string | null;
+	whoCanPost: "STAFF" | "MEMBERS";
+	requiresApproval: boolean;
+};
+
+export type CommunityChannelUpdate = {
+	name?: string;
+	description?: string | null;
+	city?: string | null;
+	whoCanPost?: "STAFF" | "MEMBERS";
+	requiresApproval?: boolean;
+};
+
+export type CommunityChannelOrder = {
+	/**
+	 * EVERY active channel id, in the new order, Announcements first.
+	 */
+	orderedIds: Array<string>;
+};
+
+export type ModerationQueueItem = {
+	commentId: string;
+	body: string;
+	createdAt: string;
+	isReply: boolean;
+	hidden: boolean;
+	/**
+	 * Deleted (by its author or the team) with reports still open.
+	 */
+	deleted: boolean;
+	/**
+	 * MODERATOR | AUTO_REPORTS
+	 */
+	hiddenSource: string | null;
+	openReportCount: number;
+	author: {
+		customerId: string;
+		name: string;
+		image: string | null;
+		banned: boolean;
+	};
+	post: {
+		id: string;
+		label: string;
+	};
+	reasons: Array<{
+		reason: string;
+		count: number;
+	}>;
+	details: Array<string>;
+	lastReportAt: string | null;
+};
+
+export type CommunityBan = {
+	id: string;
+	customerName: string;
+	customerImage: string | null;
+	reason: string | null;
+	createdAt: string;
+};
+
+export type MemberPostQueueItem = {
+	postId: string;
+	status: "PENDING_REVIEW" | "PUBLISHED";
+	content: string | null;
+	/**
+	 * PENDING_REVIEW: short-lived signed URL (the image lives in a private bucket until approved).
+	 */
+	imageUrl: string | null;
+	createdAt: string;
+	publishedAt: string;
+	/**
+	 * Version read by the moderator: pass it as `expectedUpdatedAt` to approve.
+	 */
+	updatedAt: string;
+	channelName: string | null;
+	author: {
+		customerId: string;
+		displayName: string;
+		handle: string | null;
+		avatarUrl: string | null;
+		banned: boolean;
+	};
+	openReportCount: number;
+};
+
+export type CommentModerated = {
+	commentId: string;
+	/**
+	 * false = it was already in that state (idempotent).
+	 */
+	changed: boolean;
+};
+
+export type MemberBanCreate = {
+	/**
+	 * Comment of this member in the workspace that motivates the ban (required: a ban always comes from a reported comment).
+	 */
+	commentId: string;
+	reason?: string;
+	/**
+	 * true = hide every comment of the member in this workspace, not only `commentId`.
+	 */
+	hideAllComments: boolean;
+};
+
+export type MemberBanResult = {
+	customerId: string;
+	banned: boolean;
+};
+
+export type MemberPostApprove = {
+	/**
+	 * `updatedAt` of the post as read from `GET /content/moderation/member-posts`.
+	 */
+	expectedUpdatedAt: string;
+};
+
+export type MemberPostDecision = {
+	/**
+	 * Shown to the author in their inbox.
+	 */
+	reason?: string;
+	/**
+	 * Also bans the author from the community. Requires ADMIN.
+	 */
+	banAuthor: boolean;
+};
+
+export type MemberPostReviewed = {
+	postId: string;
+	status: "PUBLISHED" | "REJECTED" | "REMOVED";
+};
+
+export type CommunityMeetupCreate = {
+	title: string;
+	description?: string;
+	format: "IN_PERSON" | "ONLINE";
+	/**
+	 * Local wall time in the workspace's timezone, `YYYY-MM-DDTHH:mm` (same as the dashboard form).
+	 */
+	startsAt: string;
+	/**
+	 * Local wall time in the workspace's timezone, `YYYY-MM-DDTHH:mm` (same as the dashboard form). Empty = none.
+	 */
+	endsAt?: string;
+	city?: string;
+	locationName?: string;
+	locationDetail?: string;
+	/**
+	 * ONLINE only; must start with https://
+	 */
+	onlineUrl?: string;
+	/**
+	 * null = unlimited.
+	 */
+	capacity?: number | null;
+	/**
+	 * true = the staff approves each RSVP request.
+	 */
+	requiresApproval?: boolean;
+};
+
+export type CommunityMeetupUpdate = {
+	title?: string;
+	description?: string;
+	format?: "IN_PERSON" | "ONLINE";
+	/**
+	 * Local wall time in the workspace's timezone, `YYYY-MM-DDTHH:mm` (same as the dashboard form).
+	 */
+	startsAt?: string;
+	/**
+	 * Local wall time in the workspace's timezone, `YYYY-MM-DDTHH:mm` (same as the dashboard form). Empty = none.
+	 */
+	endsAt?: string;
+	city?: string;
+	locationName?: string;
+	locationDetail?: string;
+	/**
+	 * ONLINE only; must start with https://
+	 */
+	onlineUrl?: string;
+	/**
+	 * null = unlimited.
+	 */
+	capacity?: number | null;
+	/**
+	 * true = the staff approves each RSVP request.
+	 */
+	requiresApproval?: boolean;
+};
+
+export type CommunityMeetup = {
+	id: string;
+	title: string;
+	format: "IN_PERSON" | "ONLINE";
+	status: "DRAFT" | "PUBLISHED" | "CANCELLED";
+	startsAt: string;
+	city: string | null;
+	capacity: number | null;
+	goingCount: number;
+	requiresApproval: boolean;
+	/**
+	 * PENDING RSVP requests.
+	 */
+	pendingCount: number;
+};
+
+export type CommunityMeetupDetail = {
+	id: string;
+	title: string;
+	format: "IN_PERSON" | "ONLINE";
+	status: "DRAFT" | "PUBLISHED" | "CANCELLED";
+	startsAt: string;
+	city: string | null;
+	capacity: number | null;
+	goingCount: number;
+	requiresApproval: boolean;
+	/**
+	 * PENDING RSVP requests.
+	 */
+	pendingCount: number;
+	endsAt: string | null;
+	publishedAt: string | null;
+	cancelledAt: string | null;
+	/**
+	 * Editable values in the workspace's local wall time (the shape `PATCH /content/meetups/{id}` accepts).
+	 */
+	local: {
+		title: string;
+		description: string;
+		format: "IN_PERSON" | "ONLINE";
+		startsAt: string;
+		endsAt: string;
+		city: string;
+		locationName: string;
+		locationDetail: string;
+		onlineUrl: string;
+		capacity: number | null;
+		requiresApproval: boolean;
+	};
+	attendees: Array<{
+		rsvpId: string;
+		name: string;
+		confirmedAt: string;
+		checkedInAt: string | null;
+	}>;
+	requests: Array<{
+		rsvpId: string;
+		name: string;
+		email: string;
+		requestedAt: string;
+		status: "PENDING" | "GOING" | "DECLINED";
+	}>;
+};
+
+export type CommunityMeetupRsvpReview = {
+	decision: "APPROVE" | "REJECT";
+};
+
+export type CommunityMeetupRsvpReviewed = {
+	rsvpId: string;
+	status: "GOING" | "DECLINED";
+};
+
+export type CommunityMeetupAttendance = {
+	rsvpId: string;
+	attended: boolean;
+};
+
+export type CommunityMeetupAttendanceResult = {
+	rsvpId: string;
+	attended: boolean;
+	/**
+	 * false = already in that state, or the RSVP is not GOING / the meetup is cancelled.
+	 */
+	changed: boolean;
+};
+
 export type ContentPost = {
 	id: string;
 	type: "TEXT" | "IMAGE" | "VIDEO" | "ARTICLE";
@@ -1376,6 +2109,184 @@ export type ContentPostCreate = {
 	publishedAt?: string;
 };
 
+export type ContentMediaDeleted = {
+	id: string;
+	deleted: true;
+};
+
+export type ContentVideoUpdate = {
+	title?: string;
+	/**
+	 * `null` or empty clears the description.
+	 */
+	description?: string | null;
+	/**
+	 * true = only current members can play it.
+	 */
+	memberOnly?: boolean;
+};
+
+export type ContentVideoSummary = {
+	id: string;
+	title: string;
+	description: string | null;
+	memberOnly: boolean;
+};
+
+export type ContentVideoPublish = {
+	published: boolean;
+};
+
+export type ContentVideoPublished = {
+	id: string;
+	published: boolean;
+};
+
+export type ContentVideoSeriesAssign = {
+	/**
+	 * Series to put the video in; `null` removes it from its series.
+	 */
+	seriesId: string | null;
+};
+
+export type ContentVideoSeriesResult = {
+	id: string;
+	seriesId: string | null;
+};
+
+export type ContentSeries = {
+	id: string;
+	title: string;
+	description: string | null;
+	coverImageUrl: string | null;
+	memberOnly: boolean;
+	published: boolean;
+	publishedAt: string | null;
+	/**
+	 * Videos in the series (published or not, course videos excluded).
+	 */
+	videoCount: number;
+	createdAt: string;
+};
+
+export type ContentSeriesCreate = {
+	/**
+	 * 1–120 characters.
+	 */
+	title: string;
+	/**
+	 * Up to 2000 characters.
+	 */
+	description?: string | null;
+	/**
+	 * Absolute URL of the cover.
+	 */
+	coverImageUrl?: string | null;
+	/**
+	 * Default true.
+	 */
+	memberOnly?: boolean;
+};
+
+export type ContentSeriesUpdate = {
+	title?: string;
+	/**
+	 * `null` clears it.
+	 */
+	description?: string | null;
+	/**
+	 * `null` clears it.
+	 */
+	coverImageUrl?: string | null;
+	memberOnly?: boolean;
+};
+
+export type ContentSeriesPublish = {
+	published: boolean;
+};
+
+export type ContentLiveCreate = {
+	/**
+	 * 1–120 characters.
+	 */
+	title: string;
+	/**
+	 * Show date to tie the stream to (owned by the workspace or with the workspace as a linked artist). One stream per date.
+	 */
+	eventDateId?: string | null;
+	/**
+	 * Default true. Ignored (stream is public) when the workspace has no active membership plan.
+	 */
+	memberOnly?: boolean;
+	/**
+	 * Wall-clock time "YYYY-MM-DDTHH:mm" in the WORKSPACE time zone (not UTC, no offset). Must be in the future and at most 2 years ahead. Absent: inherits the show date's start time when `eventDateId` is set.
+	 */
+	scheduledAt?: string | null;
+};
+
+export type ContentLiveCreated = {
+	id: string;
+	title: string;
+	memberOnly: boolean;
+	/**
+	 * UTC ISO 8601.
+	 */
+	scheduledAt: string | null;
+	eventDateId: string | null;
+	/**
+	 * RTMPS ingest server for OBS / the encoder.
+	 */
+	rtmpUrl: string;
+	/**
+	 * SECRET. RTMP stream key: whoever has it can broadcast on this stream in the organization's name. Store it like a password; it is never returned by any read endpoint. Rotate it with `POST /content/lives/{id}/reset-key`.
+	 */
+	streamKey: string;
+};
+
+export type ContentLiveStreamKey = {
+	id: string;
+	rtmpUrl: string;
+	/**
+	 * SECRET. RTMP stream key: whoever has it can broadcast on this stream in the organization's name. Store it like a password; it is never returned by any read endpoint. Rotate it with `POST /content/lives/{id}/reset-key`.
+	 */
+	streamKey: string;
+};
+
+export type ContentLiveUpdate = {
+	/**
+	 * Wall-clock time "YYYY-MM-DDTHH:mm" in the WORKSPACE time zone (not UTC, no offset). Must be in the future and at most 2 years ahead. `null` removes the scheduled time. Only while the stream is IDLE.
+	 */
+	scheduledAt?: string | null;
+	memberOnly?: boolean;
+};
+
+export type ContentLiveSettings = {
+	id: string;
+	memberOnly: boolean;
+	/**
+	 * UTC ISO 8601.
+	 */
+	scheduledAt: string | null;
+};
+
+export type ContentLiveChat = {
+	messages: Array<{
+		id: string;
+		authorId: string;
+		name: string;
+		text: string;
+		sentAt: string;
+		/**
+		 * Present (true) on messages sent by the organization.
+		 */
+		host?: boolean;
+	}>;
+	/**
+	 * true if the history cap was reached and the oldest messages are missing.
+	 */
+	truncated: boolean;
+};
+
 export type ContentLive = {
 	id: string;
 	title: string;
@@ -1407,313 +2318,904 @@ export type ContentPlaybackToken = {
 	};
 };
 
-export type ResendTicket = {
-	ticketCode: string;
-	sentTo: string;
-	sentAt: string;
+export type WaitlistEntryCreate = {
+	city: string;
+	name: string;
+	contact: string;
+	source?: string;
 };
 
-export type CustomerOrderItem = {
-	ticketTypeId: string;
-	quantity: number;
-	/**
-	 * seats.io labels. Only for seated events.
-	 */
-	seats?: Array<string>;
+export type WaitlistEntryResult = {
+	id: string;
+	city: string;
+	created: boolean;
 };
 
-export type CustomerOrderCreateRequest = {
+export type WaitlistEntry = {
+	id: string;
+	city: string;
+	name: string;
+	contact: string;
+	customerId: string | null;
+	source: string | null;
+	createdAt: string;
+};
+
+export type LiveAttendance = {
 	eventDateId: string;
-	items: [CustomerOrderItem];
+	eventId: string;
+	eventName: string;
+	city: string | null;
+	imageUrl: string | null;
+	sold: number;
+	validated: number;
+	validatedPct: number;
+};
+
+export type AccessCloseStatus = {
+	eventDateId: string;
+	eventId: string;
+	eventName: string;
+	venueName: string | null;
+	label: string;
+	status: "pending" | "manual" | "auto";
+	closed: boolean;
+	signable: boolean;
+	signableFromLabel: string;
+	closedByName: string | null;
+	closedAtLabel: string | null;
+	closedCheckins: number | null;
+	live: {
+		issued: number;
+		checkins: number;
+	};
+};
+
+export type AccessCloseSignRequest = {
+	confirm: true;
+};
+
+export type AccessCloseSigned = {
+	eventDateId: string;
+	eventId: string;
+	status: "manual";
+	closedAt: string;
+	checkins: number;
+	closedByName: string;
+};
+
+export type PaymentIntentRow = {
+	threadId: string;
+	deviceTag: string;
+	hasAccount: boolean;
+	customerId: string | null;
+	personName: string | null;
+	personEmail: string | null;
+	personSource: ("account" | "checkout") | null;
+	seats: Array<string>;
+	category: string | null;
+	eventDateId: string | null;
+	firstAt: string;
+	lastAt: string;
+	stage:
+		| "seatmap"
+		| "seats"
+		| "continue"
+		| "checkout"
+		| "payment"
+		| "purchased";
+	outcome:
+		| "NO_SALE"
+		| "REJECTED"
+		| "PENDING"
+		| "CONFIRMED"
+		| "ABANDONED"
+		| "CANCELLED"
+		| "REFUNDED";
+	reason: string | null;
+	paymentStatus: string | null;
+	mapFailed: boolean;
+	saleId: string | null;
+	saleReference: string | null;
+	saleTotal: number | null;
+};
+
+export type PaymentIntentsPage = {
+	event: {
+		id: string;
+		name: string;
+		city: string | null;
+	};
+	dates: Array<{
+		id: string;
+		startsAt: string;
+		timezone: string;
+		label: string | null;
+	}>;
+	selectedDateId: string | null;
+	funnel: {
+		threads: number;
+		opened: number;
+		selected: number;
+		continued: number;
+		checkout: number;
+		payment: number;
+		purchased: number;
+		abandoned: number;
+		inferred: number;
+	};
+	rows: Array<PaymentIntentRow>;
+	nextCursor: string | null;
+};
+
+export type ProductLessonResourceInput = {
 	/**
-	 * Hold token of the seats.io map session. Required if seats are sent.
+	 * Id of a saved resource; absent/null creates a new one.
 	 */
-	holdToken?: string;
-	discountCode?: string;
+	id?: string | null;
+	kind: "FILE" | "LINK";
+	label: string;
+	/**
+	 * LINK only: http(s) URL.
+	 */
+	url?: string | null;
+	/**
+	 * FILE only: path in the private product files bucket, under this workspace.
+	 */
+	filePath?: string | null;
+	fileName?: string | null;
+	fileSize?: number | null;
+};
+
+export type ProductLessonQuiz = {
+	questions: Array<{
+		id: string;
+		prompt: string;
+		options: Array<{
+			id: string;
+			text: string;
+		}>;
+		correctOptionId: string;
+	}>;
+	/**
+	 * Minimum score to pass, 0–100.
+	 */
+	passScore: number;
+	showAnswers: boolean;
+};
+
+export type ProductLessonInput = {
+	/**
+	 * Id of a saved lesson; absent/null creates a new one. Keep ids on edit so buyers keep their progress.
+	 */
+	id?: string | null;
+	title: string;
+	description?: string | null;
+	isLive: boolean;
+	content: "VIDEO" | "FILE" | "TEXT" | "QUIZ";
+	/**
+	 * Markdown; TEXT lessons only.
+	 */
+	body?: string | null;
+	thumbnailUrl?: string | null;
+	/**
+	 * Course video id; VIDEO lessons only. Uploading a video is not available through the API.
+	 */
+	videoId?: string | null;
+	fileName?: string | null;
+	filePath?: string | null;
+	/**
+	 * Absent keeps the saved resources; [] removes them all.
+	 */
+	resources?: Array<ProductLessonResourceInput>;
+	/**
+	 * Free preview on the public page (VIDEO/TEXT only, max one per module). Absent keeps the saved value.
+	 */
+	isPreview?: boolean;
+	/**
+	 * QUIZ lessons only.
+	 */
+	quiz?: ProductLessonQuiz | null;
+};
+
+export type ProductModuleInput = {
+	/**
+	 * Id of a saved module; absent/null creates a new one.
+	 */
+	id?: string | null;
+	title: string;
+	description?: string | null;
+	/**
+	 * Drip by days after purchase (unlockMode DAYS).
+	 */
+	unlockAfterDays?: number | null;
+	/**
+	 * Drip by date, ISO 8601 with offset (unlockMode DATE).
+	 */
+	unlockAt?: string | null;
+	lessons: Array<ProductLessonInput>;
+};
+
+export type ProductCourseMeta = {
+	/**
+	 * "What you will learn": empty, or 3 to 8 items.
+	 */
+	learn?: Array<string>;
+	audience?: string | null;
+	requirements?: string | null;
+	level?: ("BEGINNER" | "INTERMEDIATE" | "ADVANCED") | null;
+};
+
+export type ProductCreate = {
+	type: "DOWNLOADABLE" | "COURSE";
+	name: string;
+	description: string;
+	coverImageUrl: string | null;
+	/**
+	 * COP: integer. USD: up to 2 decimals.
+	 */
+	price: number;
+	currency: "COP" | "USD";
+	access: "PUBLIC" | "SUBSCRIBERS";
+	/**
+	 * Members of the workspace get it at no cost.
+	 */
+	includedInMembership: boolean;
+	fileName: string | null;
+	/**
+	 * DOWNLOADABLE only (required there): path in the private product files bucket, under this workspace. Uploading files is not available through the API.
+	 */
+	filePath: string | null;
+	sampleName: string | null;
+	samplePath: string | null;
+	/**
+	 * COURSE only (at least one module with one lesson).
+	 */
+	modules: Array<ProductModuleInput>;
+	/**
+	 * COURSE only. Absent keeps the saved one; null clears it.
+	 */
+	courseMeta?: ProductCourseMeta | null;
+	/**
+	 * COURSE drip rule. Absent keeps the saved one (OPEN on create).
+	 */
+	unlockMode?: "OPEN" | "SEQUENTIAL" | "DAYS" | "DATE";
+	/**
+	 * true creates it PUBLISHED; default DRAFT.
+	 */
+	publish: boolean;
+};
+
+export type ProductUpdate = {
+	type?: "DOWNLOADABLE" | "COURSE";
+	name?: string;
+	description?: string;
+	coverImageUrl?: string | null;
+	/**
+	 * COP: integer. USD: up to 2 decimals.
+	 */
+	price?: number;
+	currency?: "COP" | "USD";
+	access?: "PUBLIC" | "SUBSCRIBERS";
+	/**
+	 * Members of the workspace get it at no cost.
+	 */
+	includedInMembership?: boolean;
+	fileName?: string | null;
+	/**
+	 * DOWNLOADABLE only (required there): path in the private product files bucket, under this workspace. Uploading files is not available through the API.
+	 */
+	filePath?: string | null;
+	sampleName?: string | null;
+	samplePath?: string | null;
+	/**
+	 * Omit to leave the course tree untouched. When sent, it replaces the WHOLE tree: modules, lessons and resources missing from the list are deleted, along with buyers' progress on those lessons. Fetch a fresh GET right before and send its tree back with your changes. Required when changing `type` or `unlockMode`.
+	 */
+	modules?: Array<ProductModuleInput>;
+	/**
+	 * COURSE only. Absent keeps the saved one; null clears it.
+	 */
+	courseMeta?: ProductCourseMeta | null;
+	/**
+	 * COURSE drip rule. Absent keeps the saved one (OPEN on create).
+	 */
+	unlockMode?: "OPEN" | "SEQUENTIAL" | "DAYS" | "DATE";
+};
+
+export type ProductStatusUpdate = {
+	status: "DRAFT" | "PUBLISHED";
+};
+
+export type Product = {
+	id: string;
+	name: string;
+	type: "DOWNLOADABLE" | "COURSE";
+	status: "DRAFT" | "PUBLISHED";
+	price: number;
+	currency: "COP" | "USD";
+	coverImageUrl: string | null;
+	/**
+	 * CONFIRMED purchases.
+	 */
+	salesCount: number;
+	/**
+	 * Sum of CONFIRMED purchase amounts.
+	 */
+	revenue: number;
+	includedInMembership: boolean;
+};
+
+export type ProductLesson = {
+	id: string;
+	title: string;
+	description?: string | null;
+	isLive: boolean;
+	content: "VIDEO" | "FILE" | "TEXT" | "QUIZ";
+	/**
+	 * Markdown; TEXT lessons only.
+	 */
+	body?: string | null;
+	thumbnailUrl?: string | null;
+	/**
+	 * Course video id; VIDEO lessons only. Uploading a video is not available through the API.
+	 */
+	videoId?: string | null;
+	fileName?: string | null;
+	filePath?: string | null;
+	resources: Array<ProductLessonResourceInput>;
+	isPreview: boolean;
+	/**
+	 * Only for ADMIN keys (it includes the correct answers).
+	 */
+	quiz?: ProductLessonQuiz | null;
+	videoStatus: ("DRAFT" | "PROCESSING" | "READY" | "ERROR") | null;
+	durationSeconds: number | null;
+};
+
+export type ProductModule = {
+	id: string;
+	title: string;
+	description?: string | null;
+	/**
+	 * Drip by days after purchase (unlockMode DAYS).
+	 */
+	unlockAfterDays?: number | null;
+	/**
+	 * Drip by date, ISO 8601 with offset (unlockMode DATE).
+	 */
+	unlockAt?: string | null;
+	lessons: Array<ProductLesson>;
+};
+
+export type ProductDetail = {
+	id: string;
+	name: string;
+	type: "DOWNLOADABLE" | "COURSE";
+	status: "DRAFT" | "PUBLISHED";
+	price: number;
+	currency: "COP" | "USD";
+	coverImageUrl: string | null;
+	/**
+	 * CONFIRMED purchases.
+	 */
+	salesCount: number;
+	/**
+	 * Sum of CONFIRMED purchase amounts.
+	 */
+	revenue: number;
+	includedInMembership: boolean;
+	description: string;
+	access: "PUBLIC" | "SUBSCRIBERS";
+	fileName: string | null;
+	filePath: string | null;
+	sampleName: string | null;
+	samplePath: string | null;
+	modules: Array<ProductModule>;
+	courseMeta: ProductCourseMeta | null;
+	unlockMode: "OPEN" | "SEQUENTIAL" | "DAYS" | "DATE";
+};
+
+export type Website = {
+	/**
+	 * Public slug (organization subdomain).
+	 */
+	slug: string;
+	name: string;
+	tagline: string | null;
+	bio: string | null;
+	accentColor: string | null;
+	webTemplate: string | null;
+	/**
+	 * Per-section visibility booleans plus the reserved `order` key (array of section ids).
+	 */
+	webSections: {
+		[key: string]: boolean | Array<string>;
+	} | null;
+	instagramUrl: string | null;
+	tiktokUrl: string | null;
+	youtubeUrl: string | null;
+	/**
+	 * The plan includes the custom landing (`PUT /website` answers 403 FEATURE_LOCKED otherwise).
+	 */
+	customLandingEnabled: boolean;
+	/**
+	 * Listed publicly (/artistas).
+	 */
+	published: boolean;
+	/**
+	 * Only the organization's primary workspace can publish/unpublish.
+	 */
+	canPublish: boolean;
+	/**
+	 * The brand has the name and photo required to publish.
+	 */
+	profileListable: boolean;
+};
+
+export type WebsiteUpdate = {
+	name: string;
+	tagline: string | null;
+	bio: string | null;
+	instagramUrl: string | null;
+	tiktokUrl: string | null;
+	youtubeUrl: string | null;
+	/**
+	 * #RRGGBB.
+	 */
+	accentColor: string;
+	webTemplate: string;
+	/**
+	 * Visibility booleans for the known sections (shows, productos, posts, membresias, contenido, bio, redes) and `order` (array of section ids). Unknown keys are dropped.
+	 */
+	webSections: {
+		[key: string]: boolean | Array<string>;
+	};
+};
+
+export type WebsitePublished = {
+	published: boolean;
+};
+
+export type OrganizationProfile = {
+	/**
+	 * Workspace id.
+	 */
+	id: string;
+	/**
+	 * Workspace name.
+	 */
+	name: string;
+	/**
+	 * Public brand name (from the umbrella organization).
+	 */
+	brandName: string;
+	slug: string;
+	bio: string | null;
+	type: "ARTIST" | "VENUE" | "ORGANIZER";
+	country: string;
+	timezone: string;
+	logoUrl: string | null;
+	coverUrl: string | null;
+	email: string | null;
+	phone: string | null;
+	website: string | null;
+	instagramUrl: string | null;
+	facebookUrl: string | null;
+	twitterUrl: string | null;
+	spotifyUrl: string | null;
+	youtubeUrl: string | null;
+	tiktokUrl: string | null;
+};
+
+export type OrganizationProfileUpdate = {
+	/**
+	 * Same fields as the dashboard's Artist card.
+	 */
+	artist?: {
+		name?: string;
+		slug?: string;
+		bio?: string | null;
+		type?: "ARTIST" | "VENUE" | "ORGANIZER";
+		/**
+		 * ISO 3166-1 alpha-2.
+		 */
+		country?: string;
+		/**
+		 * IANA time zone.
+		 */
+		timezone?: string;
+	};
+	/**
+	 * Brand profile photo and cover (stored on the umbrella organization).
+	 */
+	visual?: {
+		logoUrl?: string | null;
+		coverUrl?: string | null;
+	};
+	contact?: {
+		email?: string | null;
+		phone?: string | null;
+		website?: string | null;
+	};
+	social?: {
+		instagramUrl?: string | null;
+		facebookUrl?: string | null;
+		twitterUrl?: string | null;
+		spotifyUrl?: string | null;
+		youtubeUrl?: string | null;
+		tiktokUrl?: string | null;
+	};
+};
+
+export type Organization = {
+	/**
+	 * Umbrella organization id.
+	 */
+	id: string;
+	name: string;
+	slug: string;
+	logoUrl: string | null;
+	coverUrl: string | null;
+	ga4MeasurementId: string | null;
+};
+
+export type OrganizationUpdate = {
+	name?: string;
+	logoUrl?: string | null;
+	coverUrl?: string | null;
+};
+
+export type OrganizationAnalyticsUpdate = {
+	/**
+	 * GA4 Measurement ID (G-XXXXXXXXXX); null disconnects it.
+	 */
+	ga4MeasurementId: string | null;
+};
+
+export type OrganizationAnalytics = {
+	id: string;
+	ga4MeasurementId: string | null;
+};
+
+export type TicketTemplateCreate = {
+	name: string;
+	description?: string | null;
+	price: number;
+	currency: string;
+	capacity?: number | null;
+	maxPerOrder: number;
+	accentColor?: string | null;
+	includes?: string | null;
+	instructions?: string | null;
+	organizerAbsorbsFee: boolean;
+	/**
+	 * Member discount; null = none.
+	 */
+	discount?: {
+		/**
+		 * Active membership plan of this workspace.
+		 */
+		planId: string;
+		percent: number;
+	} | null;
+	/**
+	 * Members-only gate plan; null = open to everyone.
+	 */
+	membersOnlyPlanId?: string | null;
+	isActive: boolean;
+	sortOrder: number;
+	/**
+	 * Buyer form fields; the list is replaced as a whole.
+	 */
+	fields: Array<{
+		label: string;
+		fieldType: "TEXT" | "NUMBER" | "SELECT" | "EMAIL" | "PHONE";
+		options?: Array<string>;
+		isRequired: boolean;
+	}>;
+};
+
+export type TicketTemplateUpdate = {
+	name?: string;
+	description?: string | null;
+	price?: number;
+	currency?: string;
+	capacity?: number | null;
+	maxPerOrder?: number;
+	accentColor?: string | null;
+	includes?: string | null;
+	instructions?: string | null;
+	organizerAbsorbsFee?: boolean;
+	/**
+	 * Member discount; null = none.
+	 */
+	discount?: {
+		/**
+		 * Active membership plan of this workspace.
+		 */
+		planId: string;
+		percent: number;
+	} | null;
+	/**
+	 * Members-only gate plan; null = open to everyone.
+	 */
+	membersOnlyPlanId?: string | null;
+	isActive?: boolean;
+	sortOrder?: number;
+	/**
+	 * Buyer form fields; the list is replaced as a whole.
+	 */
+	fields?: Array<{
+		label: string;
+		fieldType: "TEXT" | "NUMBER" | "SELECT" | "EMAIL" | "PHONE";
+		options?: Array<string>;
+		isRequired: boolean;
+	}>;
+};
+
+export type TicketTemplate = {
+	id: string;
+	name: string;
+	description: string | null;
+	price: number;
+	currency: string;
+	capacity: number | null;
+	maxPerOrder: number;
+	accentColor: string | null;
+	includes: string | null;
+	instructions: string | null;
+	organizerAbsorbsFee: boolean;
+	discount: {
+		planId: string;
+		percent: number | null;
+	} | null;
+	membersOnlyPlanId: string | null;
+	isActive: boolean;
+	fields: Array<{
+		id: string;
+		label: string;
+		fieldType: "TEXT" | "NUMBER" | "SELECT" | "EMAIL" | "PHONE";
+		options: Array<string> | null;
+		isRequired: boolean;
+		sortOrder: number;
+	}>;
+};
+
+export type TicketTemplateInstantiate = {
+	/**
+	 * Event date of this workspace.
+	 */
+	eventDateId: string;
+	name?: string;
+	price?: number;
+	/**
+	 * Required when the template has no capacity.
+	 */
+	capacity?: number;
+};
+
+export type TicketTemplateInstance = {
+	ticketTypeId: string;
+	eventId: string;
+	eventDateId: string;
+};
+
+export type MasterQr = {
+	id: string;
+	label: string;
+	/**
+	 * EVENT: opens the event page (or the tenant listings when org-wide). TODAY: jumps to today's show.
+	 */
+	mode: "EVENT" | "TODAY";
+	/**
+	 * null = org-wide QR (all shows of the workspace).
+	 */
+	eventId: string | null;
+	ticketTypeId: string | null;
+	active: boolean;
+	scans: number;
+	lastScanAt: string | null;
+	createdAt: string;
+	/**
+	 * SECRET: public code printed in the QR; whoever has it reaches the sale flow. It cannot be rotated.
+	 */
+	code: string;
+	/**
+	 * SECRET: the URL encoded in the QR (null if the workspace has no public organization yet).
+	 */
+	url: string | null;
+};
+
+export type MasterQrCreate = {
+	label: string;
+	mode: "EVENT" | "TODAY";
+	eventId?: string | null;
+	ticketTypeId?: string | null;
+};
+
+export type MasterQrUpdate = {
+	label?: string;
+	mode?: "EVENT" | "TODAY";
+	eventId?: string | null;
+	ticketTypeId?: string | null;
+};
+
+export type MasterQrActive = {
+	active: boolean;
+};
+
+export type WorkspaceConfigDeleted = {
+	id: string;
+	deleted: true;
+};
+
+export type MerchOrderCreate = {
 	buyer: {
 		name: string;
 		phone: string;
-		idType: "CC" | "CE" | "NIT" | "PP" | "TI" | "PEP";
-		idNumber: string;
-		/**
-		 * Check digit. Required if idType is NIT.
-		 */
-		nitDigit?: string;
+		documentType: "CC" | "CE" | "PP" | "NIT" | "TI" | "PEP";
+		document: string;
 	};
-	/**
-	 * Absolute URL of the landing page the buyer returns to. Validated against the enterprise domain allowlist and the workspace that owns the event; if it fails validation it is ignored and the purchase proceeds as usual.
-	 */
-	returnUrl: string;
+	delivery:
+		| {
+				kind: "SHIPPING";
+				departmentCode: string;
+				department: string;
+				cityCode: string;
+				city: string;
+				address: string;
+				addressExtra?: string | null;
+		  }
+		| {
+				kind: "PICKUP";
+				pickupPointId: string;
+		  };
+	items: Array<{
+		variantId: string;
+		quantity: number;
+	}>;
 };
 
-export type GetEventsIdDatesData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
+export type MerchOrderLookup = {
+	code: string;
+};
+
+export type MerchCardPayment = {
+	/**
+	 * Card token returned by the Payment Brick when tokenizing.
+	 */
+	token: string;
+	/**
+	 * `payment_method_id` returned by the Brick (e.g. `visa`, `debmaster`).
+	 */
+	paymentMethodId: string;
+	installments: number;
+	payer?: {
+		identification?: {
+			type: string;
+			number: string;
+		};
 	};
-	path: {
+};
+
+export type MerchCardPaymentResult = {
+	/**
+	 * `pending` is normal (bank authentication): the order is confirmed by webhook, poll the lookup. `rejected` is a business decline: the order stays pending until its reservation expires and the buyer can retry with another card.
+	 */
+	status: "approved" | "pending" | "rejected";
+	code: string;
+	/**
+	 * Human-readable message. Only present with `rejected`.
+	 */
+	message?: string;
+};
+
+export type MerchOrder = {
+	code: string;
+	status:
+		| "PENDING"
+		| "PAID"
+		| "PREPARING"
+		| "SHIPPED"
+		| "DELIVERED"
+		| "READY_FOR_PICKUP"
+		| "PICKED_UP"
+		| "CANCELLED"
+		| "REFUNDED";
+	currency: "COP";
+	reservedUntil: string | null;
+	createdAt: string;
+	paidAt: string | null;
+	buyer: {
+		email: string;
+		name: string;
+		phone: string;
+	};
+	fulfillment: "SHIPPING" | "PICKUP";
+	shipping: {
+		departmentCode: string | null;
+		department: string | null;
+		cityCode: string | null;
+		city: string | null;
+		address: string | null;
+		addressExtra: string | null;
+	} | null;
+	pickupPoint: {
 		id: string;
-	};
-	query?: never;
-	url: "/events/{id}/dates";
+		name: string;
+		address: string;
+		city: string | null;
+		schedule: string | null;
+	} | null;
+	items: Array<{
+		variantId: string;
+		productName: string;
+		variantLabel: string;
+		sku: string;
+		quantity: number;
+		unitPrice: number;
+	}>;
+	subtotal: number;
+	shippingFee: number;
+	total: number;
+	tracking: {
+		carrier: string | null;
+		carrierName: string | null;
+		trackingNumber: string | null;
+		trackingUrl: string | null;
+	} | null;
+	mpPublicKey: string | null;
 };
 
-export type GetEventsIdDatesErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetEventsIdDatesError =
-	GetEventsIdDatesErrors[keyof GetEventsIdDatesErrors];
-
-export type GetEventsIdDatesResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: Array<EventDate>;
+export type MerchCatalog = {
+	store: {
+		brandName: string;
+		brandLogoUrl: string | null;
+		landingUrl: string | null;
+		support: {
+			phone: string | null;
+			isWhatsapp: boolean;
+			email: string | null;
+		};
+		shipping: {
+			enabled: boolean;
+			feeBogota: number;
+			feeNational: number;
+			freeShippingThreshold: number | null;
+		};
+		pickupEnabled: boolean;
 	};
-};
-
-export type GetEventsIdDatesResponse =
-	GetEventsIdDatesResponses[keyof GetEventsIdDatesResponses];
-
-export type PostEventsIdDatesData = {
-	body: EventDateCreate;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
+	products: Array<{
 		id: string;
-	};
-	query?: never;
-	url: "/events/{id}/dates";
+		slug: string;
+		name: string;
+		description: string | null;
+		imageUrls: Array<string>;
+		options: Array<{
+			name: string;
+			values: Array<string>;
+		}>;
+		maxPerOrder: number;
+		variants: Array<{
+			id: string;
+			sku: string;
+			label: string;
+			attributes: {};
+			price: number;
+			compareAtPrice: number | null;
+			stock: number;
+		}>;
+	}>;
+	pickupPoints: Array<{
+		id: string;
+		name: string;
+		address: string;
+		city: string | null;
+		schedule: string | null;
+	}>;
+	currency: "COP";
+	mpPublicKey: string | null;
 };
-
-export type PostEventsIdDatesErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type PostEventsIdDatesError =
-	PostEventsIdDatesErrors[keyof PostEventsIdDatesErrors];
-
-export type PostEventsIdDatesResponses = {
-	/**
-	 * OK
-	 */
-	201: {
-		data: EventDate;
-	};
-};
-
-export type PostEventsIdDatesResponse =
-	PostEventsIdDatesResponses[keyof PostEventsIdDatesResponses];
-
-export type GetContentVideosData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path?: never;
-	query?: {
-		/**
-		 * 1-100, default 20
-		 */
-		limit?: number;
-		cursor?: string;
-	};
-	url: "/content/videos";
-};
-
-export type GetContentVideosErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetContentVideosError =
-	GetContentVideosErrors[keyof GetContentVideosErrors];
-
-export type GetContentVideosResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: Array<ContentVideo>;
-		page: Page;
-	};
-};
-
-export type GetContentVideosResponse =
-	GetContentVideosResponses[keyof GetContentVideosResponses];
-
-export type GetEventsData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path?: never;
-	query?: {
-		/**
-		 * 1-100, default 20
-		 */
-		limit?: number;
-		/**
-		 * id of the last result from the previous page
-		 */
-		cursor?: string;
-		/**
-		 * Search by name/description, case- and accent-insensitive
-		 */
-		q?: string;
-		/**
-		 * Filter by status (DRAFT | PUBLISHED | SOLD_OUT | CANCELLED | COMPLETED). Applied in the query, so `limit` only counts returned rows.
-		 */
-		status?: "DRAFT" | "PUBLISHED" | "SOLD_OUT" | "CANCELLED" | "COMPLETED";
-		/**
-		 * `1` to include `page.total` (count over the same filter). Opt-in: without it, the extra query is skipped.
-		 */
-		withTotal?: boolean;
-	};
-	url: "/events";
-};
-
-export type GetEventsErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetEventsError = GetEventsErrors[keyof GetEventsErrors];
-
-export type GetEventsResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: Array<Event>;
-		page: Page;
-		warnings?: Array<Warning>;
-	};
-};
-
-export type GetEventsResponse = GetEventsResponses[keyof GetEventsResponses];
-
-export type PostEventsData = {
-	body: EventCreate;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path?: never;
-	query?: never;
-	url: "/events";
-};
-
-export type PostEventsErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Conflict: the resource does not allow this operation in its current state.
-	 */
-	409: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type PostEventsError = PostEventsErrors[keyof PostEventsErrors];
-
-export type PostEventsResponses = {
-	/**
-	 * OK
-	 */
-	201: {
-		data: Event;
-	};
-};
-
-export type PostEventsResponse = PostEventsResponses[keyof PostEventsResponses];
 
 export type PostAuthDeviceCodeData = {
 	body?: never;
@@ -1900,6 +3402,123 @@ export type GetMeResponses = {
 
 export type GetMeResponse = GetMeResponses[keyof GetMeResponses];
 
+export type GetEventsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		/**
+		 * id of the last result from the previous page
+		 */
+		cursor?: string;
+		/**
+		 * Search by name/description, case- and accent-insensitive
+		 */
+		q?: string;
+		/**
+		 * Filter by status (DRAFT | PUBLISHED | SOLD_OUT | CANCELLED | COMPLETED). Applied in the query, so `limit` only counts returned rows.
+		 */
+		status?: "DRAFT" | "PUBLISHED" | "SOLD_OUT" | "CANCELLED" | "COMPLETED";
+		/**
+		 * `1` to include `page.total` (count over the same filter). Opt-in: without it, the extra query is skipped.
+		 */
+		withTotal?: boolean;
+	};
+	url: "/events";
+};
+
+export type GetEventsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventsError = GetEventsErrors[keyof GetEventsErrors];
+
+export type GetEventsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<Event>;
+		page: Page;
+		warnings?: Array<Warning>;
+	};
+};
+
+export type GetEventsResponse = GetEventsResponses[keyof GetEventsResponses];
+
+export type PostEventsData = {
+	body: EventCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/events";
+};
+
+export type PostEventsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostEventsError = PostEventsErrors[keyof PostEventsErrors];
+
+export type PostEventsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: Event;
+	};
+};
+
+export type PostEventsResponse = PostEventsResponses[keyof PostEventsResponses];
+
 export type DeleteEventsIdData = {
 	body?: never;
 	headers?: {
@@ -1928,6 +3547,10 @@ export type DeleteEventsIdErrors = {
 	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
 	/**
 	 * Request body/parameter validation failed.
 	 */
@@ -2025,6 +3648,10 @@ export type PatchEventsIdErrors = {
 	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
 	/**
 	 * Request body/parameter validation failed.
 	 */
@@ -2151,6 +3778,104 @@ export type PostEventsIdCancelResponses = {
 export type PostEventsIdCancelResponse =
 	PostEventsIdCancelResponses[keyof PostEventsIdCancelResponses];
 
+export type GetEventsIdDatesData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/dates";
+};
+
+export type GetEventsIdDatesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventsIdDatesError =
+	GetEventsIdDatesErrors[keyof GetEventsIdDatesErrors];
+
+export type GetEventsIdDatesResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<EventDate>;
+	};
+};
+
+export type GetEventsIdDatesResponse =
+	GetEventsIdDatesResponses[keyof GetEventsIdDatesResponses];
+
+export type PostEventsIdDatesData = {
+	body: EventDateCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/dates";
+};
+
+export type PostEventsIdDatesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostEventsIdDatesError =
+	PostEventsIdDatesErrors[keyof PostEventsIdDatesErrors];
+
+export type PostEventsIdDatesResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: EventDate;
+	};
+};
+
+export type PostEventsIdDatesResponse =
+	PostEventsIdDatesResponses[keyof PostEventsIdDatesResponses];
+
 export type DeleteEventsIdDatesDateIdData = {
 	body?: never;
 	headers?: {
@@ -2254,6 +3979,599 @@ export type PatchEventsIdDatesDateIdResponses = {
 
 export type PatchEventsIdDatesDateIdResponse =
 	PatchEventsIdDatesDateIdResponses[keyof PatchEventsIdDatesDateIdResponses];
+
+export type PutEventsIdArtistsData = {
+	body: EventArtistsReplace;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/artists";
+};
+
+export type PutEventsIdArtistsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PutEventsIdArtistsError =
+	PutEventsIdArtistsErrors[keyof PutEventsIdArtistsErrors];
+
+export type PutEventsIdArtistsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Event;
+		warnings?: Array<Warning>;
+	};
+};
+
+export type PutEventsIdArtistsResponse =
+	PutEventsIdArtistsResponses[keyof PutEventsIdArtistsResponses];
+
+export type DeleteEventsIdArtistsOrganizationIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+		organizationId: string;
+	};
+	query?: never;
+	url: "/events/{id}/artists/{organizationId}";
+};
+
+export type DeleteEventsIdArtistsOrganizationIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteEventsIdArtistsOrganizationIdError =
+	DeleteEventsIdArtistsOrganizationIdErrors[keyof DeleteEventsIdArtistsOrganizationIdErrors];
+
+export type DeleteEventsIdArtistsOrganizationIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: EventArtistUnlink;
+	};
+};
+
+export type DeleteEventsIdArtistsOrganizationIdResponse =
+	DeleteEventsIdArtistsOrganizationIdResponses[keyof DeleteEventsIdArtistsOrganizationIdResponses];
+
+export type GetEventsIdArtistInvitationsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/artist-invitations";
+};
+
+export type GetEventsIdArtistInvitationsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventsIdArtistInvitationsError =
+	GetEventsIdArtistInvitationsErrors[keyof GetEventsIdArtistInvitationsErrors];
+
+export type GetEventsIdArtistInvitationsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ArtistInvitation>;
+	};
+};
+
+export type GetEventsIdArtistInvitationsResponse =
+	GetEventsIdArtistInvitationsResponses[keyof GetEventsIdArtistInvitationsResponses];
+
+export type DeleteEventsIdArtistInvitationsInvitationIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+		invitationId: string;
+	};
+	query?: never;
+	url: "/events/{id}/artist-invitations/{invitationId}";
+};
+
+export type DeleteEventsIdArtistInvitationsInvitationIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteEventsIdArtistInvitationsInvitationIdError =
+	DeleteEventsIdArtistInvitationsInvitationIdErrors[keyof DeleteEventsIdArtistInvitationsInvitationIdErrors];
+
+export type DeleteEventsIdArtistInvitationsInvitationIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ArtistInvitationDeleted;
+	};
+};
+
+export type DeleteEventsIdArtistInvitationsInvitationIdResponse =
+	DeleteEventsIdArtistInvitationsInvitationIdResponses[keyof DeleteEventsIdArtistInvitationsInvitationIdResponses];
+
+export type PostEventsIdArtistInvitationsInvitationIdResendData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+		invitationId: string;
+	};
+	query?: never;
+	url: "/events/{id}/artist-invitations/{invitationId}/resend";
+};
+
+export type PostEventsIdArtistInvitationsInvitationIdResendErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+};
+
+export type PostEventsIdArtistInvitationsInvitationIdResendError =
+	PostEventsIdArtistInvitationsInvitationIdResendErrors[keyof PostEventsIdArtistInvitationsInvitationIdResendErrors];
+
+export type PostEventsIdArtistInvitationsInvitationIdResendResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ArtistInvitation;
+	};
+};
+
+export type PostEventsIdArtistInvitationsInvitationIdResendResponse =
+	PostEventsIdArtistInvitationsInvitationIdResendResponses[keyof PostEventsIdArtistInvitationsInvitationIdResendResponses];
+
+export type GetArtistsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query: {
+		/**
+		 * Name to search, 2-100 characters
+		 */
+		q: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/artists";
+};
+
+export type GetArtistsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetArtistsError = GetArtistsErrors[keyof GetArtistsErrors];
+
+export type GetArtistsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ArtistSummary>;
+		page: Page;
+	};
+};
+
+export type GetArtistsResponse = GetArtistsResponses[keyof GetArtistsResponses];
+
+export type GetEventsIdViewersData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/viewers";
+};
+
+export type GetEventsIdViewersErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventsIdViewersError =
+	GetEventsIdViewersErrors[keyof GetEventsIdViewersErrors];
+
+export type GetEventsIdViewersResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<EventViewer>;
+	};
+};
+
+export type GetEventsIdViewersResponse =
+	GetEventsIdViewersResponses[keyof GetEventsIdViewersResponses];
+
+export type PostEventsIdViewersData = {
+	body: EventViewerInvite;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/viewers";
+};
+
+export type PostEventsIdViewersErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+};
+
+export type PostEventsIdViewersError =
+	PostEventsIdViewersErrors[keyof PostEventsIdViewersErrors];
+
+export type PostEventsIdViewersResponses = {
+	/**
+	 * The person already had access.
+	 */
+	200: {
+		data: EventViewerInviteResult;
+	};
+	/**
+	 * OK
+	 */
+	201: {
+		data: EventViewerInviteResult;
+	};
+};
+
+export type PostEventsIdViewersResponse =
+	PostEventsIdViewersResponses[keyof PostEventsIdViewersResponses];
+
+export type DeleteEventsIdViewersViewerIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+		viewerId: string;
+	};
+	query?: never;
+	url: "/events/{id}/viewers/{viewerId}";
+};
+
+export type DeleteEventsIdViewersViewerIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteEventsIdViewersViewerIdError =
+	DeleteEventsIdViewersViewerIdErrors[keyof DeleteEventsIdViewersViewerIdErrors];
+
+export type DeleteEventsIdViewersViewerIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: EventViewerRevoke;
+	};
+};
+
+export type DeleteEventsIdViewersViewerIdResponse =
+	DeleteEventsIdViewersViewerIdResponses[keyof DeleteEventsIdViewersViewerIdResponses];
+
+export type GetEventsIdValidatorsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/validators";
+};
+
+export type GetEventsIdValidatorsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventsIdValidatorsError =
+	GetEventsIdValidatorsErrors[keyof GetEventsIdValidatorsErrors];
+
+export type GetEventsIdValidatorsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<EventValidator>;
+	};
+};
+
+export type GetEventsIdValidatorsResponse =
+	GetEventsIdValidatorsResponses[keyof GetEventsIdValidatorsResponses];
+
+export type PostEventsIdValidatorsData = {
+	body: EventValidatorCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/validators";
+};
+
+export type PostEventsIdValidatorsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostEventsIdValidatorsError =
+	PostEventsIdValidatorsErrors[keyof PostEventsIdValidatorsErrors];
+
+export type PostEventsIdValidatorsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: EventValidatorCreateResult;
+	};
+};
+
+export type PostEventsIdValidatorsResponse =
+	PostEventsIdValidatorsResponses[keyof PostEventsIdValidatorsResponses];
 
 export type GetTicketTypesData = {
 	body?: never;
@@ -2821,6 +5139,162 @@ export type PostSalesIdRefundResponses = {
 
 export type PostSalesIdRefundResponse =
 	PostSalesIdRefundResponses[keyof PostSalesIdRefundResponses];
+
+export type PostSalesIdItemsItemIdTransferData = {
+	body: SaleItemTransferRequest;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+		itemId: string;
+	};
+	query?: never;
+	url: "/sales/{id}/items/{itemId}/transfer";
+};
+
+export type PostSalesIdItemsItemIdTransferErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostSalesIdItemsItemIdTransferError =
+	PostSalesIdItemsItemIdTransferErrors[keyof PostSalesIdItemsItemIdTransferErrors];
+
+export type PostSalesIdItemsItemIdTransferResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: SaleItemTransfer;
+	};
+};
+
+export type PostSalesIdItemsItemIdTransferResponse =
+	PostSalesIdItemsItemIdTransferResponses[keyof PostSalesIdItemsItemIdTransferResponses];
+
+export type PatchSalesIdRecipientData = {
+	body: CourtesyRecipientUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/sales/{id}/recipient";
+};
+
+export type PatchSalesIdRecipientErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchSalesIdRecipientError =
+	PatchSalesIdRecipientErrors[keyof PatchSalesIdRecipientErrors];
+
+export type PatchSalesIdRecipientResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CourtesyRecipient;
+	};
+};
+
+export type PatchSalesIdRecipientResponse =
+	PatchSalesIdRecipientResponses[keyof PatchSalesIdRecipientResponses];
+
+export type GetEventDatesIdCourtesySeatsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/event-dates/{id}/courtesy-seats";
+};
+
+export type GetEventDatesIdCourtesySeatsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type GetEventDatesIdCourtesySeatsError =
+	GetEventDatesIdCourtesySeatsErrors[keyof GetEventDatesIdCourtesySeatsErrors];
+
+export type GetEventDatesIdCourtesySeatsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CourtesySeats;
+	};
+};
+
+export type GetEventDatesIdCourtesySeatsResponse =
+	GetEventDatesIdCourtesySeatsResponses[keyof GetEventDatesIdCourtesySeatsResponses];
 
 export type GetMembershipPlansData = {
 	body?: never;
@@ -3576,6 +6050,120 @@ export type PatchStaffIdRoleResponses = {
 
 export type PatchStaffIdRoleResponse =
 	PatchStaffIdRoleResponses[keyof PatchStaffIdRoleResponses];
+
+export type PostStaffIdResendInviteData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/staff/{id}/resend-invite";
+};
+
+export type PostStaffIdResendInviteErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+};
+
+export type PostStaffIdResendInviteError =
+	PostStaffIdResendInviteErrors[keyof PostStaffIdResendInviteErrors];
+
+export type PostStaffIdResendInviteResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: StaffInviteResend;
+	};
+};
+
+export type PostStaffIdResendInviteResponse =
+	PostStaffIdResendInviteResponses[keyof PostStaffIdResendInviteResponses];
+
+export type PutStaffIdAccessData = {
+	body: StaffAccessUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/staff/{id}/access";
+};
+
+export type PutStaffIdAccessErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutStaffIdAccessError =
+	PutStaffIdAccessErrors[keyof PutStaffIdAccessErrors];
+
+export type PutStaffIdAccessResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: StaffAccess;
+	};
+};
+
+export type PutStaffIdAccessResponse =
+	PutStaffIdAccessResponses[keyof PutStaffIdAccessResponses];
 
 export type GetReportsSummaryData = {
 	body?: never;
@@ -5117,6 +7705,116 @@ export type PatchTicketsTicketCodeResponses = {
 export type PatchTicketsTicketCodeResponse =
 	PatchTicketsTicketCodeResponses[keyof PatchTicketsTicketCodeResponses];
 
+export type PostTicketsTicketCodeResendData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		ticketCode: string;
+	};
+	query?: never;
+	url: "/tickets/{ticketCode}/resend";
+};
+
+export type PostTicketsTicketCodeResendErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+};
+
+export type PostTicketsTicketCodeResendError =
+	PostTicketsTicketCodeResendErrors[keyof PostTicketsTicketCodeResendErrors];
+
+export type PostTicketsTicketCodeResendResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ResendTicket;
+	};
+};
+
+export type PostTicketsTicketCodeResendResponse =
+	PostTicketsTicketCodeResendResponses[keyof PostTicketsTicketCodeResendResponses];
+
+export type DeleteTicketsTicketCodeCheckinData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		ticketCode: string;
+	};
+	query?: never;
+	url: "/tickets/{ticketCode}/checkin";
+};
+
+export type DeleteTicketsTicketCodeCheckinErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteTicketsTicketCodeCheckinError =
+	DeleteTicketsTicketCodeCheckinErrors[keyof DeleteTicketsTicketCodeCheckinErrors];
+
+export type DeleteTicketsTicketCodeCheckinResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CheckinUndoResult;
+	};
+};
+
+export type DeleteTicketsTicketCodeCheckinResponse =
+	DeleteTicketsTicketCodeCheckinResponses[keyof DeleteTicketsTicketCodeCheckinResponses];
+
 export type PostTicketsTicketCodeCheckinData = {
 	body?: CheckinRequest;
 	headers?: {
@@ -5991,485 +8689,6 @@ export type PatchCustomerProfileResponses = {
 export type PatchCustomerProfileResponse =
 	PatchCustomerProfileResponses[keyof PatchCustomerProfileResponses];
 
-export type PostCustomerPurchaseSessionsData = {
-	body: PurchaseSessionCreateRequest;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path?: never;
-	query?: never;
-	url: "/customer/purchase-sessions";
-};
-
-export type PostCustomerPurchaseSessionsErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-	/**
-	 * Too many requests: rate limit exceeded.
-	 */
-	429: _Error;
-	/**
-	 * Service unavailable: an external dependency is down or initialization failed.
-	 */
-	503: _Error;
-};
-
-export type PostCustomerPurchaseSessionsError =
-	PostCustomerPurchaseSessionsErrors[keyof PostCustomerPurchaseSessionsErrors];
-
-export type PostCustomerPurchaseSessionsResponses = {
-	/**
-	 * The SAME browser (`deviceKey`) reopened the SAME event date while its session was still alive: that session is returned (same `holdToken`, same clock) and nothing was created.
-	 */
-	200: {
-		data: PurchaseSessionCreated;
-	};
-	/**
-	 * OK
-	 */
-	201: {
-		data: PurchaseSessionCreated;
-	};
-};
-
-export type PostCustomerPurchaseSessionsResponse =
-	PostCustomerPurchaseSessionsResponses[keyof PostCustomerPurchaseSessionsResponses];
-
-export type GetCustomerPurchaseSessionsIdData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
-		id: string;
-	};
-	query?: never;
-	url: "/customer/purchase-sessions/{id}";
-};
-
-export type GetCustomerPurchaseSessionsIdErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetCustomerPurchaseSessionsIdError =
-	GetCustomerPurchaseSessionsIdErrors[keyof GetCustomerPurchaseSessionsIdErrors];
-
-export type GetCustomerPurchaseSessionsIdResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: PurchaseSessionStatus;
-	};
-};
-
-export type GetCustomerPurchaseSessionsIdResponse =
-	GetCustomerPurchaseSessionsIdResponses[keyof GetCustomerPurchaseSessionsIdResponses];
-
-export type PostCustomerPurchaseSessionsIdReleaseData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
-		id: string;
-	};
-	query?: never;
-	url: "/customer/purchase-sessions/{id}/release";
-};
-
-export type PostCustomerPurchaseSessionsIdReleaseErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-	/**
-	 * Too many requests: rate limit exceeded.
-	 */
-	429: _Error;
-};
-
-export type PostCustomerPurchaseSessionsIdReleaseError =
-	PostCustomerPurchaseSessionsIdReleaseErrors[keyof PostCustomerPurchaseSessionsIdReleaseErrors];
-
-export type PostCustomerPurchaseSessionsIdReleaseResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: PurchaseSessionStatus;
-	};
-};
-
-export type PostCustomerPurchaseSessionsIdReleaseResponse =
-	PostCustomerPurchaseSessionsIdReleaseResponses[keyof PostCustomerPurchaseSessionsIdReleaseResponses];
-
-export type GetContentPostsData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path?: never;
-	query?: {
-		/**
-		 * 1-100, default 20
-		 */
-		limit?: number;
-		cursor?: string;
-	};
-	url: "/content/posts";
-};
-
-export type GetContentPostsErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetContentPostsError =
-	GetContentPostsErrors[keyof GetContentPostsErrors];
-
-export type GetContentPostsResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: Array<ContentPost>;
-		page: Page;
-	};
-};
-
-export type GetContentPostsResponse =
-	GetContentPostsResponses[keyof GetContentPostsResponses];
-
-export type PostContentPostsData = {
-	body: ContentPostCreate;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path?: never;
-	query?: never;
-	url: "/content/posts";
-};
-
-export type PostContentPostsErrors = {
-	/**
-	 * Bad request: malformed parameters.
-	 */
-	400: _Error;
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Conflict: the resource does not allow this operation in its current state.
-	 */
-	409: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type PostContentPostsError =
-	PostContentPostsErrors[keyof PostContentPostsErrors];
-
-export type PostContentPostsResponses = {
-	/**
-	 * OK
-	 */
-	201: {
-		data: ContentPost;
-	};
-};
-
-export type PostContentPostsResponse =
-	PostContentPostsResponses[keyof PostContentPostsResponses];
-
-export type GetContentLivesData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path?: never;
-	query?: {
-		/**
-		 * 1-100, default 20
-		 */
-		limit?: number;
-		cursor?: string;
-	};
-	url: "/content/lives";
-};
-
-export type GetContentLivesErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetContentLivesError =
-	GetContentLivesErrors[keyof GetContentLivesErrors];
-
-export type GetContentLivesResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: Array<ContentLive>;
-		page: Page;
-	};
-};
-
-export type GetContentLivesResponse =
-	GetContentLivesResponses[keyof GetContentLivesResponses];
-
-export type GetContentLivesIdData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
-		id: string;
-	};
-	query?: never;
-	url: "/content/lives/{id}";
-};
-
-export type GetContentLivesIdErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetContentLivesIdError =
-	GetContentLivesIdErrors[keyof GetContentLivesIdErrors];
-
-export type GetContentLivesIdResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: ContentLive;
-	};
-};
-
-export type GetContentLivesIdResponse =
-	GetContentLivesIdResponses[keyof GetContentLivesIdResponses];
-
-export type PostContentPlaybackTokenData = {
-	body: ContentPlaybackTokenRequest;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path?: never;
-	query?: never;
-	url: "/content/playback-token";
-};
-
-export type PostContentPlaybackTokenErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-	/**
-	 * Service unavailable: an external dependency is down or initialization failed.
-	 */
-	503: _Error;
-};
-
-export type PostContentPlaybackTokenError =
-	PostContentPlaybackTokenErrors[keyof PostContentPlaybackTokenErrors];
-
-export type PostContentPlaybackTokenResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: ContentPlaybackToken;
-	};
-};
-
-export type PostContentPlaybackTokenResponse =
-	PostContentPlaybackTokenResponses[keyof PostContentPlaybackTokenResponses];
-
-export type PostTicketsTicketCodeResendData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
-		ticketCode: string;
-	};
-	query?: never;
-	url: "/tickets/{ticketCode}/resend";
-};
-
-export type PostTicketsTicketCodeResendErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Conflict: the resource does not allow this operation in its current state.
-	 */
-	409: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type PostTicketsTicketCodeResendError =
-	PostTicketsTicketCodeResendErrors[keyof PostTicketsTicketCodeResendErrors];
-
-export type PostTicketsTicketCodeResendResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: ResendTicket;
-	};
-};
-
-export type PostTicketsTicketCodeResendResponse =
-	PostTicketsTicketCodeResendResponses[keyof PostTicketsTicketCodeResendResponses];
-
 export type GetCustomerOrdersData = {
 	body?: never;
 	headers?: {
@@ -6881,6 +9100,4776 @@ export type GetCustomerOrdersIdResponses = {
 
 export type GetCustomerOrdersIdResponse =
 	GetCustomerOrdersIdResponses[keyof GetCustomerOrdersIdResponses];
+
+export type PostCustomerPurchaseSessionsData = {
+	body: PurchaseSessionCreateRequest;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/purchase-sessions";
+};
+
+export type PostCustomerPurchaseSessionsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCustomerPurchaseSessionsError =
+	PostCustomerPurchaseSessionsErrors[keyof PostCustomerPurchaseSessionsErrors];
+
+export type PostCustomerPurchaseSessionsResponses = {
+	/**
+	 * The SAME browser (`deviceKey`) reopened the SAME event date while its session was still alive: that session is returned (same `holdToken`, same clock) and nothing was created.
+	 */
+	200: {
+		data: PurchaseSessionCreated;
+	};
+	/**
+	 * OK
+	 */
+	201: {
+		data: PurchaseSessionCreated;
+	};
+};
+
+export type PostCustomerPurchaseSessionsResponse =
+	PostCustomerPurchaseSessionsResponses[keyof PostCustomerPurchaseSessionsResponses];
+
+export type GetCustomerPurchaseSessionsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/purchase-sessions/{id}";
+};
+
+export type GetCustomerPurchaseSessionsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetCustomerPurchaseSessionsIdError =
+	GetCustomerPurchaseSessionsIdErrors[keyof GetCustomerPurchaseSessionsIdErrors];
+
+export type GetCustomerPurchaseSessionsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: PurchaseSessionStatus;
+	};
+};
+
+export type GetCustomerPurchaseSessionsIdResponse =
+	GetCustomerPurchaseSessionsIdResponses[keyof GetCustomerPurchaseSessionsIdResponses];
+
+export type PostCustomerPurchaseSessionsIdReleaseData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/purchase-sessions/{id}/release";
+};
+
+export type PostCustomerPurchaseSessionsIdReleaseErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCustomerPurchaseSessionsIdReleaseError =
+	PostCustomerPurchaseSessionsIdReleaseErrors[keyof PostCustomerPurchaseSessionsIdReleaseErrors];
+
+export type PostCustomerPurchaseSessionsIdReleaseResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: PurchaseSessionStatus;
+	};
+};
+
+export type PostCustomerPurchaseSessionsIdReleaseResponse =
+	PostCustomerPurchaseSessionsIdReleaseResponses[keyof PostCustomerPurchaseSessionsIdReleaseResponses];
+
+export type GetContentVideosData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/content/videos";
+};
+
+export type GetContentVideosErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentVideosError =
+	GetContentVideosErrors[keyof GetContentVideosErrors];
+
+export type GetContentVideosResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ContentVideo>;
+		page: Page;
+	};
+};
+
+export type GetContentVideosResponse =
+	GetContentVideosResponses[keyof GetContentVideosResponses];
+
+export type GetContentPostsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/content/posts";
+};
+
+export type GetContentPostsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentPostsError =
+	GetContentPostsErrors[keyof GetContentPostsErrors];
+
+export type GetContentPostsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ContentPost>;
+		page: Page;
+	};
+};
+
+export type GetContentPostsResponse =
+	GetContentPostsResponses[keyof GetContentPostsResponses];
+
+export type PostContentPostsData = {
+	body: ContentPostCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/posts";
+};
+
+export type PostContentPostsErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentPostsError =
+	PostContentPostsErrors[keyof PostContentPostsErrors];
+
+export type PostContentPostsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: ContentPost;
+	};
+};
+
+export type PostContentPostsResponse =
+	PostContentPostsResponses[keyof PostContentPostsResponses];
+
+export type GetContentLivesData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/content/lives";
+};
+
+export type GetContentLivesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentLivesError =
+	GetContentLivesErrors[keyof GetContentLivesErrors];
+
+export type GetContentLivesResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ContentLive>;
+		page: Page;
+	};
+};
+
+export type GetContentLivesResponse =
+	GetContentLivesResponses[keyof GetContentLivesResponses];
+
+export type PostContentLivesData = {
+	body: ContentLiveCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/lives";
+};
+
+export type PostContentLivesErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+};
+
+export type PostContentLivesError =
+	PostContentLivesErrors[keyof PostContentLivesErrors];
+
+export type PostContentLivesResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: ContentLiveCreated;
+	};
+};
+
+export type PostContentLivesResponse =
+	PostContentLivesResponses[keyof PostContentLivesResponses];
+
+export type DeleteContentLivesIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/lives/{id}";
+};
+
+export type DeleteContentLivesIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteContentLivesIdError =
+	DeleteContentLivesIdErrors[keyof DeleteContentLivesIdErrors];
+
+export type DeleteContentLivesIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentMediaDeleted;
+	};
+};
+
+export type DeleteContentLivesIdResponse =
+	DeleteContentLivesIdResponses[keyof DeleteContentLivesIdResponses];
+
+export type GetContentLivesIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/lives/{id}";
+};
+
+export type GetContentLivesIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentLivesIdError =
+	GetContentLivesIdErrors[keyof GetContentLivesIdErrors];
+
+export type GetContentLivesIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentLive;
+	};
+};
+
+export type GetContentLivesIdResponse =
+	GetContentLivesIdResponses[keyof GetContentLivesIdResponses];
+
+export type PatchContentLivesIdData = {
+	body: ContentLiveUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/lives/{id}";
+};
+
+export type PatchContentLivesIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchContentLivesIdError =
+	PatchContentLivesIdErrors[keyof PatchContentLivesIdErrors];
+
+export type PatchContentLivesIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentLiveSettings;
+	};
+};
+
+export type PatchContentLivesIdResponse =
+	PatchContentLivesIdResponses[keyof PatchContentLivesIdResponses];
+
+export type PostContentPlaybackTokenData = {
+	body: ContentPlaybackTokenRequest;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/playback-token";
+};
+
+export type PostContentPlaybackTokenErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostContentPlaybackTokenError =
+	PostContentPlaybackTokenErrors[keyof PostContentPlaybackTokenErrors];
+
+export type PostContentPlaybackTokenResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentPlaybackToken;
+	};
+};
+
+export type PostContentPlaybackTokenResponse =
+	PostContentPlaybackTokenResponses[keyof PostContentPlaybackTokenResponses];
+
+export type GetWaitlistData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * City name; accents and case are ignored
+		 */
+		city?: string;
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/waitlist";
+};
+
+export type GetWaitlistErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetWaitlistError = GetWaitlistErrors[keyof GetWaitlistErrors];
+
+export type GetWaitlistResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<WaitlistEntry>;
+		page: Page;
+	};
+};
+
+export type GetWaitlistResponse =
+	GetWaitlistResponses[keyof GetWaitlistResponses];
+
+export type PostWaitlistData = {
+	body: WaitlistEntryCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * Optional buyer session token; links the entry to that buyer.
+		 */
+		"X-Customer-Session"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/waitlist";
+};
+
+export type PostWaitlistErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostWaitlistError = PostWaitlistErrors[keyof PostWaitlistErrors];
+
+export type PostWaitlistResponses = {
+	/**
+	 * Already on this city's waitlist (`created: false`).
+	 */
+	200: {
+		data: WaitlistEntryResult;
+	};
+	/**
+	 * OK
+	 */
+	201: {
+		data: WaitlistEntryResult;
+	};
+};
+
+export type PostWaitlistResponse =
+	PostWaitlistResponses[keyof PostWaitlistResponses];
+
+export type DeleteEventsIdScheduleData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/schedule";
+};
+
+export type DeleteEventsIdScheduleErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteEventsIdScheduleError =
+	DeleteEventsIdScheduleErrors[keyof DeleteEventsIdScheduleErrors];
+
+export type DeleteEventsIdScheduleResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Event;
+	};
+};
+
+export type DeleteEventsIdScheduleResponse =
+	DeleteEventsIdScheduleResponses[keyof DeleteEventsIdScheduleResponses];
+
+export type PostEventsIdScheduleData = {
+	body: EventSchedule;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/schedule";
+};
+
+export type PostEventsIdScheduleErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostEventsIdScheduleError =
+	PostEventsIdScheduleErrors[keyof PostEventsIdScheduleErrors];
+
+export type PostEventsIdScheduleResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Event;
+	};
+};
+
+export type PostEventsIdScheduleResponse =
+	PostEventsIdScheduleResponses[keyof PostEventsIdScheduleResponses];
+
+export type GetTicketTypesIdPresaleWindowsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/ticket-types/{id}/presale-windows";
+};
+
+export type GetTicketTypesIdPresaleWindowsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetTicketTypesIdPresaleWindowsError =
+	GetTicketTypesIdPresaleWindowsErrors[keyof GetTicketTypesIdPresaleWindowsErrors];
+
+export type GetTicketTypesIdPresaleWindowsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<PresaleWindow>;
+	};
+};
+
+export type GetTicketTypesIdPresaleWindowsResponse =
+	GetTicketTypesIdPresaleWindowsResponses[keyof GetTicketTypesIdPresaleWindowsResponses];
+
+export type PostTicketTypesIdPresaleWindowsData = {
+	body: PresaleWindowCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/ticket-types/{id}/presale-windows";
+};
+
+export type PostTicketTypesIdPresaleWindowsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostTicketTypesIdPresaleWindowsError =
+	PostTicketTypesIdPresaleWindowsErrors[keyof PostTicketTypesIdPresaleWindowsErrors];
+
+export type PostTicketTypesIdPresaleWindowsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: PresaleWindow;
+	};
+};
+
+export type PostTicketTypesIdPresaleWindowsResponse =
+	PostTicketTypesIdPresaleWindowsResponses[keyof PostTicketTypesIdPresaleWindowsResponses];
+
+export type DeletePresaleWindowsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/presale-windows/{id}";
+};
+
+export type DeletePresaleWindowsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeletePresaleWindowsIdError =
+	DeletePresaleWindowsIdErrors[keyof DeletePresaleWindowsIdErrors];
+
+export type DeletePresaleWindowsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		[key: string]: unknown;
+	};
+};
+
+export type DeletePresaleWindowsIdResponse =
+	DeletePresaleWindowsIdResponses[keyof DeletePresaleWindowsIdResponses];
+
+export type PatchPresaleWindowsIdData = {
+	body: PresaleWindowUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/presale-windows/{id}";
+};
+
+export type PatchPresaleWindowsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchPresaleWindowsIdError =
+	PatchPresaleWindowsIdErrors[keyof PatchPresaleWindowsIdErrors];
+
+export type PatchPresaleWindowsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: PresaleWindow;
+	};
+};
+
+export type PatchPresaleWindowsIdResponse =
+	PatchPresaleWindowsIdResponses[keyof PatchPresaleWindowsIdResponses];
+
+export type GetReportsLiveAttendanceData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * all (default) | own | partner:<orgId>
+		 */
+		scope?: string;
+	};
+	url: "/reports/live-attendance";
+};
+
+export type GetReportsLiveAttendanceErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetReportsLiveAttendanceError =
+	GetReportsLiveAttendanceErrors[keyof GetReportsLiveAttendanceErrors];
+
+export type GetReportsLiveAttendanceResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<LiveAttendance>;
+	};
+};
+
+export type GetReportsLiveAttendanceResponse =
+	GetReportsLiveAttendanceResponses[keyof GetReportsLiveAttendanceResponses];
+
+export type GetEventDatesIdAccessCloseData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/event-dates/{id}/access-close";
+};
+
+export type GetEventDatesIdAccessCloseErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventDatesIdAccessCloseError =
+	GetEventDatesIdAccessCloseErrors[keyof GetEventDatesIdAccessCloseErrors];
+
+export type GetEventDatesIdAccessCloseResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AccessCloseStatus;
+	};
+};
+
+export type GetEventDatesIdAccessCloseResponse =
+	GetEventDatesIdAccessCloseResponses[keyof GetEventDatesIdAccessCloseResponses];
+
+export type PostEventDatesIdAccessCloseData = {
+	body: AccessCloseSignRequest;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/event-dates/{id}/access-close";
+};
+
+export type PostEventDatesIdAccessCloseErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostEventDatesIdAccessCloseError =
+	PostEventDatesIdAccessCloseErrors[keyof PostEventDatesIdAccessCloseErrors];
+
+export type PostEventDatesIdAccessCloseResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AccessCloseSigned;
+	};
+};
+
+export type PostEventDatesIdAccessCloseResponse =
+	PostEventDatesIdAccessCloseResponses[keyof PostEventDatesIdAccessCloseResponses];
+
+export type GetPaymentIntentsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query: {
+		/**
+		 * event id
+		 */
+		event: string;
+		/**
+		 * event date id (must belong to the event)
+		 */
+		eventDate?: string;
+		/**
+		 * true = only journeys that picked seats and did not pay
+		 */
+		onlyAbandoned?: boolean;
+		/**
+		 * 1-100, default 100
+		 */
+		limit?: number;
+		/**
+		 * `nextCursor` of the previous page
+		 */
+		cursor?: string;
+	};
+	url: "/payment-intents";
+};
+
+export type GetPaymentIntentsErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetPaymentIntentsError =
+	GetPaymentIntentsErrors[keyof GetPaymentIntentsErrors];
+
+export type GetPaymentIntentsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: PaymentIntentsPage;
+	};
+};
+
+export type GetPaymentIntentsResponse =
+	GetPaymentIntentsResponses[keyof GetPaymentIntentsResponses];
+
+export type PostSalesIdAbandonData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/sales/{id}/abandon";
+};
+
+export type PostSalesIdAbandonErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostSalesIdAbandonError =
+	PostSalesIdAbandonErrors[keyof PostSalesIdAbandonErrors];
+
+export type PostSalesIdAbandonResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Sale;
+	};
+};
+
+export type PostSalesIdAbandonResponse =
+	PostSalesIdAbandonResponses[keyof PostSalesIdAbandonResponses];
+
+export type DeleteContentPostsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/posts/{id}";
+};
+
+export type DeleteContentPostsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteContentPostsIdError =
+	DeleteContentPostsIdErrors[keyof DeleteContentPostsIdErrors];
+
+export type DeleteContentPostsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		[key: string]: unknown;
+	};
+};
+
+export type DeleteContentPostsIdResponse =
+	DeleteContentPostsIdResponses[keyof DeleteContentPostsIdResponses];
+
+export type PatchContentPostsIdData = {
+	body: ContentPostUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/posts/{id}";
+};
+
+export type PatchContentPostsIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchContentPostsIdError =
+	PatchContentPostsIdErrors[keyof PatchContentPostsIdErrors];
+
+export type PatchContentPostsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentPost;
+	};
+};
+
+export type PatchContentPostsIdResponse =
+	PatchContentPostsIdResponses[keyof PatchContentPostsIdResponses];
+
+export type PutContentPostsIdPinData = {
+	body: ContentPostPin;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/posts/{id}/pin";
+};
+
+export type PutContentPostsIdPinErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutContentPostsIdPinError =
+	PutContentPostsIdPinErrors[keyof PutContentPostsIdPinErrors];
+
+export type PutContentPostsIdPinResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentPostPinned;
+	};
+};
+
+export type PutContentPostsIdPinResponse =
+	PutContentPostsIdPinResponses[keyof PutContentPostsIdPinResponses];
+
+export type DeleteContentCommentsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/comments/{id}";
+};
+
+export type DeleteContentCommentsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteContentCommentsIdError =
+	DeleteContentCommentsIdErrors[keyof DeleteContentCommentsIdErrors];
+
+export type DeleteContentCommentsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentCommentDeleted;
+	};
+};
+
+export type DeleteContentCommentsIdResponse =
+	DeleteContentCommentsIdResponses[keyof DeleteContentCommentsIdResponses];
+
+export type GetContentChannelsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/channels";
+};
+
+export type GetContentChannelsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentChannelsError =
+	GetContentChannelsErrors[keyof GetContentChannelsErrors];
+
+export type GetContentChannelsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<CommunityChannel>;
+	};
+};
+
+export type GetContentChannelsResponse =
+	GetContentChannelsResponses[keyof GetContentChannelsResponses];
+
+export type PostContentChannelsData = {
+	body: CommunityChannelCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/channels";
+};
+
+export type PostContentChannelsErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentChannelsError =
+	PostContentChannelsErrors[keyof PostContentChannelsErrors];
+
+export type PostContentChannelsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: CommunityChannel;
+	};
+};
+
+export type PostContentChannelsResponse =
+	PostContentChannelsResponses[keyof PostContentChannelsResponses];
+
+export type PatchContentChannelsIdData = {
+	body: CommunityChannelUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/channels/{id}";
+};
+
+export type PatchContentChannelsIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchContentChannelsIdError =
+	PatchContentChannelsIdErrors[keyof PatchContentChannelsIdErrors];
+
+export type PatchContentChannelsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommunityChannel;
+	};
+};
+
+export type PatchContentChannelsIdResponse =
+	PatchContentChannelsIdResponses[keyof PatchContentChannelsIdResponses];
+
+export type PutContentChannelsOrderData = {
+	body: CommunityChannelOrder;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/channels/order";
+};
+
+export type PutContentChannelsOrderErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutContentChannelsOrderError =
+	PutContentChannelsOrderErrors[keyof PutContentChannelsOrderErrors];
+
+export type PutContentChannelsOrderResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommunityChannelOrder;
+	};
+};
+
+export type PutContentChannelsOrderResponse =
+	PutContentChannelsOrderResponses[keyof PutContentChannelsOrderResponses];
+
+export type PostContentChannelsIdArchiveData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/channels/{id}/archive";
+};
+
+export type PostContentChannelsIdArchiveErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentChannelsIdArchiveError =
+	PostContentChannelsIdArchiveErrors[keyof PostContentChannelsIdArchiveErrors];
+
+export type PostContentChannelsIdArchiveResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		[key: string]: unknown;
+	};
+};
+
+export type PostContentChannelsIdArchiveResponse =
+	PostContentChannelsIdArchiveResponses[keyof PostContentChannelsIdArchiveResponses];
+
+export type GetContentModerationQueueData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 0-based page
+		 */
+		page?: number;
+	};
+	url: "/content/moderation/queue";
+};
+
+export type GetContentModerationQueueErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentModerationQueueError =
+	GetContentModerationQueueErrors[keyof GetContentModerationQueueErrors];
+
+export type GetContentModerationQueueResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ModerationQueueItem>;
+	};
+};
+
+export type GetContentModerationQueueResponse =
+	GetContentModerationQueueResponses[keyof GetContentModerationQueueResponses];
+
+export type GetContentModerationBansData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/moderation/bans";
+};
+
+export type GetContentModerationBansErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentModerationBansError =
+	GetContentModerationBansErrors[keyof GetContentModerationBansErrors];
+
+export type GetContentModerationBansResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<CommunityBan>;
+	};
+};
+
+export type GetContentModerationBansResponse =
+	GetContentModerationBansResponses[keyof GetContentModerationBansResponses];
+
+export type GetContentModerationMemberPostsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * PENDING_REVIEW (default) or PUBLISHED
+		 */
+		status?: "PENDING_REVIEW" | "PUBLISHED";
+		/**
+		 * 0-based page (PENDING_REVIEW only)
+		 */
+		page?: number;
+	};
+	url: "/content/moderation/member-posts";
+};
+
+export type GetContentModerationMemberPostsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentModerationMemberPostsError =
+	GetContentModerationMemberPostsErrors[keyof GetContentModerationMemberPostsErrors];
+
+export type GetContentModerationMemberPostsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<MemberPostQueueItem>;
+	};
+};
+
+export type GetContentModerationMemberPostsResponse =
+	GetContentModerationMemberPostsResponses[keyof GetContentModerationMemberPostsResponses];
+
+export type PostContentModerationCommentsIdHideData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/moderation/comments/{id}/hide";
+};
+
+export type PostContentModerationCommentsIdHideErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentModerationCommentsIdHideError =
+	PostContentModerationCommentsIdHideErrors[keyof PostContentModerationCommentsIdHideErrors];
+
+export type PostContentModerationCommentsIdHideResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommentModerated;
+	};
+};
+
+export type PostContentModerationCommentsIdHideResponse =
+	PostContentModerationCommentsIdHideResponses[keyof PostContentModerationCommentsIdHideResponses];
+
+export type PostContentModerationCommentsIdUnhideData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/moderation/comments/{id}/unhide";
+};
+
+export type PostContentModerationCommentsIdUnhideErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentModerationCommentsIdUnhideError =
+	PostContentModerationCommentsIdUnhideErrors[keyof PostContentModerationCommentsIdUnhideErrors];
+
+export type PostContentModerationCommentsIdUnhideResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommentModerated;
+	};
+};
+
+export type PostContentModerationCommentsIdUnhideResponse =
+	PostContentModerationCommentsIdUnhideResponses[keyof PostContentModerationCommentsIdUnhideResponses];
+
+export type PostContentModerationCommentsIdIgnoreReportsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/moderation/comments/{id}/ignore-reports";
+};
+
+export type PostContentModerationCommentsIdIgnoreReportsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentModerationCommentsIdIgnoreReportsError =
+	PostContentModerationCommentsIdIgnoreReportsErrors[keyof PostContentModerationCommentsIdIgnoreReportsErrors];
+
+export type PostContentModerationCommentsIdIgnoreReportsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommentModerated;
+	};
+};
+
+export type PostContentModerationCommentsIdIgnoreReportsResponse =
+	PostContentModerationCommentsIdIgnoreReportsResponses[keyof PostContentModerationCommentsIdIgnoreReportsResponses];
+
+export type PostContentModerationMemberPostsIdApproveData = {
+	body: MemberPostApprove;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/moderation/member-posts/{id}/approve";
+};
+
+export type PostContentModerationMemberPostsIdApproveErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+};
+
+export type PostContentModerationMemberPostsIdApproveError =
+	PostContentModerationMemberPostsIdApproveErrors[keyof PostContentModerationMemberPostsIdApproveErrors];
+
+export type PostContentModerationMemberPostsIdApproveResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MemberPostReviewed;
+	};
+};
+
+export type PostContentModerationMemberPostsIdApproveResponse =
+	PostContentModerationMemberPostsIdApproveResponses[keyof PostContentModerationMemberPostsIdApproveResponses];
+
+export type PostContentModerationMemberPostsIdRejectData = {
+	body?: MemberPostDecision;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/moderation/member-posts/{id}/reject";
+};
+
+export type PostContentModerationMemberPostsIdRejectErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentModerationMemberPostsIdRejectError =
+	PostContentModerationMemberPostsIdRejectErrors[keyof PostContentModerationMemberPostsIdRejectErrors];
+
+export type PostContentModerationMemberPostsIdRejectResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MemberPostReviewed;
+	};
+};
+
+export type PostContentModerationMemberPostsIdRejectResponse =
+	PostContentModerationMemberPostsIdRejectResponses[keyof PostContentModerationMemberPostsIdRejectResponses];
+
+export type PostContentModerationMemberPostsIdRemoveData = {
+	body?: MemberPostDecision;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/moderation/member-posts/{id}/remove";
+};
+
+export type PostContentModerationMemberPostsIdRemoveErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentModerationMemberPostsIdRemoveError =
+	PostContentModerationMemberPostsIdRemoveErrors[keyof PostContentModerationMemberPostsIdRemoveErrors];
+
+export type PostContentModerationMemberPostsIdRemoveResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MemberPostReviewed;
+	};
+};
+
+export type PostContentModerationMemberPostsIdRemoveResponse =
+	PostContentModerationMemberPostsIdRemoveResponses[keyof PostContentModerationMemberPostsIdRemoveResponses];
+
+export type DeleteContentMembersIdBanData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/members/{id}/ban";
+};
+
+export type DeleteContentMembersIdBanErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteContentMembersIdBanError =
+	DeleteContentMembersIdBanErrors[keyof DeleteContentMembersIdBanErrors];
+
+export type DeleteContentMembersIdBanResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MemberBanResult;
+	};
+};
+
+export type DeleteContentMembersIdBanResponse =
+	DeleteContentMembersIdBanResponses[keyof DeleteContentMembersIdBanResponses];
+
+export type PostContentMembersIdBanData = {
+	body: MemberBanCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/members/{id}/ban";
+};
+
+export type PostContentMembersIdBanErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentMembersIdBanError =
+	PostContentMembersIdBanErrors[keyof PostContentMembersIdBanErrors];
+
+export type PostContentMembersIdBanResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MemberBanResult;
+	};
+};
+
+export type PostContentMembersIdBanResponse =
+	PostContentMembersIdBanResponses[keyof PostContentMembersIdBanResponses];
+
+export type GetContentMeetupsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/meetups";
+};
+
+export type GetContentMeetupsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentMeetupsError =
+	GetContentMeetupsErrors[keyof GetContentMeetupsErrors];
+
+export type GetContentMeetupsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<CommunityMeetup>;
+	};
+};
+
+export type GetContentMeetupsResponse =
+	GetContentMeetupsResponses[keyof GetContentMeetupsResponses];
+
+export type PostContentMeetupsData = {
+	body: CommunityMeetupCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/meetups";
+};
+
+export type PostContentMeetupsErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentMeetupsError =
+	PostContentMeetupsErrors[keyof PostContentMeetupsErrors];
+
+export type PostContentMeetupsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: CommunityMeetupDetail;
+	};
+};
+
+export type PostContentMeetupsResponse =
+	PostContentMeetupsResponses[keyof PostContentMeetupsResponses];
+
+export type GetContentMeetupsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/meetups/{id}";
+};
+
+export type GetContentMeetupsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentMeetupsIdError =
+	GetContentMeetupsIdErrors[keyof GetContentMeetupsIdErrors];
+
+export type GetContentMeetupsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommunityMeetupDetail;
+	};
+};
+
+export type GetContentMeetupsIdResponse =
+	GetContentMeetupsIdResponses[keyof GetContentMeetupsIdResponses];
+
+export type PatchContentMeetupsIdData = {
+	body: CommunityMeetupUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/meetups/{id}";
+};
+
+export type PatchContentMeetupsIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchContentMeetupsIdError =
+	PatchContentMeetupsIdErrors[keyof PatchContentMeetupsIdErrors];
+
+export type PatchContentMeetupsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommunityMeetupDetail;
+	};
+};
+
+export type PatchContentMeetupsIdResponse =
+	PatchContentMeetupsIdResponses[keyof PatchContentMeetupsIdResponses];
+
+export type PostContentMeetupsIdPublishData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/meetups/{id}/publish";
+};
+
+export type PostContentMeetupsIdPublishErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentMeetupsIdPublishError =
+	PostContentMeetupsIdPublishErrors[keyof PostContentMeetupsIdPublishErrors];
+
+export type PostContentMeetupsIdPublishResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommunityMeetupDetail;
+	};
+};
+
+export type PostContentMeetupsIdPublishResponse =
+	PostContentMeetupsIdPublishResponses[keyof PostContentMeetupsIdPublishResponses];
+
+export type PostContentMeetupsIdCancelData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/meetups/{id}/cancel";
+};
+
+export type PostContentMeetupsIdCancelErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentMeetupsIdCancelError =
+	PostContentMeetupsIdCancelErrors[keyof PostContentMeetupsIdCancelErrors];
+
+export type PostContentMeetupsIdCancelResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommunityMeetupDetail;
+	};
+};
+
+export type PostContentMeetupsIdCancelResponse =
+	PostContentMeetupsIdCancelResponses[keyof PostContentMeetupsIdCancelResponses];
+
+export type PatchContentMeetupsIdRsvpsRsvpIdData = {
+	body: CommunityMeetupRsvpReview;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+		rsvpId: string;
+	};
+	query?: never;
+	url: "/content/meetups/{id}/rsvps/{rsvpId}";
+};
+
+export type PatchContentMeetupsIdRsvpsRsvpIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchContentMeetupsIdRsvpsRsvpIdError =
+	PatchContentMeetupsIdRsvpsRsvpIdErrors[keyof PatchContentMeetupsIdRsvpsRsvpIdErrors];
+
+export type PatchContentMeetupsIdRsvpsRsvpIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommunityMeetupRsvpReviewed;
+	};
+};
+
+export type PatchContentMeetupsIdRsvpsRsvpIdResponse =
+	PatchContentMeetupsIdRsvpsRsvpIdResponses[keyof PatchContentMeetupsIdRsvpsRsvpIdResponses];
+
+export type PutContentMeetupsIdAttendanceData = {
+	body: CommunityMeetupAttendance;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/meetups/{id}/attendance";
+};
+
+export type PutContentMeetupsIdAttendanceErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutContentMeetupsIdAttendanceError =
+	PutContentMeetupsIdAttendanceErrors[keyof PutContentMeetupsIdAttendanceErrors];
+
+export type PutContentMeetupsIdAttendanceResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CommunityMeetupAttendanceResult;
+	};
+};
+
+export type PutContentMeetupsIdAttendanceResponse =
+	PutContentMeetupsIdAttendanceResponses[keyof PutContentMeetupsIdAttendanceResponses];
+
+export type GetProductsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/products";
+};
+
+export type GetProductsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetProductsError = GetProductsErrors[keyof GetProductsErrors];
+
+export type GetProductsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<Product>;
+	};
+};
+
+export type GetProductsResponse =
+	GetProductsResponses[keyof GetProductsResponses];
+
+export type PostProductsData = {
+	body: ProductCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/products";
+};
+
+export type PostProductsErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostProductsError = PostProductsErrors[keyof PostProductsErrors];
+
+export type PostProductsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: ProductDetail;
+	};
+};
+
+export type PostProductsResponse =
+	PostProductsResponses[keyof PostProductsResponses];
+
+export type DeleteProductsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/products/{id}";
+};
+
+export type DeleteProductsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteProductsIdError =
+	DeleteProductsIdErrors[keyof DeleteProductsIdErrors];
+
+export type DeleteProductsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		[key: string]: unknown;
+	};
+};
+
+export type DeleteProductsIdResponse =
+	DeleteProductsIdResponses[keyof DeleteProductsIdResponses];
+
+export type GetProductsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/products/{id}";
+};
+
+export type GetProductsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetProductsIdError = GetProductsIdErrors[keyof GetProductsIdErrors];
+
+export type GetProductsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ProductDetail;
+	};
+};
+
+export type GetProductsIdResponse =
+	GetProductsIdResponses[keyof GetProductsIdResponses];
+
+export type PatchProductsIdData = {
+	body: ProductUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/products/{id}";
+};
+
+export type PatchProductsIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchProductsIdError =
+	PatchProductsIdErrors[keyof PatchProductsIdErrors];
+
+export type PatchProductsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ProductDetail;
+	};
+};
+
+export type PatchProductsIdResponse =
+	PatchProductsIdResponses[keyof PatchProductsIdResponses];
+
+export type PostProductsIdStatusData = {
+	body: ProductStatusUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/products/{id}/status";
+};
+
+export type PostProductsIdStatusErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostProductsIdStatusError =
+	PostProductsIdStatusErrors[keyof PostProductsIdStatusErrors];
+
+export type PostProductsIdStatusResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		[key: string]: unknown;
+	};
+};
+
+export type PostProductsIdStatusResponse =
+	PostProductsIdStatusResponses[keyof PostProductsIdStatusResponses];
+
+export type DeleteContentVideosIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/videos/{id}";
+};
+
+export type DeleteContentVideosIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteContentVideosIdError =
+	DeleteContentVideosIdErrors[keyof DeleteContentVideosIdErrors];
+
+export type DeleteContentVideosIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentMediaDeleted;
+	};
+};
+
+export type DeleteContentVideosIdResponse =
+	DeleteContentVideosIdResponses[keyof DeleteContentVideosIdResponses];
+
+export type PatchContentVideosIdData = {
+	body: ContentVideoUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/videos/{id}";
+};
+
+export type PatchContentVideosIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchContentVideosIdError =
+	PatchContentVideosIdErrors[keyof PatchContentVideosIdErrors];
+
+export type PatchContentVideosIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentVideoSummary;
+	};
+};
+
+export type PatchContentVideosIdResponse =
+	PatchContentVideosIdResponses[keyof PatchContentVideosIdResponses];
+
+export type PutContentVideosIdPublishedData = {
+	body: ContentVideoPublish;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/videos/{id}/published";
+};
+
+export type PutContentVideosIdPublishedErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutContentVideosIdPublishedError =
+	PutContentVideosIdPublishedErrors[keyof PutContentVideosIdPublishedErrors];
+
+export type PutContentVideosIdPublishedResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentVideoPublished;
+	};
+};
+
+export type PutContentVideosIdPublishedResponse =
+	PutContentVideosIdPublishedResponses[keyof PutContentVideosIdPublishedResponses];
+
+export type PutContentVideosIdSeriesData = {
+	body: ContentVideoSeriesAssign;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/videos/{id}/series";
+};
+
+export type PutContentVideosIdSeriesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutContentVideosIdSeriesError =
+	PutContentVideosIdSeriesErrors[keyof PutContentVideosIdSeriesErrors];
+
+export type PutContentVideosIdSeriesResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentVideoSeriesResult;
+	};
+};
+
+export type PutContentVideosIdSeriesResponse =
+	PutContentVideosIdSeriesResponses[keyof PutContentVideosIdSeriesResponses];
+
+export type GetContentSeriesData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/content/series";
+};
+
+export type GetContentSeriesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentSeriesError =
+	GetContentSeriesErrors[keyof GetContentSeriesErrors];
+
+export type GetContentSeriesResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ContentSeries>;
+		page: Page;
+	};
+};
+
+export type GetContentSeriesResponse =
+	GetContentSeriesResponses[keyof GetContentSeriesResponses];
+
+export type PostContentSeriesData = {
+	body: ContentSeriesCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/content/series";
+};
+
+export type PostContentSeriesErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostContentSeriesError =
+	PostContentSeriesErrors[keyof PostContentSeriesErrors];
+
+export type PostContentSeriesResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: ContentSeries;
+	};
+};
+
+export type PostContentSeriesResponse =
+	PostContentSeriesResponses[keyof PostContentSeriesResponses];
+
+export type DeleteContentSeriesIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/series/{id}";
+};
+
+export type DeleteContentSeriesIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteContentSeriesIdError =
+	DeleteContentSeriesIdErrors[keyof DeleteContentSeriesIdErrors];
+
+export type DeleteContentSeriesIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentMediaDeleted;
+	};
+};
+
+export type DeleteContentSeriesIdResponse =
+	DeleteContentSeriesIdResponses[keyof DeleteContentSeriesIdResponses];
+
+export type PatchContentSeriesIdData = {
+	body: ContentSeriesUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/series/{id}";
+};
+
+export type PatchContentSeriesIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchContentSeriesIdError =
+	PatchContentSeriesIdErrors[keyof PatchContentSeriesIdErrors];
+
+export type PatchContentSeriesIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentSeries;
+	};
+};
+
+export type PatchContentSeriesIdResponse =
+	PatchContentSeriesIdResponses[keyof PatchContentSeriesIdResponses];
+
+export type PutContentSeriesIdPublishedData = {
+	body: ContentSeriesPublish;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/series/{id}/published";
+};
+
+export type PutContentSeriesIdPublishedErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutContentSeriesIdPublishedError =
+	PutContentSeriesIdPublishedErrors[keyof PutContentSeriesIdPublishedErrors];
+
+export type PutContentSeriesIdPublishedResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentSeries;
+	};
+};
+
+export type PutContentSeriesIdPublishedResponse =
+	PutContentSeriesIdPublishedResponses[keyof PutContentSeriesIdPublishedResponses];
+
+export type PostContentLivesIdResetKeyData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/lives/{id}/reset-key";
+};
+
+export type PostContentLivesIdResetKeyErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+};
+
+export type PostContentLivesIdResetKeyError =
+	PostContentLivesIdResetKeyErrors[keyof PostContentLivesIdResetKeyErrors];
+
+export type PostContentLivesIdResetKeyResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentLiveStreamKey;
+	};
+};
+
+export type PostContentLivesIdResetKeyResponse =
+	PostContentLivesIdResetKeyResponses[keyof PostContentLivesIdResetKeyResponses];
+
+export type GetContentLivesIdChatData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/content/lives/{id}/chat";
+};
+
+export type GetContentLivesIdChatErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentLivesIdChatError =
+	GetContentLivesIdChatErrors[keyof GetContentLivesIdChatErrors];
+
+export type GetContentLivesIdChatResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ContentLiveChat;
+	};
+};
+
+export type GetContentLivesIdChatResponse =
+	GetContentLivesIdChatResponses[keyof GetContentLivesIdChatResponses];
+
+export type GetWebsiteData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/website";
+};
+
+export type GetWebsiteErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetWebsiteError = GetWebsiteErrors[keyof GetWebsiteErrors];
+
+export type GetWebsiteResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Website;
+	};
+};
+
+export type GetWebsiteResponse = GetWebsiteResponses[keyof GetWebsiteResponses];
+
+export type PutWebsiteData = {
+	body: WebsiteUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/website";
+};
+
+export type PutWebsiteErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutWebsiteError = PutWebsiteErrors[keyof PutWebsiteErrors];
+
+export type PutWebsiteResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Website;
+	};
+};
+
+export type PutWebsiteResponse = PutWebsiteResponses[keyof PutWebsiteResponses];
+
+export type PutWebsitePublishedData = {
+	body: WebsitePublished;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/website/published";
+};
+
+export type PutWebsitePublishedErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutWebsitePublishedError =
+	PutWebsitePublishedErrors[keyof PutWebsitePublishedErrors];
+
+export type PutWebsitePublishedResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: WebsitePublished;
+	};
+};
+
+export type PutWebsitePublishedResponse =
+	PutWebsitePublishedResponses[keyof PutWebsitePublishedResponses];
+
+export type PatchOrganizationData = {
+	body: OrganizationUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/organization";
+};
+
+export type PatchOrganizationErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchOrganizationError =
+	PatchOrganizationErrors[keyof PatchOrganizationErrors];
+
+export type PatchOrganizationResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Organization;
+	};
+};
+
+export type PatchOrganizationResponse =
+	PatchOrganizationResponses[keyof PatchOrganizationResponses];
+
+export type PatchOrganizationAnalyticsData = {
+	body: OrganizationAnalyticsUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/organization/analytics";
+};
+
+export type PatchOrganizationAnalyticsErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchOrganizationAnalyticsError =
+	PatchOrganizationAnalyticsErrors[keyof PatchOrganizationAnalyticsErrors];
+
+export type PatchOrganizationAnalyticsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: OrganizationAnalytics;
+	};
+};
+
+export type PatchOrganizationAnalyticsResponse =
+	PatchOrganizationAnalyticsResponses[keyof PatchOrganizationAnalyticsResponses];
+
+export type GetOrganizationProfileData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/organization/profile";
+};
+
+export type GetOrganizationProfileErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetOrganizationProfileError =
+	GetOrganizationProfileErrors[keyof GetOrganizationProfileErrors];
+
+export type GetOrganizationProfileResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: OrganizationProfile;
+	};
+};
+
+export type GetOrganizationProfileResponse =
+	GetOrganizationProfileResponses[keyof GetOrganizationProfileResponses];
+
+export type PatchOrganizationProfileData = {
+	body: OrganizationProfileUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/organization/profile";
+};
+
+export type PatchOrganizationProfileErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchOrganizationProfileError =
+	PatchOrganizationProfileErrors[keyof PatchOrganizationProfileErrors];
+
+export type PatchOrganizationProfileResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: OrganizationProfile;
+	};
+};
+
+export type PatchOrganizationProfileResponse =
+	PatchOrganizationProfileResponses[keyof PatchOrganizationProfileResponses];
+
+export type GetTicketTemplatesData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/ticket-templates";
+};
+
+export type GetTicketTemplatesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetTicketTemplatesError =
+	GetTicketTemplatesErrors[keyof GetTicketTemplatesErrors];
+
+export type GetTicketTemplatesResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<TicketTemplate>;
+	};
+};
+
+export type GetTicketTemplatesResponse =
+	GetTicketTemplatesResponses[keyof GetTicketTemplatesResponses];
+
+export type PostTicketTemplatesData = {
+	body: TicketTemplateCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/ticket-templates";
+};
+
+export type PostTicketTemplatesErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostTicketTemplatesError =
+	PostTicketTemplatesErrors[keyof PostTicketTemplatesErrors];
+
+export type PostTicketTemplatesResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: TicketTemplate;
+	};
+};
+
+export type PostTicketTemplatesResponse =
+	PostTicketTemplatesResponses[keyof PostTicketTemplatesResponses];
+
+export type DeleteTicketTemplatesIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/ticket-templates/{id}";
+};
+
+export type DeleteTicketTemplatesIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteTicketTemplatesIdError =
+	DeleteTicketTemplatesIdErrors[keyof DeleteTicketTemplatesIdErrors];
+
+export type DeleteTicketTemplatesIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: WorkspaceConfigDeleted;
+	};
+};
+
+export type DeleteTicketTemplatesIdResponse =
+	DeleteTicketTemplatesIdResponses[keyof DeleteTicketTemplatesIdResponses];
+
+export type PatchTicketTemplatesIdData = {
+	body: TicketTemplateUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/ticket-templates/{id}";
+};
+
+export type PatchTicketTemplatesIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchTicketTemplatesIdError =
+	PatchTicketTemplatesIdErrors[keyof PatchTicketTemplatesIdErrors];
+
+export type PatchTicketTemplatesIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: TicketTemplate;
+	};
+};
+
+export type PatchTicketTemplatesIdResponse =
+	PatchTicketTemplatesIdResponses[keyof PatchTicketTemplatesIdResponses];
+
+export type PostTicketTemplatesIdInstantiateData = {
+	body: TicketTemplateInstantiate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/ticket-templates/{id}/instantiate";
+};
+
+export type PostTicketTemplatesIdInstantiateErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostTicketTemplatesIdInstantiateError =
+	PostTicketTemplatesIdInstantiateErrors[keyof PostTicketTemplatesIdInstantiateErrors];
+
+export type PostTicketTemplatesIdInstantiateResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: TicketTemplateInstance;
+	};
+};
+
+export type PostTicketTemplatesIdInstantiateResponse =
+	PostTicketTemplatesIdInstantiateResponses[keyof PostTicketTemplatesIdInstantiateResponses];
+
+export type GetMasterQrsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/master-qrs";
+};
+
+export type GetMasterQrsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetMasterQrsError = GetMasterQrsErrors[keyof GetMasterQrsErrors];
+
+export type GetMasterQrsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<MasterQr>;
+	};
+};
+
+export type GetMasterQrsResponse =
+	GetMasterQrsResponses[keyof GetMasterQrsResponses];
+
+export type PostMasterQrsData = {
+	body: MasterQrCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/master-qrs";
+};
+
+export type PostMasterQrsErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostMasterQrsError = PostMasterQrsErrors[keyof PostMasterQrsErrors];
+
+export type PostMasterQrsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: MasterQr;
+	};
+};
+
+export type PostMasterQrsResponse =
+	PostMasterQrsResponses[keyof PostMasterQrsResponses];
+
+export type DeleteMasterQrsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/master-qrs/{id}";
+};
+
+export type DeleteMasterQrsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteMasterQrsIdError =
+	DeleteMasterQrsIdErrors[keyof DeleteMasterQrsIdErrors];
+
+export type DeleteMasterQrsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: WorkspaceConfigDeleted;
+	};
+};
+
+export type DeleteMasterQrsIdResponse =
+	DeleteMasterQrsIdResponses[keyof DeleteMasterQrsIdResponses];
+
+export type PatchMasterQrsIdData = {
+	body: MasterQrUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/master-qrs/{id}";
+};
+
+export type PatchMasterQrsIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchMasterQrsIdError =
+	PatchMasterQrsIdErrors[keyof PatchMasterQrsIdErrors];
+
+export type PatchMasterQrsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MasterQr;
+	};
+};
+
+export type PatchMasterQrsIdResponse =
+	PatchMasterQrsIdResponses[keyof PatchMasterQrsIdResponses];
+
+export type PutMasterQrsIdActiveData = {
+	body: MasterQrActive;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/master-qrs/{id}/active";
+};
+
+export type PutMasterQrsIdActiveErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PutMasterQrsIdActiveError =
+	PutMasterQrsIdActiveErrors[keyof PutMasterQrsIdActiveErrors];
+
+export type PutMasterQrsIdActiveResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MasterQrActive;
+	};
+};
+
+export type PutMasterQrsIdActiveResponse =
+	PutMasterQrsIdActiveResponses[keyof PutMasterQrsIdActiveResponses];
+
+export type GetMerchCatalogData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/merch/catalog";
+};
+
+export type GetMerchCatalogErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Operation error.
+	 */
+	403: _Error;
+	/**
+	 * Operation error.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetMerchCatalogError =
+	GetMerchCatalogErrors[keyof GetMerchCatalogErrors];
+
+export type GetMerchCatalogResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MerchCatalog;
+	};
+};
+
+export type GetMerchCatalogResponse =
+	GetMerchCatalogResponses[keyof GetMerchCatalogResponses];
+
+export type PostMerchOrdersData = {
+	body: MerchOrderCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * Client-chosen idempotency key (max. 255 characters). Retrying with the SAME key returns the order created by the first attempt instead of reserving stock again. Unique per store.
+		 */
+		"Idempotency-Key"?: string;
+		/**
+		 * Optional IPv4/IPv6 of the end buyer, forwarded by the landing server-to-server. Invalid values are ignored. Limits 10 orders per 10 minutes per store and IP.
+		 */
+		"X-Buyer-Ip"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it). Its customer is the buyer identity: email, rate limits, idempotency replay and ownership.
+		 */
+		"X-Customer-Session"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/merch/orders";
+};
+
+export type PostMerchOrdersErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Operation error.
+	 */
+	401: _Error;
+	/**
+	 * Operation error.
+	 */
+	403: _Error;
+	/**
+	 * Operation error.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Operation error.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostMerchOrdersError =
+	PostMerchOrdersErrors[keyof PostMerchOrdersErrors];
+
+export type PostMerchOrdersResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: MerchOrder;
+	};
+};
+
+export type PostMerchOrdersResponse =
+	PostMerchOrdersResponses[keyof PostMerchOrdersResponses];
+
+export type PostMerchOrdersLookupData = {
+	body: MerchOrderLookup;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it). Orders are scoped to its customer.
+		 */
+		"X-Customer-Session"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/merch/orders/lookup";
+};
+
+export type PostMerchOrdersLookupErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Operation error.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Operation error.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostMerchOrdersLookupError =
+	PostMerchOrdersLookupErrors[keyof PostMerchOrdersLookupErrors];
+
+export type PostMerchOrdersLookupResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MerchOrder;
+	};
+};
+
+export type PostMerchOrdersLookupResponse =
+	PostMerchOrdersLookupResponses[keyof PostMerchOrdersLookupResponses];
+
+export type PostMerchOrdersCodePaymentCardData = {
+	body: MerchCardPayment;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it). Orders are scoped to its customer.
+		 */
+		"X-Customer-Session"?: string;
+	};
+	path: {
+		code: string;
+	};
+	query?: never;
+	url: "/merch/orders/{code}/payment/card";
+};
+
+export type PostMerchOrdersCodePaymentCardErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Operation error.
+	 */
+	401: _Error;
+	/**
+	 * Operation error.
+	 */
+	403: _Error;
+	/**
+	 * Operation error.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+};
+
+export type PostMerchOrdersCodePaymentCardError =
+	PostMerchOrdersCodePaymentCardErrors[keyof PostMerchOrdersCodePaymentCardErrors];
+
+export type PostMerchOrdersCodePaymentCardResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MerchCardPaymentResult;
+	};
+};
+
+export type PostMerchOrdersCodePaymentCardResponse =
+	PostMerchOrdersCodePaymentCardResponses[keyof PostMerchOrdersCodePaymentCardResponses];
 
 export type ClientOptions = {
 	baseUrl:

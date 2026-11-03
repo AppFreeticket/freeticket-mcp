@@ -1,0 +1,24 @@
+{
+	"$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+	"name": "freeticket",
+	"displayName": "FreeTicket",
+	"version": "0.20.0",
+	"description": "Run your FreeTicket box office from Claude: events, dates, ticket types, presales, lineups, sales, check-in, memberships, venues, staff, reports and settlements, through the official FreeTicket MCP server (OAuth, no keys to paste).",
+	"author": {
+		"name": "FreeTicket",
+		"url": "https://appfreeticket.com"
+	},
+	"homepage": "https://github.com/AppFreeticket/freeticket-mcp#readme",
+	"repository": "https://github.com/AppFreeticket/freeticket-mcp",
+	"license": "MIT",
+	"icon": "assets/icon.png",
+	"privacyPolicyUrl": "https://appfreeticket.com/legal/privacidad",
+	"keywords": [
+		"freeticket",
+		"mcp",
+		"ticketing",
+		"events",
+		"box-office",
+		"check-in"
+	]
+}

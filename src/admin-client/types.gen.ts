@@ -13,7 +13,13 @@ export type AdminMe = {
 	userId: string;
 	name: string;
 	email: string;
-	role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
+	role:
+		| "SUPER_ADMIN"
+		| "ADMIN"
+		| "STAFF"
+		| "VIEWER"
+		| "MINCULTURA"
+		| "MERCH_MANAGER";
 };
 
 export type FeatureFlagScope = "global" | "plan" | "workspace";
@@ -92,7 +98,13 @@ export type AdminUser = {
 	id: string;
 	name: string;
 	email: string;
-	role: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
+	role:
+		| "SUPER_ADMIN"
+		| "ADMIN"
+		| "STAFF"
+		| "VIEWER"
+		| "MINCULTURA"
+		| "MERCH_MANAGER";
 	banned: boolean;
 	bannedAt: string | null;
 	homeOrganizationId: string | null;
@@ -101,7 +113,13 @@ export type AdminUser = {
 };
 
 export type AdminUserUpdate = {
-	role?: "SUPER_ADMIN" | "ADMIN" | "STAFF" | "VIEWER" | "MINCULTURA";
+	role?:
+		| "SUPER_ADMIN"
+		| "ADMIN"
+		| "STAFF"
+		| "VIEWER"
+		| "MINCULTURA"
+		| "MERCH_MANAGER";
 	banned?: boolean;
 };
 

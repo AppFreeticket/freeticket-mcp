@@ -149,8 +149,17 @@ describe("tool registration", () => {
 		// 35 writes: 29 from contract 1.5.0 + the 6 from 1.7.0 (members area and
 		// token de reproducción de contenido) + the 7 from 1.19/1.20 (events_cancel,
 		// tickets_reassign, staff_delete, webhooks_update, customer_order_release,
-		// content_posts_create, workspaces_create).
-		expect(t.length).toBe(42);
+		// content_posts_create, workspaces_create) + the 10 from 1.21–1.27
+		// (events_schedule/unschedule, the lineup and its invitations, presale
+		// windows, waitlist_join) + the 24 from 1.28/1.29 (access-close sign,
+		// sales_abandon and the community: posts, channels, moderation, meetups)
+		// + the 4 from 1.30 (products create/update/set_status/delete) + the 12
+		// from 1.31 (videos, series, lives) + the 13 from 1.32 (website,
+		// profile, organization, ticket templates, master QRs) + the 8 from
+		// 1.33–1.36 (sales_transfer, sales_recipient_update, tickets_checkin_undo,
+		// events_viewers_add/delete, events_validators_add, staff_resend_invite,
+		// staff_access_set).
+		expect(t.length).toBe(113);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -163,6 +172,17 @@ describe("tool registration", () => {
 			"ticket_types_update",
 			"plans_update",
 			"venues_update",
+			"events_schedule",
+			"presale_windows_create",
+			"event_dates_access_close_sign",
+			"content_meetups_create",
+			"products_update",
+			"content_lives_reset_key",
+			"ticket_templates_instantiate",
+			"master_qrs_create",
+			"sales_transfer",
+			"tickets_checkin_undo",
+			"staff_access_set",
 		]) {
 			expect(t).toContain(n);
 		}

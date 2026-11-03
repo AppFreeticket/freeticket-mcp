@@ -8,6 +8,51 @@ Same contract and same session as the `ft` CLI: if you have run `ft login`, the
 MCP is already authenticated with nothing to configure (it reads
 `~/.freeticket/config.json`).
 
+## Install as a Claude plugin
+
+The repo is a Claude Code plugin **and** its own marketplace. The plugin wires
+the remote server (`https://mcp.appfreeticket.com/mcp`, declared in
+[`.mcp.json`](.mcp.json)) and ships four skills.
+
+```text
+/plugin marketplace add AppFreeticket/freeticket-mcp
+/plugin install freeticket@freeticket
+```
+
+Or in one step (Claude Code 2.1.275+):
+`/plugin install freeticket --marketplace AppFreeticket/freeticket-mcp`.
+
+Authentication is **OAuth** — the same embedded authorization server claude.ai
+uses (see below): Claude Code discovers it from the `401` +
+`WWW-Authenticate` (RFC 9728) and registers itself (RFC 7591). Run `/mcp`,
+pick `freeticket`, and sign in with your FreeTicket account in the browser. No
+API key or header goes in the plugin.
+
+| Skill | What it does |
+|---|---|
+| `/freeticket:publish-event` | Venue → event → dates → ticket types → optional member presale and lineup → publish now or schedule. |
+| `/freeticket:show-day-close` | Live attendance, access-close record, capacity vs. sold, revenue, stuck payments, attendee export and settlement status for one date. |
+| `/freeticket:community-moderation` | Reported comments, member posts awaiting review, bans and meetup RSVP requests, one approved action at a time. |
+| `/freeticket:course-builder` | Create or edit a course or downloadable product (modules, lessons, quizzes, drip) keeping lesson ids, then publish. |
+
+Files: [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) (version kept
+equal to `package.json` by `src/plugin.test.ts`),
+[`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) (plugin
+`source: "./"`, the repo root), [`.mcp.json`](.mcp.json) and `skills/`. Check
+them with `claude plugin validate .`. None of them is published to npm
+(`files` is `dist` only).
+
+**Local stdio instead of the remote server** (CI, headless, or a pinned
+build): add it yourself rather than through the plugin —
+
+```bash
+claude mcp add --env FT_API_KEY=ft_live_... --transport stdio freeticket \
+  -- npx -y @freeticket/mcp
+```
+
+(subject to the npm caveat below). If you also keep the plugin enabled, toggle
+its `freeticket` server off in `/mcp` so the tools are not listed twice.
+
 ## Use (Claude Code / Claude Desktop)
 
 ```jsonc
@@ -122,23 +167,39 @@ nothing.
 ## Tools
 
 **B2B `/api/v1`** (one tool = one contract operation). Destructive writes
-(`*_delete`, `*_refund`, `*_cancel`) carry `destructiveHint` and ask for
-confirmation.
+(`*_delete`, `*_refund`, `*_cancel`, and every operation the contract flags
+`x-ft-destructive`, such as `sales_abandon`, `event_dates_access_close_sign`,
+`content_channels_archive` or `content_members_ban`) carry `destructiveHint`
+and ask for confirmation.
 
 | Domain | Reads | Writes |
 |---|---|---|
 | Session | `whoami` | `workspaces_create` |
-| Events | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_cancel` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
-| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_reassign` · `tickets_resend` |
-| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` | `sales_create` · `sales_cancel` · `sales_refund` |
+| Events | `events_list` · `events_get` · `event_dates_list` · `event_dates_courtesy_seats` | `events_create` · `events_update` · `events_publish` · `events_schedule` · `events_unschedule` · `events_cancel` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
+| Lineup | `artists_search` · `event_artist_invitations_list` | `events_artists_set` · `events_artists_delete` · `event_artist_invitations_resend` · `event_artist_invitations_cancel` |
+| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_checkin_undo` · `tickets_reassign` · `tickets_resend` |
+| Presales | `presale_windows_list` | `presale_windows_create` · `presale_windows_update` · `presale_windows_delete` |
+| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` · `sales_payment_intents` | `sales_create` · `sales_abandon` · `sales_cancel` · `sales_refund` · `sales_transfer` · `sales_recipient_update` |
+| Door | `reports_live_attendance` · `event_dates_access_close_status` · `events_validators_list` | `event_dates_access_close_sign` · `events_validators_add` |
+| Event viewers (read-only stats) | `events_viewers_list` | `events_viewers_add` · `events_viewers_delete` |
 | Memberships | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
-| Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` · `staff_get` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_update` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` · `staff_delete` |
+| Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` · `staff_get` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_update` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` · `staff_access_set` · `staff_resend_invite` · `staff_delete` |
 | Reports | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reports_financials` · `reconciliation` | — |
 | Settlements | `settlements_list` · `settlements_get` · `settlements_document` · `settlements_proof` | — |
 | Credentials | `api_keys_list` | — |
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
+| Landing waitlist | `waitlist_list` | `waitlist_join` |
+| Landing merch store | `merch_catalog` · `merch_orders_lookup` | — (placing and paying an order needs the buyer's ID document and the card widget) |
 | Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` |
-| Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` |
+| Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` · `content_posts_update` · `content_posts_pin` · `content_posts_delete` · `content_comments_delete` |
+| Community channels | `content_channels_list` | `content_channels_create` · `content_channels_update` · `content_channels_reorder` · `content_channels_archive` |
+| Community moderation | `content_moderation_queue` · `content_moderation_bans` · `content_member_posts_list` | `content_comments_hide` · `content_comments_unhide` · `content_comments_ignore_reports` · `content_member_posts_approve` · `content_member_posts_reject` · `content_member_posts_remove` · `content_members_ban` · `content_members_unban` |
+| Community meetups | `content_meetups_list` · `content_meetups_get` | `content_meetups_create` · `content_meetups_update` · `content_meetups_publish` · `content_meetups_cancel` · `content_meetups_rsvp_review` · `content_meetups_attendance` |
+| Digital products and courses | `products_list` · `products_get` | `products_create` · `products_update` (with `modules` replaces the whole course tree) · `products_set_status` · `products_delete` |
+| Videos, series and lives (Mux) | `content_series_list` · `content_lives_chat` | `content_videos_update` · `content_videos_set_published` · `content_videos_set_series` · `content_videos_delete` · `content_series_create` · `content_series_update` · `content_series_set_published` · `content_series_delete` · `content_lives_create` 🔒 · `content_lives_update` · `content_lives_reset_key` 🔒 · `content_lives_delete` |
+| Website and profile | `website_get` · `organization_profile_get` | `website_put` (full replace, destructive) · `website_set_published` · `organization_update` · `organization_analytics_update` · `organization_profile_update` |
+| Ticket templates | `ticket_templates_list` | `ticket_templates_create` · `ticket_templates_update` · `ticket_templates_delete` · `ticket_templates_instantiate` |
+| Box-office QR codes | `master_qrs_list` 🔒 | `master_qrs_create` 🔒 · `master_qrs_update` 🔒 · `master_qrs_set_active` · `master_qrs_delete` |
 
 Minting and revoking credentials (`ft api-keys`, `ft admin tokens`) is left out
 of the MCP on purpose: an agent lists credentials to audit them, it does not
@@ -150,6 +211,14 @@ either — it mints third-party sessions.
 `settlements_document` and `settlements_proof` return a **signed URL with a
 5-minute TTL**, not the file: the API answers 302, and following the redirect
 would drop the whole PDF into the model's context.
+
+🔒 = the result carries a **secret**: the stream key of a live (`streamKey`,
+broadcast rights in the organization's name; only `content_lives_create` and
+`content_lives_reset_key` return it) or the code/URL of a master QR (opens the
+sale flow, cannot be rotated). The descriptions tell the agent not to echo it
+into the chat or docs unless the human explicitly asks. The server does not
+log or store tool results: the value only lives in the client's transcript.
+Videos cannot be uploaded through the API (the Mux upload needs a browser).
 
 The content tools list what is published without the playback id; to play
 anything you need `content_playback_token` (30 min live, 1 h video), and
@@ -211,12 +280,21 @@ draws them.
 - Hosts without the extension (or terminal clients) ignore `_meta` and see the
   same text as always: nothing breaks.
 
-**29 tools with a view** (v0.14.0) — every list and every report. Details
+**49 tools with a view** (v0.20.0) — every list and every report. Details
 (`*_get`) and writes deliberately have none: a lone object or a `delete`
 acknowledgement gains nothing from a table, and drawing one suggests there is
 data where there is not. `src/ui.test.ts` mounts the real view in jsdom and
 fails if a new list registers without `_meta.ui`, if the host manages to
 override the branding, or if an API payload renders unescaped.
+
+## Support and privacy
+
+- Support: [soporte@freeticket.us](mailto:soporte@freeticket.us), or open an
+  issue at
+  [AppFreeticket/freeticket-mcp](https://github.com/AppFreeticket/freeticket-mcp/issues).
+- Privacy policy:
+  [appfreeticket.com/legal/privacidad](https://appfreeticket.com/legal/privacidad).
+  The server is stateless: it keeps no log or store of tool results.
 
 ## Development
 
@@ -227,8 +305,8 @@ pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contracts this build targets: B2B **1.20.0**, superadmin **1.7.0**, public
-**0.9.1**. All three are served by `free-admin` and are the only source of
+Contracts this build targets: B2B **1.36.0**, superadmin **1.8.0**, public
+**0.10.1**. All three are served by `free-admin` and are the only source of
 truth, on separate semver lineages. To propagate a backend change, use the
 `contract-sync` agent from the
 [ai-native](https://github.com/AppFreeticket/ai-native) umbrella — and check for

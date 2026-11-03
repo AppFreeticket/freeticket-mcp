@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildServer } from "./server";
+import { toolOperations } from "./test-support/contract";
 
 /**
  * Hosts gate tools by their hints: a read without `readOnlyHint` is treated as
@@ -23,9 +24,85 @@ const tools = Object.entries(
 	)._registeredTools,
 ).map(([name, t]) => ({ name, a: t.annotations ?? {} }));
 
-const READ =
-	/_(list|get|me|attempts|tickets|subscribers|access|summary|by_event|timeseries|inventory|financials|document|proof|membership|profile|pending|videos|posts|lives|workspaces|users|tokens|audit_log)$|^(whoami|admin_whoami|reconciliation|customer_me|reports_export_.*)$/;
-const DESTRUCTIVE = /_(delete|cancel|refund)$/;
+/**
+ * `readOnlyHint` is derived from the HTTP methods each tool calls in the spec
+ * (src/test-support/contract.ts maps tool → operations by scanning the
+ * registrations): only GETs → read-only; any POST/PATCH/PUT/DELETE → a write.
+ * It used to be inferred from the tool name by regex, which only judged the
+ * names it recognized: a read named `*_lookup` or `*_preview` was never
+ * checked, and a write whose name looked like a read would pass as one.
+ *
+ * Reads that go over POST, each with the reason the contract uses a POST.
+ */
+const POST_READS: Record<string, string> = {
+	merch_orders_lookup:
+		"POST /merch/orders/lookup: the order code goes in the body so it never " +
+		"lands in URLs or access logs; it only reads one order",
+	admin_crm_audience_preview:
+		"POST /api/admin/crm/audience-preview: the audience filter is a JSON " +
+		"body; it counts recipients and sends nothing",
+};
+
+/**
+ * Tools that bypass the generated SDK, with the method they send. Both are
+ * 302s to a signed URL, which the generated client would follow.
+ */
+const DIRECT: Record<string, string> = {
+	settlements_document: "GET",
+	settlements_proof: "GET",
+};
+
+const toolOps = toolOperations();
+
+/** Destructive = the host asks the human before running it. Exact set. */
+const DESTRUCTIVE = [
+	"admin_impersonate",
+	"admin_workspaces_assign_plan",
+	"admin_workspaces_delete",
+	"admin_workspaces_suspend",
+	"content_channels_archive",
+	"content_comments_delete",
+	"content_lives_delete",
+	"content_lives_reset_key",
+	"content_meetups_cancel",
+	"content_member_posts_reject",
+	"content_member_posts_remove",
+	"content_members_ban",
+	"content_posts_delete",
+	"content_series_delete",
+	"content_videos_delete",
+	"customer_order_release",
+	"customer_subscription_cancel",
+	"customer_ticket_cancel",
+	"discounts_delete",
+	"event_artist_invitations_cancel",
+	"event_dates_access_close_sign",
+	"event_dates_delete",
+	"events_artists_delete",
+	"events_artists_set",
+	"events_cancel",
+	"events_delete",
+	"events_viewers_delete",
+	"master_qrs_delete",
+	"plans_delete",
+	"presale_windows_delete",
+	"products_delete",
+	"products_update",
+	"sales_abandon",
+	"sales_cancel",
+	"sales_recipient_update",
+	"sales_refund",
+	"sales_transfer",
+	"staff_access_set",
+	"staff_delete",
+	"subscriptions_cancel",
+	"ticket_templates_delete",
+	"ticket_types_delete",
+	"tickets_checkin_undo",
+	"venues_delete",
+	"webhooks_delete",
+	"website_put",
+];
 
 describe("tool annotations", () => {
 	it("registers the whole surface", () => {
@@ -45,25 +122,81 @@ describe("tool annotations", () => {
 			.filter((t) => t.a.openWorldHint === true)
 			.map((t) => t.name)
 			.sort();
+		// Leaving FreeTicket counts a payment gateway (Mercado Pago, Stripe),
+		// an email and Mux — see `write()` in tool-meta.ts.
 		expect(open).toEqual([
+			"admin_workspaces_assign_plan",
+			"content_lives_create",
+			"content_lives_delete",
+			"content_lives_reset_key",
+			"content_meetups_cancel",
+			"content_meetups_publish",
+			"content_meetups_rsvp_review",
+			"content_videos_delete",
+			"content_videos_set_published",
+			"customer_subscription_cancel",
+			"event_artist_invitations_resend",
+			"event_dates_access_close_sign",
+			"events_artists_set",
+			"events_validators_add",
+			"events_viewers_add",
+			"products_update",
 			"public_orders_create",
 			"public_tickets_resend",
+			"sales_recipient_update",
 			"sales_refund",
+			"sales_transfer",
+			"staff_create",
+			"staff_resend_invite",
+			"subscriptions_cancel",
 			"tickets_resend",
 		]);
 	});
 
-	it("marks reads read-only and deletes/cancels/refunds destructive", () => {
-		const wrongRead = tools.filter(
-			(t) => READ.test(t.name) && t.a.readOnlyHint !== true,
+	it("maps every tool to the spec operations it calls", () => {
+		const unmapped = tools
+			.map((t) => t.name)
+			.filter((n) => !DIRECT[n] && !toolOps.get(n)?.ops.length);
+		expect(unmapped).toEqual([]);
+		// A DIRECT entry that now goes through the SDK is a stale exception.
+		const stale = Object.keys(DIRECT).filter(
+			(n) => !toolOps.has(n) || toolOps.get(n)?.ops.length,
 		);
-		const wrongDestructive = tools.filter(
-			(t) =>
-				DESTRUCTIVE.test(t.name) &&
-				(t.a.destructiveHint !== true || t.a.readOnlyHint !== false),
+		expect(stale).toEqual([]);
+	});
+
+	it("is read-only exactly when every call it makes is a GET", () => {
+		const wrong = tools.flatMap((t) => {
+			const methods = DIRECT[t.name]
+				? [DIRECT[t.name]]
+				: (toolOps.get(t.name)?.ops.map((o) => o.method) ?? []);
+			const reads = methods.every((m) => m === "GET") || t.name in POST_READS;
+			return t.a.readOnlyHint === reads
+				? []
+				: [
+						`${t.name} (${methods.join(", ")}) readOnlyHint=${t.a.readOnlyHint}`,
+					];
+		});
+		expect(wrong).toEqual([]);
+	});
+
+	it("allowlists only POST reads that really are POSTs", () => {
+		const stale = Object.keys(POST_READS).filter(
+			(n) => !toolOps.get(n)?.ops.some((o) => o.method !== "GET"),
 		);
-		expect(wrongRead.map((t) => t.name)).toEqual([]);
-		expect(wrongDestructive.map((t) => t.name)).toEqual([]);
+		expect(stale).toEqual([]);
+	});
+
+	it("marks exactly the expected tools destructive (and never as reads)", () => {
+		const destructive = tools
+			.filter((t) => t.a.destructiveHint === true)
+			.map((t) => t.name)
+			.sort();
+		expect(destructive).toEqual(DESTRUCTIVE);
+		const asRead = tools.filter(
+			(t) => t.a.destructiveHint === true && t.a.readOnlyHint !== false,
+		);
+		expect(asRead.map((t) => t.name)).toEqual([]);
 	});
 
 	it("does not announce the ticket resend (it sends email) as a read", () => {

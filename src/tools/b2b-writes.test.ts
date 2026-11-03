@@ -23,7 +23,9 @@ function registered(): Record<string, Registered> {
  * does not undo itself. The host confirmation gate hangs off `destructiveHint`,
  * and the reminder in the description is the only part the model sees. Nothing
  * used to verify either one: a refactor could leave a delete with no annotation
- * and no test would notice (issue #15).
+ * and no test would notice (issue #15). The exact destructive set of the whole
+ * server (admin included) lives in src/annotations.test.ts; this list is the
+ * B2B subset that must also say "Irreversible" in its description.
  */
 const DESTRUCTIVE = [
 	"events_delete",
@@ -39,6 +41,31 @@ const DESTRUCTIVE = [
 	"events_cancel",
 	"staff_delete",
 	"customer_order_release",
+	"presale_windows_delete",
+	"event_dates_access_close_sign",
+	"sales_abandon",
+	"content_posts_delete",
+	"content_comments_delete",
+	"content_channels_archive",
+	"content_member_posts_reject",
+	"content_member_posts_remove",
+	"content_members_ban",
+	"content_meetups_cancel",
+	"products_delete",
+	"content_videos_delete",
+	"content_series_delete",
+	"content_lives_delete",
+	"content_lives_reset_key",
+	"ticket_templates_delete",
+	"master_qrs_delete",
+	// Contract 1.33–1.36: voids QRs, reopens a used ticket, revokes access.
+	"sales_transfer",
+	"sales_recipient_update",
+	"tickets_checkin_undo",
+	"events_viewers_delete",
+	"staff_access_set",
+	// Full replace: every null wipes a field, here and on the profile.
+	"website_put",
 ];
 
 describe("writes destructivos", () => {
@@ -60,15 +87,6 @@ describe("writes destructivos", () => {
 				tools[name].description,
 				`${name} is missing the irreversible warning in its description`,
 			).toContain("Irreversible");
-		}
-	});
-
-	it("no write is left without annotations", () => {
-		for (const [name, tool] of Object.entries(tools)) {
-			expect(
-				tool.annotations?.destructiveHint,
-				`${name} has no annotations`,
-			).toBeDefined();
 		}
 	});
 });

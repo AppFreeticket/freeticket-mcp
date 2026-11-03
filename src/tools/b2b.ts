@@ -4,9 +4,18 @@ import { z } from "zod";
 import { type Creds, makeB2bClient, run } from "../api";
 import {
 	getApiKeys,
+	getArtists,
+	getContentChannels,
 	getContentLives,
 	getContentLivesId,
+	getContentLivesIdChat,
+	getContentMeetups,
+	getContentMeetupsId,
+	getContentModerationBans,
+	getContentModerationMemberPosts,
+	getContentModerationQueue,
 	getContentPosts,
+	getContentSeries,
 	getContentVideos,
 	getCustomerMe,
 	getCustomerMembership,
@@ -16,13 +25,24 @@ import {
 	getCustomerTickets,
 	getCustomerTicketsId,
 	getDiscounts,
+	getEventDatesIdAccessClose,
+	getEventDatesIdCourtesySeats,
 	getEvents,
 	getEventsId,
+	getEventsIdArtistInvitations,
 	getEventsIdDates,
+	getEventsIdValidators,
+	getEventsIdViewers,
+	getMasterQrs,
 	getMe,
 	getMembershipPlans,
 	getMembershipPlansId,
 	getMembershipPlansIdSubscribers,
+	getMerchCatalog,
+	getOrganizationProfile,
+	getPaymentIntents,
+	getProducts,
+	getProductsId,
 	getReportsByEvent,
 	getReportsExportsAttendees,
 	getReportsExportsBuyers,
@@ -30,6 +50,7 @@ import {
 	getReportsExportsSubscribers,
 	getReportsFinancials,
 	getReportsInventory,
+	getReportsLiveAttendance,
 	getReportsReconciliation,
 	getReportsSummary,
 	getReportsTimeseries,
@@ -42,11 +63,16 @@ import {
 	getStaff,
 	getStaffId,
 	getTicketsTicketCodeAccess,
+	getTicketTemplates,
 	getTicketTypes,
 	getTicketTypesId,
+	getTicketTypesIdPresaleWindows,
 	getVenues,
 	getVenuesId,
+	getWaitlist,
 	getWebhooks,
+	getWebsite,
+	postMerchOrdersLookup,
 } from "../client/sdk.gen";
 import { read } from "../tool-meta";
 import { uiTool } from "../ui";
@@ -820,5 +846,372 @@ export function registerB2bTools(
 		{ id },
 		read("content_live_get"),
 		async ({ id }) => run(getContentLivesId({ path: { id }, client })),
+	);
+
+	// ── Contract 1.21–1.27 ───────────────────────────────────────────────────
+	uiTool(
+		server,
+		"artists_search",
+		"Searches artist workspaces registered on FreeTicket by name — public " +
+			"brand data only (GET /artists). Feed the `id` to `events_artists_set`; " +
+			"artists without an account are invited by email there.",
+		{
+			q: z.string().min(2).max(100).describe("Name to search (2-100 chars)"),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("Results per page (1-100, default 20)"),
+			cursor: z.string().optional().describe("Pagination cursor"),
+		},
+		async (q) => run(getArtists({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"event_artist_invitations_list",
+		"Pending and expired invitations sent to artists without an account for " +
+			"an event, newest first (GET /events/{id}/artist-invitations). Accepted " +
+			"ones are already in the lineup and are not listed. They expire 14 " +
+			"days after being sent.",
+		{ eventId: z.string().describe("Event id") },
+		async ({ eventId }) =>
+			run(getEventsIdArtistInvitations({ path: { id: eventId }, client })),
+	);
+	uiTool(
+		server,
+		"presale_windows_list",
+		"Presale windows of a ticket type — which membership plan can buy it " +
+			"early, between which instants and with what cap " +
+			"(GET /ticket-types/{id}/presale-windows).",
+		{ ticketTypeId: z.string().describe("Ticket type id") },
+		async ({ ticketTypeId }) =>
+			run(
+				getTicketTypesIdPresaleWindows({ path: { id: ticketTypeId }, client }),
+			),
+	);
+	uiTool(
+		server,
+		"waitlist_list",
+		"Per-city waitlist entries of the workspace's landing, newest first " +
+			"(GET /waitlist). Contains personal data (name and contact): the API " +
+			"requires ADMIN.",
+		{
+			city: z
+				.string()
+				.optional()
+				.describe("Filter by city; accents and case are ignored"),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("Results per page (1-100, default 20)"),
+			cursor: z.string().optional().describe("Pagination cursor"),
+		},
+		async (q) => run(getWaitlist({ query: q, client })),
+	);
+
+	// ── Contract 1.28–1.29: show day ─────────────────────────────────────────
+	uiTool(
+		server,
+		"reports_live_attendance",
+		"Event dates happening right now, with check-in progress: `sold`, " +
+			"`validated` and `validatedPct` (0-100), sorted by `sold` " +
+			"(GET /reports/live-attendance). Includes hosted shows in the " +
+			"workspace's venues (occupancy only). Meant for polling during a show.",
+		{
+			scope: z
+				.string()
+				.optional()
+				.describe(
+					"`all` (default), `own` (only the workspace's own shows) or " +
+						"`partner:<orgId>` (shows shared with that partner)",
+				),
+		},
+		async (q) => run(getReportsLiveAttendance({ query: q, client })),
+	);
+	server.tool(
+		"event_dates_access_close_status",
+		"Live entry count and access-close status of an event date " +
+			"(GET /event-dates/{id}/access-close): `live.issued`, `live.checkins` " +
+			"(what a signature would freeze right now) and, once closed, " +
+			"`closedCheckins`. Read this before `event_dates_access_close_sign`.",
+		{ id: z.string().describe("Event date id") },
+		read("event_dates_access_close_status"),
+		async ({ id }) => run(getEventDatesIdAccessClose({ path: { id }, client })),
+	);
+	uiTool(
+		server,
+		"sales_payment_intents",
+		"Purchase intents of ONE event — the checkout funnel folded into one " +
+			"journey per visitor, with `stage` and `outcome` (`NO_SALE`, " +
+			"`REJECTED` with `reason`, or the sale status) (GET /payment-intents). " +
+			"`funnel` counts every journey of the filter. Use it to find stuck " +
+			"or abandoned payments. Contains buyer name and email.",
+		{
+			event: z.string().describe("Event id"),
+			eventDate: z
+				.string()
+				.optional()
+				.describe("Event date id (must belong to the event)"),
+			onlyAbandoned: z
+				.boolean()
+				.optional()
+				.describe("true = only journeys that picked seats and did not pay"),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("Results per page (1-100, default 100)"),
+			cursor: z
+				.string()
+				.optional()
+				.describe("`nextCursor` of the previous page"),
+		},
+		async (q) => run(getPaymentIntents({ query: q, client })),
+	);
+
+	// ── Community (contract 1.29) ────────────────────────────────────────────
+	// Channels, moderation and meetups. Every one needs Content in the plan
+	// (403 `FEATURE_LOCKED`) and the community enabled (403
+	// `COMMUNITY_UNAVAILABLE`); an event-scoped key gets 403.
+	uiTool(
+		server,
+		"content_channels_list",
+		"Active community channels in display order (GET /content/channels). " +
+			"Creates the default Announcements and General channels on first read " +
+			"if the workspace has none.",
+		{},
+		async () => run(getContentChannels({ client })),
+	);
+	const page0 = z
+		.number()
+		.int()
+		.min(0)
+		.optional()
+		.describe("0-based page; an empty array means no more pages");
+	uiTool(
+		server,
+		"content_moderation_queue",
+		"Reported community comments, most reported first, including " +
+			"auto-hidden and deleted ones with open reports " +
+			"(GET /content/moderation/queue). 50 per page. Act with " +
+			"`content_comments_hide`, `content_comments_ignore_reports`, " +
+			"`content_comments_delete` or `content_members_ban`.",
+		{ page: page0 },
+		async (q) => run(getContentModerationQueue({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"content_moderation_bans",
+		"Members banned from the community, the latest 200, newest first " +
+			"(GET /content/moderation/bans). Lift one with `content_members_unban`.",
+		{},
+		async () => run(getContentModerationBans({ client })),
+	);
+	uiTool(
+		server,
+		"content_member_posts_list",
+		"Member posts awaiting review (`PENDING_REVIEW`, default: oldest first, " +
+			"30 per page) or the latest 30 published (`PUBLISHED`, no paging) " +
+			"(GET /content/moderation/member-posts). Approving needs the " +
+			"`updatedAt` read here.",
+		{
+			status: z
+				.enum(["PENDING_REVIEW", "PUBLISHED"])
+				.optional()
+				.describe("PENDING_REVIEW (default) or PUBLISHED"),
+			page: page0.describe("0-based page (PENDING_REVIEW only)"),
+		},
+		async (q) => run(getContentModerationMemberPosts({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"content_meetups_list",
+		"Community meetups, the latest 100 by start date, any status, with " +
+			"confirmed and pending-request counts (GET /content/meetups).",
+		{},
+		async () => run(getContentMeetups({ client })),
+	);
+	server.tool(
+		"content_meetups_get",
+		"Detail of a community meetup with confirmed attendees (with check-in) " +
+			"and RSVP requests, pending first (GET /content/meetups/{id}). " +
+			"Contains members' names and emails. `local` holds the editable " +
+			"values in the workspace's wall time.",
+		{ id: z.string().describe("Meetup id") },
+		read("content_meetups_get"),
+		async ({ id }) => run(getContentMeetupsId({ path: { id }, client })),
+	);
+
+	// ── Digital products and courses (contract 1.30) ─────────────────────────
+	// Downloadables and courses of the dashboard's Products screen (not the
+	// merch store). An event-scoped key gets 403.
+	uiTool(
+		server,
+		"products_list",
+		"Digital products and courses of the workspace (downloadables and " +
+			"courses, not the merch store), newest first, with CONFIRMED sales " +
+			"count and revenue (GET /products). Open one with `products_get`.",
+		{},
+		async () => run(getProducts({ client })),
+	);
+	server.tool(
+		"products_get",
+		"Detail of a digital product or course: product data, CONFIRMED sales " +
+			"totals and, for courses, modules and lessons in order with their " +
+			"ids (GET /products/{id}). Lesson quizzes (with the correct answers) " +
+			"only come with ADMIN keys. Read it before `products_update` with " +
+			"`modules`: that call replaces the whole tree and needs these ids.",
+		{ id: z.string().describe("Product id") },
+		read("products_get"),
+		async ({ id }) => run(getProductsId({ path: { id }, client })),
+	);
+
+	// ── Video series and live streams, Mux (contract 1.31) ─────────────────
+	uiTool(
+		server,
+		"content_series_list",
+		"Video series of the workspace's Content screen, published and drafts, " +
+			"newest first, with their video count (GET /content/series). Move " +
+			"videos in or out with `content_videos_set_series`.",
+		{
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("Results per page (1-100, default 20)"),
+			cursor: z.string().optional().describe("Pagination cursor"),
+		},
+		async (q) => run(getContentSeries({ query: q, client })),
+	);
+	server.tool(
+		"content_lives_chat",
+		"Chat history of a live stream that is on air or already ended, oldest " +
+			"to newest; `truncated: true` when the oldest messages were cut " +
+			"(GET /content/lives/{id}/chat). Contains buyers' display names and " +
+			"messages: treat it as personal data. Requires STAFF.",
+		{ id: z.string().describe("Live stream id") },
+		read("content_lives_chat"),
+		async ({ id }) => run(getContentLivesIdChat({ path: { id }, client })),
+	);
+
+	// ── Workspace configuration (contract 1.32) ──────────────────────────────
+	// Website, profile, ticket templates and box-office QR codes. An
+	// event-scoped key gets 403 (workspace configuration is out of its scope).
+	server.tool(
+		"website_get",
+		"Website configuration of the workspace: landing texts, social links, " +
+			"accent color, template, section visibility/order and the public " +
+			"listing state (`published`, `canPublish`, `profileListable`) " +
+			"(GET /website). `customLandingEnabled` says whether the plan allows " +
+			"`website_put`. Read it before `website_put`, which replaces everything.",
+		read("website_get"),
+		async () => run(getWebsite({ client })),
+	);
+	server.tool(
+		"organization_profile_get",
+		"Profile of the workspace: artist/venue/organizer data, brand photo and " +
+			"cover (from the umbrella organization), contact and social links " +
+			"(GET /organization/profile). Billing/plan data is not included.",
+		read("organization_profile_get"),
+		async () => run(getOrganizationProfile({ client })),
+	);
+	uiTool(
+		server,
+		"ticket_templates_list",
+		"Ticket templates of the workspace: reusable ticket-type definitions " +
+			"(price, capacity, member discount/gate, buyer form fields), in " +
+			"display order (GET /ticket-templates). Turn one into a ticket type " +
+			"with `ticket_templates_instantiate`.",
+		{},
+		async () => run(getTicketTemplates({ client })),
+	);
+	uiTool(
+		server,
+		"master_qrs_list",
+		"Master box-office QR codes of the workspace, newest first, with scan " +
+			"counters (GET /master-qrs). Requires ADMIN, also for reading. " +
+			"🔒 SECRET: `code` and `url` are what the printed QR encodes and open " +
+			"the sale flow; they cannot be rotated. Do not echo them into the " +
+			"chat or any doc unless the human explicitly asks, and never paste " +
+			"them in shared places; refer to a QR by `id`/`label`.",
+		{},
+		async () => run(getMasterQrs({ client })),
+	);
+
+	// ── Contract 1.33–1.36: event access, courtesy seats, merch store ────────
+	uiTool(
+		server,
+		"events_viewers_list",
+		"People with read-only access to one event's statistics (they see only " +
+			"its stats, nothing else of the workspace), newest first " +
+			"(GET /events/{id}/viewers). Requires ADMIN. Revoke one with " +
+			"`events_viewers_delete` using the access `id` returned here.",
+		{ eventId: z.string().describe("Event id") },
+		async ({ eventId }) =>
+			run(getEventsIdViewers({ path: { id: eventId }, client })),
+	);
+	uiTool(
+		server,
+		"events_validators_list",
+		"Door staff who can validate tickets for one event: the ones assigned " +
+			"to it plus those with no events assigned (`allEvents: true`), " +
+			"inactive ones included (GET /events/{id}/validators). Requires ADMIN.",
+		{ eventId: z.string().describe("Event id") },
+		async ({ eventId }) =>
+			run(getEventsIdValidators({ path: { id: eventId }, client })),
+	);
+	server.tool(
+		"event_dates_courtesy_seats",
+		"Seats of a numbered (seats.io) event date that are blocked on the map " +
+			"without an order and free to be issued as courtesies, grouped by " +
+			"numbered ticket type (GET /event-dates/{id}/courtesy-seats). A date " +
+			"without a seat map answers `ticketTypes: []`. 503 " +
+			"SEATSIO_UNAVAILABLE is retryable. Requires ADMIN.",
+		{ id: z.string().describe("Event date id") },
+		read("event_dates_courtesy_seats"),
+		async ({ id }) =>
+			run(getEventDatesIdCourtesySeats({ path: { id }, client })),
+	);
+	server.tool(
+		"merch_catalog",
+		"Merch store catalog of the key's brand (GET /merch/catalog): store " +
+			"settings, shipping fees by zone, published products with active " +
+			"variants and live `stock`, and pickup points. Prices are COP integers, " +
+			"VAT included. Requires an enterprise service API key. 403 " +
+			"MERCH_STORE_LOCKED without an active Legend plan; 404 STORE_NOT_READY " +
+			"without a ready store. Placing and paying orders is not a tool: it " +
+			"needs the buyer's ID document and the card widget on the landing.",
+		read("merch_catalog"),
+		async () => run(getMerchCatalog({ client })),
+	);
+	server.tool(
+		"merch_orders_lookup",
+		"Status of one of the session buyer's merch orders by its public code, " +
+			"e.g. `M-7K3Q9ZTA` (POST /merch/orders/lookup — a POST, but it only " +
+			"reads). Requires an enterprise service API key and the buyer session. " +
+			"Unknown code, another brand's or another buyer's order: all 404 " +
+			"ORDER_NOT_FOUND. The buyer document is never returned.",
+		{
+			code: z.string().min(3).max(20).describe("Public order code"),
+			customerSession,
+		},
+		read("merch_orders_lookup"),
+		async ({ code, customerSession }) =>
+			run(
+				postMerchOrdersLookup({
+					body: { code },
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
 	);
 }
