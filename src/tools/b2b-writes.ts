@@ -578,7 +578,8 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"subscriptions_cancel",
 		`Cancels a member subscription (POST /subscriptions/{id}/cancel).${CONFIRM}`,
 		{ id: z.string().describe("Subscription id") },
-		write("subscriptions_cancel", { destructive: true }),
+		// openWorld: cancels the recurring charge in Stripe / Mercado Pago.
+		write("subscriptions_cancel", { destructive: true, openWorld: true }),
 		async ({ id }) => run(postSubscriptionsIdCancel({ path: { id }, client })),
 	);
 
@@ -627,7 +628,8 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"staff_create",
 		"Invites a staff member (POST /staff).",
 		{ name: z.string(), email: z.string().email() },
-		write("staff_create", { destructive: false }),
+		// openWorld: emails the invitation (sendStaffInvite).
+		write("staff_create", { destructive: false, openWorld: true }),
 		async (body) => run(postStaff({ body, client })),
 	);
 	server.tool(
@@ -788,7 +790,11 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 				),
 			customerSession,
 		},
-		write("customer_subscription_cancel", { destructive: true }),
+		// openWorld: cancels the recurring charge in Stripe / Mercado Pago.
+		write("customer_subscription_cancel", {
+			destructive: true,
+			openWorld: true,
+		}),
 		async ({ customerSession, ...body }) =>
 			run(
 				postCustomerSubscriptionsCancel({

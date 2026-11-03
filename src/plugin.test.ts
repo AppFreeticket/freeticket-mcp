@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildServer, VERSION } from "./server";
@@ -31,6 +31,33 @@ describe("Claude plugin packaging", () => {
 		expect(plugin.author?.name).toBe("FreeTicket");
 		expect(() => new URL(plugin.homepage)).not.toThrow();
 		expect(typeof plugin.description).toBe("string");
+	});
+
+	it("the icon exists and is a square PNG of at least 512px", () => {
+		expect(typeof plugin.icon).toBe("string");
+		const path = join(root, plugin.icon);
+		expect(existsSync(path), `${plugin.icon} does not exist`).toBe(true);
+		const png = readFileSync(path);
+		// PNG signature, then the IHDR chunk: length(4) "IHDR"(4) width(4) height(4).
+		expect(png.subarray(0, 8)).toEqual(
+			Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+		);
+		expect(png.subarray(12, 16).toString("ascii")).toBe("IHDR");
+		const width = png.readUInt32BE(16);
+		const height = png.readUInt32BE(20);
+		expect(width).toBe(height);
+		expect(width).toBeGreaterThanOrEqual(512);
+	});
+
+	it("privacyPolicyUrl is an https URL", () => {
+		expect(new URL(plugin.privacyPolicyUrl).protocol).toBe("https:");
+	});
+
+	it("the newest CHANGELOG release is the package version", () => {
+		const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8");
+		// `## [Unreleased]` has no x.y.z, so the first match is the last release.
+		const latest = changelog.match(/^## \[(\d+\.\d+\.\d+)\]/m)?.[1];
+		expect(latest).toBe(pkg.version);
 	});
 
 	it("the marketplace lists this plugin from the repo root, under the same name", () => {

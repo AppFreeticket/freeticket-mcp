@@ -21,7 +21,13 @@ export function read(name: string): ToolAnnotations {
 
 /**
  * Directory metadata for a write. `openWorld` is true only when the call
- * leaves FreeTicket (Mercado Pago or an outbound email).
+ * leaves FreeTicket, and "leaves" counts every side effect free-admin fires
+ * server-side, not just the HTTP call the tool makes: a payment gateway
+ * (Mercado Pago or Stripe — charges, refunds, and cancelling a recurring
+ * subscription or a platform plan there), an outbound email or WhatsApp to a
+ * person (invitations, tickets, notifications), or a third-party media
+ * service (Mux). Before marking a write closed-world, read its route in
+ * free-admin: `staff_create` looks local but emails the invite.
  */
 export function write(
 	name: string,

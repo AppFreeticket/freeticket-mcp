@@ -23,7 +23,9 @@ function registered(): Record<string, Registered> {
  * does not undo itself. The host confirmation gate hangs off `destructiveHint`,
  * and the reminder in the description is the only part the model sees. Nothing
  * used to verify either one: a refactor could leave a delete with no annotation
- * and no test would notice (issue #15).
+ * and no test would notice (issue #15). The exact destructive set of the whole
+ * server (admin included) lives in src/annotations.test.ts; this list is the
+ * B2B subset that must also say "Irreversible" in its description.
  */
 const DESTRUCTIVE = [
 	"events_delete",
@@ -85,15 +87,6 @@ describe("writes destructivos", () => {
 				tools[name].description,
 				`${name} is missing the irreversible warning in its description`,
 			).toContain("Irreversible");
-		}
-	});
-
-	it("no write is left without annotations", () => {
-		for (const [name, tool] of Object.entries(tools)) {
-			expect(
-				tool.annotations?.destructiveHint,
-				`${name} has no annotations`,
-			).toBeDefined();
 		}
 	});
 });

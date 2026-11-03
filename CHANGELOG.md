@@ -16,7 +16,7 @@ superadmin CRM reads keep #28's implementation (`admin_crm_campaigns`,
 `eventIds` as an array) and the coverage sweep keeps #28's rule — operations
 the contract marks `x-ft-mcp: { expose: false }` are excluded by the spec's own
 reason, not duplicated in `EXCLUDED`. Replaces the open PRs #34 and #35.
-Additions only. **221 tools** (B2B 185 · superadmin 30 · public 6), 49 with a
+One rename (see Changed). **221 tools** (B2B 185 · superadmin 30 · public 6), 49 with a
 view.
 
 ### Added
@@ -39,6 +39,22 @@ view.
 - Claude plugin directory metadata: `icon` (`assets/icon.png`, 512×512 PNG)
   and `privacyPolicyUrl` (`https://appfreeticket.com/legal/privacidad`) in
   `.claude-plugin/plugin.json`; a Support and privacy section in the README.
+
+### Changed
+- **BREAKING**: `admin_crm_campaigns_list` is now `admin_crm_campaigns`
+  (#28's name wins the merge). Agents or skills that call the old name get
+  "tool not found".
+- `openWorldHint` corrected to `true` on writes that leave FreeTicket through
+  free-admin: `staff_create` (emails the invitation), `subscriptions_cancel`
+  and `customer_subscription_cancel` (cancel the recurring charge in Stripe /
+  Mercado Pago) and `admin_workspaces_assign_plan` (cancels the tenant's Stripe
+  subscription first). "Leaves FreeTicket" now explicitly covers payment
+  gateways and outbound email (`write()` in `src/tool-meta.ts`).
+- Tests: `readOnlyHint` is checked against the HTTP methods each tool calls in
+  the spec (POST reads allowlisted with a reason), the destructive set is exact
+  across B2B and superadmin, excluded or `expose: false` operations are banned
+  from every tool file, and the request of five multi-id/header tools is
+  asserted end to end against a fake `fetch`.
 
 ### Not exposed (excluded with a reason in `src/coverage.test.ts`)
 - `POST /merch/orders` (landing checkout with the buyer's ID document and a

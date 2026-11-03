@@ -188,7 +188,11 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.enum(["spark", "star", "icon", "legend"])
 				.describe("Tier a activar (`legend` es enterprise)"),
 		},
-		write("admin_workspaces_assign_plan", { destructive: true }),
+		// openWorld: cancels the tenant's Stripe subscription first.
+		write("admin_workspaces_assign_plan", {
+			destructive: true,
+			openWorld: true,
+		}),
 		async ({ id, ...body }) =>
 			run(postWorkspacesIdPlan({ path: { id }, body, client })),
 	);
