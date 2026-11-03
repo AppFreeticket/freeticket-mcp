@@ -5,8 +5,14 @@ import { type Creds, makeB2bClient, run } from "../api";
 import {
 	getApiKeys,
 	getArtists,
+	getContentChannels,
 	getContentLives,
 	getContentLivesId,
+	getContentMeetups,
+	getContentMeetupsId,
+	getContentModerationBans,
+	getContentModerationMemberPosts,
+	getContentModerationQueue,
 	getContentPosts,
 	getContentVideos,
 	getCustomerMe,
@@ -17,6 +23,7 @@ import {
 	getCustomerTickets,
 	getCustomerTicketsId,
 	getDiscounts,
+	getEventDatesIdAccessClose,
 	getEvents,
 	getEventsId,
 	getEventsIdArtistInvitations,
@@ -25,6 +32,7 @@ import {
 	getMembershipPlans,
 	getMembershipPlansId,
 	getMembershipPlansIdSubscribers,
+	getPaymentIntents,
 	getReportsByEvent,
 	getReportsExportsAttendees,
 	getReportsExportsBuyers,
@@ -32,6 +40,7 @@ import {
 	getReportsExportsSubscribers,
 	getReportsFinancials,
 	getReportsInventory,
+	getReportsLiveAttendance,
 	getReportsReconciliation,
 	getReportsSummary,
 	getReportsTimeseries,
@@ -890,5 +899,140 @@ export function registerB2bTools(
 			cursor: z.string().optional().describe("Pagination cursor"),
 		},
 		async (q) => run(getWaitlist({ query: q, client })),
+	);
+
+	// ── Contract 1.28–1.29: show day ─────────────────────────────────────────
+	uiTool(
+		server,
+		"reports_live_attendance",
+		"Event dates happening right now, with check-in progress: `sold`, " +
+			"`validated` and `validatedPct` (0-100), sorted by `sold` " +
+			"(GET /reports/live-attendance). Includes hosted shows in the " +
+			"workspace's venues (occupancy only). Meant for polling during a show.",
+		{
+			scope: z
+				.string()
+				.optional()
+				.describe(
+					"`all` (default), `own` (only the workspace's own shows) or " +
+						"`partner:<orgId>` (shows shared with that partner)",
+				),
+		},
+		async (q) => run(getReportsLiveAttendance({ query: q, client })),
+	);
+	server.tool(
+		"event_dates_access_close_status",
+		"Live entry count and access-close status of an event date " +
+			"(GET /event-dates/{id}/access-close): `live.issued`, `live.checkins` " +
+			"(what a signature would freeze right now) and, once closed, " +
+			"`closedCheckins`. Read this before `event_dates_access_close_sign`.",
+		{ id: z.string().describe("Event date id") },
+		read("event_dates_access_close_status"),
+		async ({ id }) => run(getEventDatesIdAccessClose({ path: { id }, client })),
+	);
+	uiTool(
+		server,
+		"sales_payment_intents",
+		"Purchase intents of ONE event — the checkout funnel folded into one " +
+			"journey per visitor, with `stage` and `outcome` (`NO_SALE`, " +
+			"`REJECTED` with `reason`, or the sale status) (GET /payment-intents). " +
+			"`funnel` counts every journey of the filter. Use it to find stuck " +
+			"or abandoned payments. Contains buyer name and email.",
+		{
+			event: z.string().describe("Event id"),
+			eventDate: z
+				.string()
+				.optional()
+				.describe("Event date id (must belong to the event)"),
+			onlyAbandoned: z
+				.boolean()
+				.optional()
+				.describe("true = only journeys that picked seats and did not pay"),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("Results per page (1-100, default 100)"),
+			cursor: z
+				.string()
+				.optional()
+				.describe("`nextCursor` of the previous page"),
+		},
+		async (q) => run(getPaymentIntents({ query: q, client })),
+	);
+
+	// ── Community (contract 1.29) ────────────────────────────────────────────
+	// Channels, moderation and meetups. Every one needs Content in the plan
+	// (403 `FEATURE_LOCKED`) and the community enabled (403
+	// `COMMUNITY_UNAVAILABLE`); an event-scoped key gets 403.
+	uiTool(
+		server,
+		"content_channels_list",
+		"Active community channels in display order (GET /content/channels). " +
+			"Creates the default Announcements and General channels on first read " +
+			"if the workspace has none.",
+		{},
+		async () => run(getContentChannels({ client })),
+	);
+	const page0 = z
+		.number()
+		.int()
+		.min(0)
+		.optional()
+		.describe("0-based page; an empty array means no more pages");
+	uiTool(
+		server,
+		"content_moderation_queue",
+		"Reported community comments, most reported first, including " +
+			"auto-hidden and deleted ones with open reports " +
+			"(GET /content/moderation/queue). 50 per page. Act with " +
+			"`content_comments_hide`, `content_comments_ignore_reports`, " +
+			"`content_comments_delete` or `content_members_ban`.",
+		{ page: page0 },
+		async (q) => run(getContentModerationQueue({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"content_moderation_bans",
+		"Members banned from the community, the latest 200, newest first " +
+			"(GET /content/moderation/bans). Lift one with `content_members_unban`.",
+		{},
+		async () => run(getContentModerationBans({ client })),
+	);
+	uiTool(
+		server,
+		"content_member_posts_list",
+		"Member posts awaiting review (`PENDING_REVIEW`, default: oldest first, " +
+			"30 per page) or the latest 30 published (`PUBLISHED`, no paging) " +
+			"(GET /content/moderation/member-posts). Approving needs the " +
+			"`updatedAt` read here.",
+		{
+			status: z
+				.enum(["PENDING_REVIEW", "PUBLISHED"])
+				.optional()
+				.describe("PENDING_REVIEW (default) or PUBLISHED"),
+			page: page0.describe("0-based page (PENDING_REVIEW only)"),
+		},
+		async (q) => run(getContentModerationMemberPosts({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"content_meetups_list",
+		"Community meetups, the latest 100 by start date, any status, with " +
+			"confirmed and pending-request counts (GET /content/meetups).",
+		{},
+		async () => run(getContentMeetups({ client })),
+	);
+	server.tool(
+		"content_meetups_get",
+		"Detail of a community meetup with confirmed attendees (with check-in) " +
+			"and RSVP requests, pending first (GET /content/meetups/{id}). " +
+			"Contains members' names and emails. `local` holds the editable " +
+			"values in the workspace's wall time.",
+		{ id: z.string().describe("Meetup id") },
+		read("content_meetups_get"),
+		async ({ id }) => run(getContentMeetupsId({ path: { id }, client })),
 	);
 }

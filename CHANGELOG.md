@@ -5,6 +5,49 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-03
+
+Brings the B2B contract to **1.29.0** (superadmin 1.8.0 and public 0.10.1
+unchanged). The spec comes from free-admin commit `318278a` on branch
+`claude/funny-albattani-iz4k0r` (PR AppFreeticket/free-admin#1169), **not yet
+merged to `main` nor deployed**: these tools answer 404 against production
+until that PR ships. Additions only. **171 tools** (B2B 135 · superadmin 30 ·
+public 6), 44 with a view.
+
+### Added
+- Show day: `reports_live_attendance` (dates happening now with check-in
+  progress), `event_dates_access_close_status` and
+  `event_dates_access_close_sign` (freezes the check-in count as the official
+  record and emails it; destructive, open-world, sends `confirm: true`).
+- Payments: `sales_payment_intents` (checkout funnel and abandoned journeys of
+  one event) and `sales_abandon` (PENDING sale with no payment started →
+  ABANDONED, releases stock; destructive).
+- Community posts and comments: `content_posts_update`, `content_posts_pin`,
+  `content_posts_delete` and `content_comments_delete` (destructive).
+- Community channels: `content_channels_list`, `content_channels_create`,
+  `content_channels_update`, `content_channels_reorder`,
+  `content_channels_archive` (destructive: no unarchive).
+- Community moderation: `content_moderation_queue`, `content_moderation_bans`,
+  `content_member_posts_list`, `content_comments_hide`,
+  `content_comments_unhide`, `content_comments_ignore_reports`,
+  `content_member_posts_approve`, `content_member_posts_reject` and
+  `content_member_posts_remove` (destructive), `content_members_ban`
+  (destructive) and `content_members_unban`.
+- Community meetups: `content_meetups_list`, `content_meetups_get`,
+  `content_meetups_create`, `content_meetups_update`,
+  `content_meetups_publish` (open-world: queues an email to the whole
+  community), `content_meetups_cancel` (destructive, open-world),
+  `content_meetups_rsvp_review` (open-world) and `content_meetups_attendance`.
+- Skill `community-moderation`.
+
+### Changed
+- Skill `show-day-close` uses `reports_live_attendance`, the access-close
+  status (signing only on explicit human request) and `sales_payment_intents`
+  for stuck payments.
+- `src/tools/b2b-writes.test.ts` checks every operation flagged
+  `x-ft-destructive`, including the previously missing
+  `presale_windows_delete`.
+
 ## [0.16.0] - 2026-11-03
 
 Brings all three contracts in line with free-admin `main`: B2B 1.20.0 →

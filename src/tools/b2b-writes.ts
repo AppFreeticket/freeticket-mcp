@@ -3,6 +3,9 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { run } from "../api";
 import {
+	deleteContentCommentsId,
+	deleteContentMembersIdBan,
+	deleteContentPostsId,
 	deleteDiscountsId,
 	deleteEventsId,
 	deleteEventsIdArtistInvitationsInvitationId,
@@ -15,6 +18,10 @@ import {
 	deleteTicketTypesId,
 	deleteVenuesId,
 	deleteWebhooksId,
+	patchContentChannelsId,
+	patchContentMeetupsId,
+	patchContentMeetupsIdRsvpsRsvpId,
+	patchContentPostsId,
 	patchCustomerProfile,
 	patchDiscountsId,
 	patchEventsId,
@@ -26,6 +33,18 @@ import {
 	patchTicketTypesId,
 	patchVenuesId,
 	patchWebhooksId,
+	postContentChannels,
+	postContentChannelsIdArchive,
+	postContentMeetups,
+	postContentMeetupsIdCancel,
+	postContentMeetupsIdPublish,
+	postContentMembersIdBan,
+	postContentModerationCommentsIdHide,
+	postContentModerationCommentsIdIgnoreReports,
+	postContentModerationCommentsIdUnhide,
+	postContentModerationMemberPostsIdApprove,
+	postContentModerationMemberPostsIdReject,
+	postContentModerationMemberPostsIdRemove,
 	postContentPlaybackToken,
 	postContentPosts,
 	postCustomerLogout,
@@ -34,6 +53,7 @@ import {
 	postCustomerSubscriptionsCancel,
 	postCustomerTicketsIdCancel,
 	postDiscounts,
+	postEventDatesIdAccessClose,
 	postEvents,
 	postEventsIdArtistInvitationsInvitationIdResend,
 	postEventsIdCancel,
@@ -42,6 +62,7 @@ import {
 	postEventsIdSchedule,
 	postMembershipPlans,
 	postSales,
+	postSalesIdAbandon,
 	postSalesIdCancel,
 	postSalesIdRefund,
 	postStaff,
@@ -54,6 +75,9 @@ import {
 	postWaitlist,
 	postWebhooks,
 	postWorkspaces,
+	putContentChannelsOrder,
+	putContentMeetupsIdAttendance,
+	putContentPostsIdPin,
 	putEventsIdArtists,
 } from "../client/sdk.gen";
 import { write } from "../tool-meta";
@@ -1082,5 +1106,488 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 					client,
 				}),
 			),
+	);
+
+	// ── Contract 1.28–1.29: show day ─────────────────────────────────────────
+	server.tool(
+		"event_dates_access_close_sign",
+		"Signs the access-close record of an event date " +
+			"(POST /event-dates/{id}/access-close): freezes its check-in count as " +
+			"the official record, signed by the key owner, and emails the record " +
+			"to the workspace. Does not stop the scanner; there is no undo. " +
+			"Requires ADMIN; opens 2 hours after the date starts (409 " +
+			"`ACCESS_CLOSE_NOT_SIGNABLE_YET`, `details.signableFrom`). Only one " +
+			"signature per date: 409 `ACCESS_ALREADY_CLOSED` is not retryable. " +
+			"Read `event_dates_access_close_status` first and only sign when the " +
+			`human explicitly asks for it.${CONFIRM}`,
+		{
+			id: z.string().describe("Event date id"),
+			confirm: z
+				.literal(true)
+				.describe("Must be true — the API rejects the call without it"),
+		},
+		write("event_dates_access_close_sign", {
+			destructive: true,
+			openWorld: true,
+		}),
+		async ({ id, confirm }) =>
+			run(
+				postEventDatesIdAccessClose({
+					path: { id },
+					body: { confirm },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"sales_abandon",
+		"Marks a PENDING sale whose payment never started as ABANDONED " +
+			"(terminal) and deletes its stock reservations, so the inventory goes " +
+			"back on sale at once (POST /sales/{id}/abandon). Does not touch " +
+			"seats.io holds. Requires ADMIN. 409 `PAYMENT_IN_PROGRESS` when a " +
+			"payment was started — wait for reconciliation; confirmed sales go " +
+			`through \`sales_cancel\`.${CONFIRM}`,
+		{ id: z.string().describe("Sale id") },
+		write("sales_abandon", { destructive: true }),
+		async ({ id }) => run(postSalesIdAbandon({ path: { id }, client })),
+	);
+
+	// ── Community posts and comments (contract 1.29) ─────────────────────────
+	server.tool(
+		"content_posts_update",
+		"Updates a community post or article; absent fields are left untouched " +
+			"and `null` clears a nullable one (PATCH /content/posts/{id}). An " +
+			"ARTICLE takes `title`, `subtitle`, `body`, `slug`, `imageUrl`, " +
+			"`locked`, `eventId`, `publishedAt`; a short post takes `type`, " +
+			"`content`, `imageUrl`, `locked`, `eventId`, `channelId`, " +
+			"`publishedAt`. Member posts cannot be edited (404). Errors: 400 for " +
+			"a field that does not apply, 409 `SLUG_CONFLICT`.",
+		{
+			id: z.string().describe("Post id"),
+			type: z
+				.enum(["TEXT", "IMAGE"])
+				.optional()
+				.describe("Short posts only; an ARTICLE stays an ARTICLE"),
+			content: z.string().max(5000).optional(),
+			imageUrl: z
+				.string()
+				.url()
+				.max(2048)
+				.nullish()
+				.describe("Image (cover on an ARTICLE); null removes it"),
+			locked: z.boolean().optional().describe("Members only"),
+			eventId: z
+				.string()
+				.min(1)
+				.nullish()
+				.describe("Linked event; null unlinks it"),
+			channelId: z
+				.string()
+				.min(1)
+				.max(64)
+				.nullish()
+				.describe("Short posts only; null moves it back to Announcements"),
+			publishedAt: z
+				.string()
+				.optional()
+				.describe(
+					"Reschedules the post and its member notification (ISO 8601 UTC)",
+				),
+			title: z.string().min(1).max(140).optional().describe("ARTICLE only"),
+			subtitle: z.string().max(280).nullish().describe("ARTICLE only"),
+			body: z
+				.string()
+				.min(1)
+				.max(100000)
+				.optional()
+				.describe("ARTICLE only (Markdown)"),
+			slug: z
+				.string()
+				.max(200)
+				.nullish()
+				.describe("ARTICLE only; null re-derives it from the title"),
+		},
+		write("content_posts_update", { destructive: false, idempotent: true }),
+		async ({ id, ...body }) =>
+			run(patchContentPostsId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"content_posts_delete",
+		"Soft-deletes a community post (organization post, article or member " +
+			"post): unpins it, redacts the notifications that pointed to it and " +
+			"removes it from the feed at once (DELETE /content/posts/{id}). It " +
+			"cannot be restored through the API. To take down a member post with " +
+			`a notice to its author, use \`content_member_posts_remove\`.${CONFIRM}`,
+		{ id: z.string().describe("Post id") },
+		write("content_posts_delete", { destructive: true }),
+		async ({ id }) => run(deleteContentPostsId({ path: { id }, client })),
+	);
+	server.tool(
+		"content_posts_pin",
+		"Pins or unpins a community post (PUT /content/posts/{id}/pin). At most " +
+			"one pinned post per workspace: pinning unpins the previous one. Only " +
+			"a published post can be pinned. Idempotent.",
+		{
+			id: z.string().describe("Post id"),
+			pinned: z.boolean().describe("true = pin, false = unpin"),
+		},
+		write("content_posts_pin", { destructive: false, idempotent: true }),
+		async ({ id, pinned }) =>
+			run(putContentPostsIdPin({ path: { id }, body: { pinned }, client })),
+	);
+	server.tool(
+		"content_comments_delete",
+		"Soft-deletes a community comment and, if it is top-level, all its live " +
+			"replies (DELETE /content/comments/{id}). Cannot be undone through the " +
+			`API; to hide it reversibly use \`content_comments_hide\`.${CONFIRM}`,
+		{ id: z.string().describe("Comment id") },
+		write("content_comments_delete", { destructive: true }),
+		async ({ id }) => run(deleteContentCommentsId({ path: { id }, client })),
+	);
+
+	// ── Community channels ───────────────────────────────────────────────────
+	const whoCanPost = z
+		.enum(["STAFF", "MEMBERS"])
+		.describe("Who can post in the channel");
+	server.tool(
+		"content_channels_create",
+		"Creates a CITY or CUSTOM community channel, appended at the end " +
+			"(POST /content/channels). The slug comes from the name and never " +
+			"changes. Errors: 400 `city` missing on a CITY channel, 409 " +
+			"`CHANNEL_LIMIT_REACHED` (archive one first).",
+		{
+			kind: z.enum(["CITY", "CUSTOM"]),
+			name: z.string().min(1).max(40),
+			description: z.string().max(200).nullish(),
+			city: z
+				.string()
+				.max(60)
+				.nullish()
+				.describe("Required when kind=CITY; ignored otherwise"),
+			whoCanPost: whoCanPost.default("STAFF"),
+			requiresApproval: z
+				.boolean()
+				.default(true)
+				.describe("Member posts wait for review before publishing"),
+		},
+		write("content_channels_create", { destructive: false }),
+		async (body) => run(postContentChannels({ body, client })),
+	);
+	server.tool(
+		"content_channels_update",
+		"Updates a community channel; absent fields are left untouched and " +
+			"`null` clears `description`/`city` (PATCH /content/channels/{id}). " +
+			"The slug does not change on rename; archived channels cannot be " +
+			"edited. Errors: 400 `ANNOUNCEMENTS_STAFF_ONLY`, 400 `CITY_REQUIRED`.",
+		{
+			id: z.string().describe("Channel id"),
+			name: z.string().min(1).max(40).optional(),
+			description: z.string().max(200).nullish(),
+			city: z.string().max(60).nullish(),
+			whoCanPost: whoCanPost.optional(),
+			requiresApproval: z.boolean().optional(),
+		},
+		write("content_channels_update", { destructive: false, idempotent: true }),
+		async ({ id, ...body }) =>
+			run(patchContentChannelsId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"content_channels_reorder",
+		"Reorders the community channels (PUT /content/channels/order). Send " +
+			"EVERY active channel id from `content_channels_list` in the new " +
+			"order, Announcements first; a partial list is rejected. 409 " +
+			"`CHANNEL_LIST_CHANGED`: re-read and retry.",
+		{
+			orderedIds: z
+				.array(z.string().min(1).max(64))
+				.min(1)
+				.max(20)
+				.describe("Every active channel id, Announcements first"),
+		},
+		write("content_channels_reorder", { destructive: false, idempotent: true }),
+		async (body) => run(putContentChannelsOrder({ body, client })),
+	);
+	server.tool(
+		"content_channels_archive",
+		"Archives a community channel: its tab disappears and staff can no " +
+			"longer post to it; its posts stay visible under All " +
+			"(POST /content/channels/{id}/archive). There is no unarchive and the " +
+			`slug stays taken. Announcements cannot be archived.${CONFIRM}`,
+		{ id: z.string().describe("Channel id") },
+		write("content_channels_archive", { destructive: true }),
+		async ({ id }) =>
+			run(postContentChannelsIdArchive({ path: { id }, client })),
+	);
+
+	// ── Community moderation ─────────────────────────────────────────────────
+	server.tool(
+		"content_comments_hide",
+		"Hides a community comment and resolves its open reports as HIDDEN " +
+			"(POST /content/moderation/comments/{id}/hide). Reversible with " +
+			"`content_comments_unhide`. Idempotent (`changed: false`).",
+		{ id: z.string().describe("Comment id") },
+		write("content_comments_hide", { destructive: false, idempotent: true }),
+		async ({ id }) =>
+			run(postContentModerationCommentsIdHide({ path: { id }, client })),
+	);
+	server.tool(
+		"content_comments_unhide",
+		"Shows a hidden community comment again, marks it as cleared (no more " +
+			"auto-hide) and resolves its open reports as IGNORED " +
+			"(POST /content/moderation/comments/{id}/unhide). Idempotent.",
+		{ id: z.string().describe("Comment id") },
+		write("content_comments_unhide", { destructive: false, idempotent: true }),
+		async ({ id }) =>
+			run(postContentModerationCommentsIdUnhide({ path: { id }, client })),
+	);
+	server.tool(
+		"content_comments_ignore_reports",
+		"Dismisses the open reports of a community comment, leaving it as it " +
+			"is and out of the queue; it will no longer be auto-hidden " +
+			"(POST /content/moderation/comments/{id}/ignore-reports). New reports " +
+			"put it back in the queue.",
+		{ id: z.string().describe("Comment id") },
+		write("content_comments_ignore_reports", {
+			destructive: false,
+			idempotent: true,
+		}),
+		async ({ id }) =>
+			run(
+				postContentModerationCommentsIdIgnoreReports({ path: { id }, client }),
+			),
+	);
+	const decision = {
+		id: z.string().describe("Member post id"),
+		reason: z
+			.string()
+			.max(1000)
+			.optional()
+			.describe("Shown to the author in their inbox"),
+		banAuthor: z
+			.boolean()
+			.default(false)
+			.describe("Also ban the author from the community (requires ADMIN)"),
+	};
+	server.tool(
+		"content_member_posts_approve",
+		"Approves a pending member post: it is published at the top of the " +
+			"feed and its author and mentioned members are notified " +
+			"(POST /content/moderation/member-posts/{id}/approve). Only the " +
+			"version you read is approved: pass its `updatedAt` from " +
+			"`content_member_posts_list`; 409 `EDITED_SINCE_READ` means re-read.",
+		{
+			id: z.string().describe("Member post id"),
+			expectedUpdatedAt: z
+				.string()
+				.describe("`updatedAt` of the post as read (ISO 8601)"),
+		},
+		write("content_member_posts_approve", { destructive: false }),
+		async ({ id, ...body }) =>
+			run(
+				postContentModerationMemberPostsIdApprove({
+					path: { id },
+					body,
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"content_member_posts_reject",
+		"Rejects a pending member post: it never gets published, the author is " +
+			"notified in their inbox and the image is purged " +
+			"(POST /content/moderation/member-posts/{id}/reject). `banAuthor` " +
+			`also bans the author in the same transaction.${CONFIRM}`,
+		decision,
+		write("content_member_posts_reject", { destructive: true }),
+		async ({ id, ...body }) =>
+			run(
+				postContentModerationMemberPostsIdReject({
+					path: { id },
+					body,
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"content_member_posts_remove",
+		"Removes a published member post: soft-deleted, the author is notified " +
+			"in their inbox and the image is purged " +
+			"(POST /content/moderation/member-posts/{id}/remove). `banAuthor` " +
+			`also bans the author in the same transaction.${CONFIRM}`,
+		decision,
+		write("content_member_posts_remove", { destructive: true }),
+		async ({ id, ...body }) =>
+			run(
+				postContentModerationMemberPostsIdRemove({
+					path: { id },
+					body,
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"content_members_ban",
+		"Bans a member from the community: they can no longer post, comment " +
+			"or RSVP; their RSVPs to upcoming meetups are cancelled, the comment " +
+			"(or all of them with `hideAllComments`) is hidden and open reports " +
+			"are resolved as BANNED (POST /content/members/{id}/ban). The ban " +
+			"always comes from one of their comments. Requires ADMIN. Lift it " +
+			"with `content_members_unban` — hidden comments and cancelled RSVPs " +
+			`stay that way.${CONFIRM}`,
+		{
+			id: z
+				.string()
+				.describe(
+					"Customer id of the member (`author.customerId` in the queue)",
+				),
+			commentId: z
+				.string()
+				.min(1)
+				.describe("Comment by this member that motivates the ban"),
+			reason: z.string().max(500).optional(),
+			hideAllComments: z
+				.boolean()
+				.default(false)
+				.describe("true = hide every comment of the member, not only this one"),
+		},
+		write("content_members_ban", { destructive: true, idempotent: true }),
+		async ({ id, ...body }) =>
+			run(postContentMembersIdBan({ path: { id }, body, client })),
+	);
+	server.tool(
+		"content_members_unban",
+		"Lifts a member's community ban, leaving an audit entry " +
+			"(DELETE /content/members/{id}/ban). Hidden comments stay hidden and " +
+			"cancelled RSVPs stay cancelled. Requires ADMIN.",
+		{ id: z.string().describe("Customer id of the member") },
+		write("content_members_unban", { destructive: false, idempotent: true }),
+		async ({ id }) => run(deleteContentMembersIdBan({ path: { id }, client })),
+	);
+
+	// ── Community meetups ────────────────────────────────────────────────────
+	const wallTime = (what: string) =>
+		z
+			.string()
+			.describe(
+				`${what}: local wall time in the workspace's timezone, YYYY-MM-DDTHH:mm`,
+			);
+	const meetupFields = {
+		description: z.string().max(5000).optional(),
+		endsAt: wallTime("End").optional(),
+		city: z.string().max(80).optional(),
+		locationName: z.string().max(120).optional(),
+		locationDetail: z.string().max(500).optional(),
+		onlineUrl: z
+			.string()
+			.max(500)
+			.optional()
+			.describe("ONLINE only; must start with https://"),
+		capacity: z
+			.number()
+			.int()
+			.min(1)
+			.max(100000)
+			.nullish()
+			.describe("null = unlimited"),
+		requiresApproval: z
+			.boolean()
+			.optional()
+			.describe("true = staff approves each RSVP request"),
+	};
+	server.tool(
+		"content_meetups_create",
+		"Creates a community meetup as DRAFT (POST /content/meetups); publish " +
+			"it with `content_meetups_publish`. ONLINE keeps `onlineUrl` and drops " +
+			"the address; IN_PERSON the opposite. Errors: 400 `BAD_REQUEST`, 400 " +
+			"`STARTS_IN_PAST`.",
+		{
+			title: z.string().min(3).max(120),
+			format: z.enum(["IN_PERSON", "ONLINE"]),
+			startsAt: wallTime("Start"),
+			...meetupFields,
+		},
+		write("content_meetups_create", { destructive: false }),
+		async (body) => run(postContentMeetups({ body, client })),
+	);
+	server.tool(
+		"content_meetups_update",
+		"Updates a community meetup; absent fields keep their value and an " +
+			"empty string clears an optional text (PATCH /content/meetups/{id}). " +
+			"Errors: 409 `EVENT_CANCELLED`, 409 `CAPACITY_BELOW_GOING`, 400 " +
+			"`STARTS_IN_PAST`.",
+		{
+			id: z.string().describe("Meetup id"),
+			title: z.string().min(3).max(120).optional(),
+			format: z.enum(["IN_PERSON", "ONLINE"]).optional(),
+			startsAt: wallTime("Start").optional(),
+			...meetupFields,
+		},
+		write("content_meetups_update", { destructive: false, idempotent: true }),
+		async ({ id, ...body }) =>
+			run(patchContentMeetupsId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"content_meetups_publish",
+		"Publishes a draft meetup: it becomes visible to members and a " +
+			"notification (inbox and email) to the whole community is queued " +
+			"(POST /content/meetups/{id}/publish). Errors: 409 `NOT_DRAFT`, 409 " +
+			"`STARTS_IN_PAST`.",
+		{ id: z.string().describe("Meetup id") },
+		write("content_meetups_publish", { destructive: false, openWorld: true }),
+		async ({ id }) =>
+			run(postContentMeetupsIdPublish({ path: { id }, client })),
+	);
+	server.tool(
+		"content_meetups_cancel",
+		"Cancels a meetup (draft or published); CANCELLED is terminal — it " +
+			"cannot be edited or published again. Confirmed members are notified " +
+			"by email and inbox (POST /content/meetups/{id}/cancel). 409 " +
+			`\`ALREADY_CANCELLED\`.${CONFIRM}`,
+		{ id: z.string().describe("Meetup id") },
+		write("content_meetups_cancel", { destructive: true, openWorld: true }),
+		async ({ id }) => run(postContentMeetupsIdCancel({ path: { id }, client })),
+	);
+	server.tool(
+		"content_meetups_rsvp_review",
+		"Approves or rejects an RSVP request of a meetup with " +
+			"`requiresApproval`; the member gets an email with the decision " +
+			"(PATCH /content/meetups/{id}/rsvps/{rsvpId}). APPROVE also works on " +
+			"a rejected request; REJECT only on a pending one. Errors: 409 " +
+			"`NOT_PENDING`, `EVENT_FULL`, `EVENT_CLOSED`, `MEMBER_BANNED`, " +
+			"`NO_MEMBERSHIP`.",
+		{
+			id: z.string().describe("Meetup id"),
+			rsvpId: z.string().describe("RSVP request id"),
+			decision: z.enum(["APPROVE", "REJECT"]),
+		},
+		write("content_meetups_rsvp_review", {
+			destructive: false,
+			openWorld: true,
+		}),
+		async ({ id, rsvpId, decision }) =>
+			run(
+				patchContentMeetupsIdRsvpsRsvpId({
+					path: { id, rsvpId },
+					body: { decision },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"content_meetups_attendance",
+		"Marks or unmarks a confirmed (GOING) meetup attendee as checked in " +
+			"(PUT /content/meetups/{id}/attendance). Repeating the same mark " +
+			"changes nothing (`changed: false`).",
+		{
+			id: z.string().describe("Meetup id"),
+			rsvpId: z.string().min(1).max(64).describe("RSVP id of the attendee"),
+			attended: z.boolean(),
+		},
+		write("content_meetups_attendance", {
+			destructive: false,
+			idempotent: true,
+		}),
+		async ({ id, ...body }) =>
+			run(putContentMeetupsIdAttendance({ path: { id }, body, client })),
 	);
 }

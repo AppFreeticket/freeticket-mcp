@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket B2B API",
-		"version": "1.27.0",
+		"version": "1.29.0",
 		"description": "FreeTicket B2B REST API for integrations, the `ft` CLI and the FreeTicket MCP server. Authentication is by API key (`Authorization: Bearer <key>` header or `x-api-key`); the active workspace is selected with the `X-Workspace-Id` header.\n\nScopes: each key is either `read` (GET/HEAD only) or `write` (additionally creates, edits, deletes, cancels, refunds and checks in). Self-service keys are issued as `read`. A `read` key calling a mutating method gets a 403. The machine-readable declaration lives at `/.well-known/oauth-protected-resource` (RFC 9728).\n\nGetting a key (self-serve, no sales contact): `ft login` runs the Device Authorization Grant (RFC 8628, `POST /auth/device/code` + `POST /auth/device/token`); the user approves the code at https://admin.appfreeticket.com/device and the CLI receives a key. New organizers can bootstrap headless with `POST /auth/signup` (verify-first, then `ft login`). With a key, `POST /api-keys` mints more (born `read` unless `write` is requested). There is no sandbox environment: test against a dedicated workspace with `read` keys.\n\n## Versioning and deprecation\n\n- **Path version.** The B2B API is versioned in the path (`/api/v1`). A breaking change ships under a new path (`/api/v2`); the previous version keeps running in parallel until its sunset date.\n- **Contract version.** `info.version` is the semantic version of this document. MINOR = additive (new endpoints, new optional fields, new enum values, new error codes; clients must ignore unknown fields). PATCH = documentation or fixes that do not change shapes. The public API (`/api/public`) is pre-1.0 and not versioned in the path: there, a MINOR bump may include a breaking change and PATCH never does.\n- **Deprecation signals.** A deprecated operation is marked `deprecated: true` in this document and its responses carry `Deprecation` (RFC 9745, e.g. `Deprecation: @1767225600`), `Sunset` (RFC 8594, an HTTP-date after which the operation may stop working) and `Link: <https://appfreeticket.com/desarrolladores>; rel=\"deprecation\"`.\n- **Timeline.** At least 6 months between the first `Deprecation` header and the `Sunset` date for `/api/v1`, and at least 90 days for `/api/public`. A path version is only retired after all its operations have sunset.\n- **Current status.** No operation is deprecated today.\n\n## Rate limits\n\n- **429 always carries `Retry-After`** (seconds). Wait at least that long before retrying the same request. The JSON error envelope comes with `error.retryable: true`; most rate-limited responses use `error.code: \"RATE_LIMITED\"`, and some return a more specific code (for example `TOO_MANY_REQUESTS` or `SEAT_BUDGET_EXHAUSTED`).\n- **RateLimit headers are sent where listed below.** Those endpoints answer every response, success or error, with the IETF RateLimit headers (draft-ietf-httpapi-ratelimit-headers): `RateLimit-Policy: \"<policy>\";q=<quota>;w=<window seconds>` and `RateLimit: \"<policy>\";r=<remaining>;t=<seconds until reset>`. Other endpoints may answer 429 without them.\n- Counters are fixed windows kept per server instance: treat the numbers as pacing hints, not as a global account quota.\n\nEndpoints that send RateLimit headers today: `POST /auth/signup` (per client IP), `POST /customer/auth/request` and `POST /customer/auth/verify` (per client IP), and the buyer-session endpoints `GET /customer/orders/{id}`, `POST /customer/orders/{id}/payment`, `/payment/card`, `/payment/pse`, `/release`, `POST /customer/purchase-sessions` and `POST /customer/purchase-sessions/{id}/release`."
 	},
 	"servers": [
@@ -12606,6 +12606,3463 @@
 					}
 				}
 			}
+		},
+		"/reports/live-attendance": {
+			"get": {
+				"operationId": "getReportsLiveAttendance",
+				"tags": ["reports"],
+				"summary": "Events happening right now, with check-in progress",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same data as the \"Live\" cards of the dashboard summary (section `inicio`).\n\nReturns the event dates whose live window contains the current instant (doors open, or start, until `ends_at`; 6 hours after the start when there is no end), for PUBLISHED/SOLD_OUT events visible to the workspace (own and collaborative) plus shows of other organizers hosted in one of the workspace's venues (occupancy only). Sorted by `sold` descending. `sold`/`validated` count tickets (QR) of CONFIRMED sales; `validatedPct` is 0-100. Meant for polling (the dashboard polls every 20 s).\n\n`scope` narrows like the dashboard selector: `all` (default), `own` (only the workspace's own shows; hosted shows are excluded), `partner:<orgId>` (shows shared with that partner). An event-scoped API key only sees its events.\n\nErrors (`error.code`): 400 `BAD_REQUEST` (invalid `scope`).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "scope",
+						"in": "query",
+						"required": false,
+						"description": "all (default) | own | partner:<orgId>",
+						"schema": {
+							"type": "string",
+							"default": "all"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/LiveAttendance"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/event-dates/{id}/access-close": {
+			"get": {
+				"operationId": "getEventDatesIdAccessClose",
+				"tags": ["events", "tickets"],
+				"summary": "Live entry count and access-close status of an event date",
+				"description": "Minimum role: `STAFF` (any role that validates tickets), with the `validar` section when the access is scoped. Active workspace via the `X-Workspace-Id` header. Same gate and same count as the access-close screen of the dashboard: a door validator limited to some events only sees those.\n\nOnly event dates of the workspace's OWN events that admit an access-close record (not cancelled, PUBLISHED/SOLD_OUT/COMPLETED event, no external ticketing). `live.issued` counts tickets of CONFIRMED sales (courtesies included); `live.checkins` is what a signature would freeze right now. Once closed, `closedCheckins` is the frozen number. Date fields are labels already formatted in the event date's time zone.\n\nErrors (`error.code`): 403 `ACCESS_CLOSE_FORBIDDEN` (role/section/validator scope), 404 (not found, another workspace, collaborative/hosted event or outside the key's `event_scope`).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AccessCloseStatus"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postEventDatesIdAccessClose",
+				"tags": ["events", "tickets"],
+				"summary": "Sign the access-close record of an event date (irreversible)",
+				"description": "Minimum role: `ADMIN` (stricter than the dashboard, where door staff can also sign). Active workspace via the `X-Workspace-Id` header.\n\nDESTRUCTIVE and IRREVERSIBLE: freezes the number of check-ins of the event date as its access-close record, signed by the API key owner, and emails the record to the workspace. It does not stop the scanner. There is no endpoint to undo it. Requires the body `{\"confirm\": true}` (422 without it). Only one signature per date: concurrent calls are resolved atomically and the loser gets 409.\n\nSigning opens 2 hours after the date starts.\n\nErrors (`error.code`):\n- 403 `ACCESS_CLOSE_FORBIDDEN` (section/validator scope), 403 `EVENT_SCOPE_FORBIDDEN` (outside the key's `event_scope`).\n- 404: not found, another workspace, or a date that does not admit a record (cancelled, draft event, external ticketing, collaborative/hosted event).\n- 409 `ACCESS_CLOSE_NOT_SIGNABLE_YET`: `error.details.signableFrom` (ISO 8601).\n- 409 `ACCESS_ALREADY_CLOSED`: someone signed first or the automatic close ran; `error.details` has `closedAt`, `closedByName` (null if automatic) and `automatic`. Not retryable.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AccessCloseSignRequest"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AccessCloseSigned"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/payment-intents": {
+			"get": {
+				"operationId": "getPaymentIntents",
+				"tags": ["sales"],
+				"summary": "Purchase intents of an event (checkout funnel and abandoned journeys)",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same data as the dashboard's Sales → Intents screen.\n\nFolds the checkout funnel log of ONE event (own or collaborative) into one journey per visitor (the buyer account when known, otherwise the device), with how far it got (`stage`) and how it ended (`outcome`: `NO_SALE`, `REJECTED` with `reason`, or the sale status). `funnel` counts ALL journeys of the filter, not only the page. Journeys are sorted by last activity, newest first.\n\nPagination: pass `nextCursor` back as `cursor` (opaque); `null` means no more pages. `eventDate` must belong to the event, otherwise all dates are used (`selectedDateId` echoes the one applied). `onlyAbandoned=true` keeps journeys that picked seats and did not pay (excludes sales still PENDING).\n\nPersonal data: `personName`/`personEmail` come from the buyer account or what was typed at checkout — the same data `GET /sales` returns. Device identifiers never leave the server (`threadId` is a hash).\n\nErrors (`error.code`): 400 `BAD_REQUEST` (missing `event`, invalid `limit`/`onlyAbandoned`), 404 (event not found, not visible, or outside the key's `event_scope`).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "event",
+						"in": "query",
+						"required": true,
+						"description": "event id",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "eventDate",
+						"in": "query",
+						"required": false,
+						"description": "event date id (must belong to the event)",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "onlyAbandoned",
+						"in": "query",
+						"required": false,
+						"description": "true = only journeys that picked seats and did not pay",
+						"schema": {
+							"type": "boolean"
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"description": "1-100, default 100",
+						"schema": {
+							"type": "integer",
+							"default": 100
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"description": "`nextCursor` of the previous page",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/PaymentIntentsPage"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/sales/{id}/abandon": {
+			"post": {
+				"operationId": "postSalesIdAbandon",
+				"tags": ["sales"],
+				"summary": "Mark a pending sale as abandoned (releases its stock)",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Mark as abandoned\" in the dashboard.\n\nDESTRUCTIVE: a PENDING sale whose payment never started moves to ABANDONED (terminal) and its stock reservations are deleted, so the inventory goes back on sale immediately. It does not touch seats.io holds (same as the dashboard). Use `POST /sales/{id}/cancel` for confirmed sales.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: an item of the sale is outside the key's `event_scope`.\n- 409 `SALE_NOT_PENDING`: only PENDING sales (also when it is already ABANDONED).\n- 409 `PAYMENT_IN_PROGRESS`: a payment was started (`payment_ref` set) and may still be confirmed by the gateway; wait for reconciliation.\n- 409 `SALE_STATE_CHANGED`: the sale changed between the read and the write (e.g. a payment started); re-read it.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Sale"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/posts/{id}": {
+			"patch": {
+				"operationId": "patchContentPostsId",
+				"tags": ["content"],
+				"summary": "Update a community post or article",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as editing a post or an article in the dashboard.\n\nPartial update: absent fields keep their stored value; `null` clears a nullable field. The stored post decides the shape: an ARTICLE accepts `title`, `subtitle`, `body`, `slug`, `imageUrl` (cover), `locked`, `eventId` and `publishedAt`; a TEXT/IMAGE/VIDEO post accepts `type` (TEXT/IMAGE), `content`, `imageUrl`, `locked`, `eventId`, `channelId` and `publishedAt`. Unlike `POST /content/posts`, changing the text of a short post re-resolves its link preview, like the dashboard. Member posts cannot be edited (404); moderate them under `/content/moderation/member-posts`. The response is redacted like `GET /content/posts` when the post is `locked`.\n\nErrors (`error.code`):\n- 400 `BAD_REQUEST`: a field that does not apply to the post's type, or the result would be empty (a short post needs `content` or `imageUrl`).\n- 404 `NOT_FOUND`: the post, the linked `eventId` or the `channelId` does not exist in this workspace.\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: `channelId` was sent but channels are not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 409 `SLUG_CONFLICT`: another article of the organization already uses that slug.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentPostUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentPost"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteContentPostsId",
+				"tags": ["content"],
+				"summary": "Delete a community post",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as deleting a post in the dashboard.\n\nDESTRUCTIVE: soft-deletes the post (organization post, article or member post), unpins it and redacts the member notifications that pointed to it. It disappears from the feed immediately and cannot be restored through the API. To take down a member post with a notice to its author, prefer `POST /content/moderation/member-posts/{id}/remove`.\n\nErrors: 404 `NOT_FOUND` (does not exist, already deleted or belongs to another workspace); 403 `EVENT_SCOPE_FORBIDDEN`.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/posts/{id}/pin": {
+			"put": {
+				"operationId": "putContentPostsIdPin",
+				"tags": ["content"],
+				"summary": "Pin or unpin a community post",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Pin\" in the dashboard.\n\nAt most one pinned post per workspace: `pinned: true` unpins the previous one in the same transaction. Only a published post can be pinned; unpinning works on any post. Idempotent.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 404 `NOT_FOUND`: the post does not exist, is deleted, is not published (when pinning) or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentPostPin"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentPostPinned"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/comments/{id}": {
+			"delete": {
+				"operationId": "deleteContentCommentsId",
+				"tags": ["content"],
+				"summary": "Delete a community comment (moderation)",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as deleting a comment from the dashboard.\n\nDESTRUCTIVE: soft-deletes the comment and, if it is a top-level comment, all its live replies; the post's comment count is recomputed. Cannot be undone through the API. To hide it reversibly use `POST /content/moderation/comments/{id}/hide`.\n\nErrors: 404 `NOT_FOUND` (does not exist, already deleted or belongs to another workspace); 403 `EVENT_SCOPE_FORBIDDEN`.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentCommentDeleted"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/channels": {
+			"get": {
+				"operationId": "getContentChannels",
+				"tags": ["content"],
+				"summary": "List the community channels",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same list as the dashboard's Channels screen: active channels in display order (archived ones are omitted). Like the dashboard, the default Announcements and General channels are created on first read if the workspace has none.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/CommunityChannel"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postContentChannels",
+				"tags": ["content"],
+				"summary": "Create a community channel",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"New channel\" in the dashboard: a CITY or CUSTOM channel, appended at the end. The slug is derived from the name, unique in the workspace, and never changes afterwards.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 400 `BAD_REQUEST`: `city` missing on a CITY channel.\n- 409 `CHANNEL_LIMIT_REACHED`: the workspace already has the maximum of active channels; archive one first.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CommunityChannelCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityChannel"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/channels/{id}": {
+			"patch": {
+				"operationId": "patchContentChannelsId",
+				"tags": ["content"],
+				"summary": "Update a community channel",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as editing a channel in the dashboard. Partial: absent fields keep their value; `null` clears `description`/`city`. The slug does not change on rename. Archived channels cannot be edited.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 400 `ANNOUNCEMENTS_STAFF_ONLY`: Announcements cannot be opened to members (`whoCanPost` must stay STAFF).\n- 400 `CITY_REQUIRED`: a CITY channel needs a city.\n- 404 `NOT_FOUND`: the channel does not exist, is archived or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CommunityChannelUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityChannel"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/channels/order": {
+			"put": {
+				"operationId": "putContentChannelsOrder",
+				"tags": ["content"],
+				"summary": "Reorder the community channels",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as dragging channels in the dashboard. Send EVERY active channel id (from `GET /content/channels`) in the new order, Announcements first; a partial list is rejected, not applied halfway.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 400 `BAD_REQUEST`: repeated ids.\n- 400 `ANNOUNCEMENTS_FIRST`: Announcements must stay first.\n- 409 `CHANNEL_LIST_CHANGED`: the ids are not exactly the active channels (one was created/archived, or an id from another workspace); re-read and retry.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CommunityChannelOrder"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityChannelOrder"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/channels/{id}/archive": {
+			"post": {
+				"operationId": "postContentChannelsIdArchive",
+				"tags": ["content"],
+				"summary": "Archive a community channel",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Archive\" in the dashboard.\n\nDESTRUCTIVE: the channel tab disappears for members and staff can no longer post to it; its posts remain visible under \"All\". There is no unarchive endpoint, and its slug stays taken.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 404 `NOT_FOUND`: the channel does not exist, is already archived or belongs to another workspace.\n- 409 `ANNOUNCEMENTS_NOT_ARCHIVABLE`: Announcements cannot be archived.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/moderation/queue": {
+			"get": {
+				"operationId": "getContentModerationQueue",
+				"tags": ["content"],
+				"summary": "List reported community comments (moderation queue)",
+				"description": "Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same queue as the dashboard's Moderation screen: comments with open reports, most reported first, including auto-hidden ones and comments deleted with reports still open (deleting does not dodge a ban). 50 per page; `page` is 0-based (an empty array means no more pages).\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "page",
+						"in": "query",
+						"required": false,
+						"description": "0-based page",
+						"schema": {
+							"type": "integer",
+							"default": 0
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/ModerationQueueItem"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/moderation/bans": {
+			"get": {
+				"operationId": "getContentModerationBans",
+				"tags": ["content"],
+				"summary": "List members banned from the community",
+				"description": "Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same list as the dashboard's Moderation screen: the latest 200 bans, newest first. Lift one with `DELETE /content/members/{customerId}/ban`.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/CommunityBan"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/moderation/member-posts": {
+			"get": {
+				"operationId": "getContentModerationMemberPosts",
+				"tags": ["content"],
+				"summary": "List member posts awaiting review (or recently published)",
+				"description": "Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same lists as the dashboard's Moderation → Posts view. `status=PENDING_REVIEW` (default): posts waiting for approval, oldest first, 30 per 0-based `page`; their `imageUrl` is a short-lived signed URL. `status=PUBLISHED`: the latest 30 published member posts (no paging), to remove one. Approving needs the `updatedAt` read here.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 403 `MEMBER_POSTS_UNAVAILABLE`: member posts are not enabled for this workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"description": "PENDING_REVIEW (default) or PUBLISHED",
+						"schema": {
+							"type": "string",
+							"enum": ["PENDING_REVIEW", "PUBLISHED"],
+							"default": "PENDING_REVIEW"
+						}
+					},
+					{
+						"name": "page",
+						"in": "query",
+						"required": false,
+						"description": "0-based page (PENDING_REVIEW only)",
+						"schema": {
+							"type": "integer",
+							"default": 0
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/MemberPostQueueItem"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/moderation/comments/{id}/hide": {
+			"post": {
+				"operationId": "postContentModerationCommentsIdHide",
+				"tags": ["content"],
+				"summary": "Hide a community comment",
+				"description": "Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same action as \"Hide\" in the dashboard's moderation queue.\n\nHides the comment (and its replies from the count) and resolves its open reports as HIDDEN. Reversible with `/unhide`. Idempotent: hiding a hidden comment returns `changed: false`.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the comment does not exist, is deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommentModerated"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/moderation/comments/{id}/unhide": {
+			"post": {
+				"operationId": "postContentModerationCommentsIdUnhide",
+				"tags": ["content"],
+				"summary": "Show a hidden community comment again",
+				"description": "Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same action as \"Show\" in the dashboard's moderation queue.\n\nShows the comment again, marks it as cleared (it will not be auto-hidden again) and resolves its open reports as IGNORED. Idempotent.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the comment does not exist, is deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommentModerated"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/moderation/comments/{id}/ignore-reports": {
+			"post": {
+				"operationId": "postContentModerationCommentsIdIgnoreReports",
+				"tags": ["content"],
+				"summary": "Dismiss the open reports of a community comment",
+				"description": "Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same action as \"Ignore\" in the dashboard's moderation queue.\n\nLeaves the comment as it is, resolves its open reports as IGNORED and takes it out of the queue; it will no longer be auto-hidden. New reports put it back in the queue. Works on deleted comments too.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the comment does not exist or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommentModerated"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/moderation/member-posts/{id}/approve": {
+			"post": {
+				"operationId": "postContentModerationMemberPostsIdApprove",
+				"tags": ["content"],
+				"summary": "Approve a pending member post",
+				"description": "Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same action as \"Approve\" in the dashboard's Moderation → Posts view: the post is published at the top of the feed, its author is notified and mentioned members are notified.\n\nOnly the version you read is approved: send the post's `updatedAt` from `GET /content/moderation/member-posts` as `expectedUpdatedAt`. If the author edited it since, nothing is published (409 `EDITED_SINCE_READ`): re-read and review again.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 403 `MEMBER_POSTS_UNAVAILABLE`: member posts are not enabled for this workspace.\n- 404 `NOT_FOUND`: not a member post of this workspace, or deleted.\n- 409 `ALREADY_REVIEWED`: it is no longer pending.\n- 409 `EDITED_SINCE_READ`: the author edited it after `expectedUpdatedAt`.\n- 502 `IMAGE_PROMOTION_FAILED`: the image could not be published; retry.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MemberPostApprove"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MemberPostReviewed"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "The external provider failed to complete the operation.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/moderation/member-posts/{id}/reject": {
+			"post": {
+				"operationId": "postContentModerationMemberPostsIdReject",
+				"tags": ["content"],
+				"summary": "Reject a pending member post",
+				"description": "Minimum role: `STAFF` (`ADMIN` with `banAuthor: true`). Active workspace via the `X-Workspace-Id` header. Same action as \"Reject\" in the dashboard's Moderation → Posts view.\n\nDESTRUCTIVE: the pending post is rejected (it never gets published), the author is notified in their inbox and the image is purged from storage. The optional `reason` is shown to the author. With `banAuthor` the author is also banned from the community in the same transaction.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 403 `BAN_REQUIRES_ADMIN`: `banAuthor` with a role below ADMIN.\n- 400 `BAD_REQUEST`: invalid `reason`.\n- 404 `NOT_FOUND`: not a member post of this workspace, or deleted.\n- 409 `ALREADY_REVIEWED`: another moderator already reviewed it.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": false,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MemberPostDecision"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MemberPostReviewed"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/moderation/member-posts/{id}/remove": {
+			"post": {
+				"operationId": "postContentModerationMemberPostsIdRemove",
+				"tags": ["content"],
+				"summary": "Remove a published member post",
+				"description": "Minimum role: `STAFF` (`ADMIN` with `banAuthor: true`). Active workspace via the `X-Workspace-Id` header. Same action as \"Remove\" in the dashboard's Moderation → Posts view.\n\nDESTRUCTIVE: the published post is soft-deleted, the author is notified in their inbox and the image is purged from storage. The optional `reason` is shown to the author. With `banAuthor` the author is also banned from the community in the same transaction.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 403 `BAN_REQUIRES_ADMIN`: `banAuthor` with a role below ADMIN.\n- 400 `BAD_REQUEST`: invalid `reason`.\n- 404 `NOT_FOUND`: not a published member post of this workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": false,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MemberPostDecision"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MemberPostReviewed"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/members/{id}/ban": {
+			"post": {
+				"operationId": "postContentMembersIdBan",
+				"tags": ["content"],
+				"summary": "Ban a member from the community",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. `{id}` is the member's customer id (`author.customerId` in the moderation queue). Same action as \"Ban\" in the dashboard's moderation queue.\n\nDESTRUCTIVE: the member can no longer post, comment or RSVP in this workspace's community; their RSVPs to upcoming meetups are cancelled (the seat is released); `commentId` (or, with `hideAllComments`, all their comments in this workspace) is hidden and the open reports are resolved as BANNED. Idempotent on the ban itself. Lift it with `DELETE`.\n\nThe ban always comes from a comment of this workspace: the banned member is that comment's author, and `{id}` must match it.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the comment does not exist in this workspace or was not written by `{id}`.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MemberBanCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MemberBanResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteContentMembersIdBan",
+				"tags": ["content"],
+				"summary": "Lift a member's community ban",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Lift ban\" in the dashboard. Deletes the ban (leaving an audit log entry); hidden comments stay hidden and cancelled RSVPs stay cancelled.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the member is not banned in this workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MemberBanResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/meetups": {
+			"get": {
+				"operationId": "getContentMeetups",
+				"tags": ["content"],
+				"summary": "List community meetups",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same list as the dashboard's Meetups screen: the latest 100 meetups by start date (newest first), in any status, with confirmed and pending-request counts.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/CommunityMeetup"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postContentMeetups",
+				"tags": ["content"],
+				"summary": "Create a community meetup (draft)",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same form as \"New meetup\" in the dashboard; it is created as DRAFT (publish it with `POST /content/meetups/{id}/publish`). `startsAt`/`endsAt` are local wall times in the workspace's timezone (`YYYY-MM-DDTHH:mm`). An ONLINE meetup keeps `onlineUrl` and drops the address; IN_PERSON the opposite.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).\n- 400 `BAD_REQUEST`: malformed wall time, `endsAt` not after `startsAt`, or `onlineUrl` not https.\n- 400 `STARTS_IN_PAST`: the start must be in the future.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CommunityMeetupCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityMeetupDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/meetups/{id}": {
+			"get": {
+				"operationId": "getContentMeetupsId",
+				"tags": ["content"],
+				"summary": "Get a community meetup with its attendees and requests",
+				"description": "Minimum role: `STAFF` (includes the name and email of members who requested a seat). Active workspace via the `X-Workspace-Id` header. Same detail as the dashboard: confirmed attendees (with check-in) and RSVP requests (pending first). `local` carries the editable values in the workspace's wall time.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).\n- 404 `NOT_FOUND`: the meetup does not exist in this workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityMeetupDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchContentMeetupsId",
+				"tags": ["content"],
+				"summary": "Update a community meetup",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same form as editing a meetup in the dashboard. Partial: absent fields keep the stored value (see `local` in the detail); an empty string clears an optional text field. Times are local wall times in the workspace's timezone.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).\n- 400 `BAD_REQUEST`: malformed values (see `POST /content/meetups`).\n- 400 `STARTS_IN_PAST`: a past start is only accepted if it is the one already stored.\n- 404 `NOT_FOUND`: the meetup does not exist in this workspace.\n- 409 `EVENT_CANCELLED`: a cancelled meetup cannot be edited.\n- 409 `CAPACITY_BELOW_GOING`: `capacity` lower than the members already confirmed.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CommunityMeetupUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityMeetupDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/meetups/{id}/publish": {
+			"post": {
+				"operationId": "postContentMeetupsIdPublish",
+				"tags": ["content"],
+				"summary": "Publish a draft community meetup",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Publish\" in the dashboard: the draft becomes visible to members and a notification to the whole community is queued in the same transaction (sent by the background job, not by this request).\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).\n- 404 `NOT_FOUND`: the meetup does not exist in this workspace.\n- 409 `NOT_DRAFT`: only a draft can be published.\n- 409 `STARTS_IN_PAST`: its start already passed; update it first.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityMeetupDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/meetups/{id}/cancel": {
+			"post": {
+				"operationId": "postContentMeetupsIdCancel",
+				"tags": ["content"],
+				"summary": "Cancel a community meetup",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Cancel meetup\" in the dashboard.\n\nDESTRUCTIVE: the meetup (draft or published) moves to CANCELLED, which is terminal: it cannot be edited or published again. Members who confirmed are notified by email/inbox (queued in the same transaction, sent by the background job). RSVPs are kept as they are.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).\n- 404 `NOT_FOUND`: the meetup does not exist in this workspace.\n- 409 `ALREADY_CANCELLED`: it was already cancelled.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityMeetupDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/meetups/{id}/rsvps/{rsvpId}": {
+			"patch": {
+				"operationId": "patchContentMeetupsIdRsvpsRsvpId",
+				"tags": ["content"],
+				"summary": "Approve or reject a meetup RSVP request",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as approving/rejecting a request in the dashboard (meetups with `requiresApproval`). The member gets an email with the decision after the change is committed. APPROVE also works on a previously rejected request (the staff can change its mind); REJECT only on a pending one.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).\n- 404 `NOT_FOUND`: the meetup or the request does not exist in this workspace.\n- 409 `NOT_PENDING`: already reviewed.\n- 409 `EVENT_FULL`: no seats left; raise the capacity first.\n- 409 `EVENT_CLOSED`: the meetup is not published or already started.\n- 409 `MEMBER_BANNED`: the member is banned from the community.\n- 409 `NO_MEMBERSHIP`: the member no longer has an active membership.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "rsvpId",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CommunityMeetupRsvpReview"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityMeetupRsvpReviewed"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/meetups/{id}/attendance": {
+			"put": {
+				"operationId": "putContentMeetupsIdAttendance",
+				"tags": ["content"],
+				"summary": "Mark or unmark a meetup attendee as checked in",
+				"description": "Minimum role: `STAFF` (door work, like `POST /tickets/{ticketCode}/checkin`). Active workspace via the `X-Workspace-Id` header. Same action as the \"Attended\" checkbox in the dashboard. Only on a confirmed (GOING) RSVP of a meetup that is not cancelled; repeating the same mark changes nothing (`changed: false`, also when the RSVP is not GOING or does not belong to the meetup).\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).\n- 404 `NOT_FOUND`: the meetup does not exist in this workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/CommunityMeetupAttendance"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/CommunityMeetupAttendanceResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	},
 	"components": {
@@ -17562,6 +21019,1041 @@
 				],
 				"additionalProperties": false
 			},
+			"ContentPostUpdate": {
+				"type": "object",
+				"properties": {
+					"type": {
+						"description": "TEXT/IMAGE posts only. An ARTICLE stays an ARTICLE (and vice versa).",
+						"type": "string",
+						"enum": ["TEXT", "IMAGE"]
+					},
+					"content": {
+						"type": "string",
+						"maxLength": 5000
+					},
+					"imageUrl": {
+						"description": "ARTICLE posts: the cover image. null removes it.",
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 2048,
+								"format": "uri"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"locked": {
+						"type": "boolean"
+					},
+					"eventId": {
+						"description": "null unlinks the event.",
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"channelId": {
+						"description": "TEXT/IMAGE posts only. Active channel of the workspace; null moves it back to Announcements.",
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 64
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"publishedAt": {
+						"description": "Reschedules the post (and its member notification, if any).",
+						"type": "string",
+						"format": "date-time",
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+					},
+					"title": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 140
+					},
+					"subtitle": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 280
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"body": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 100000
+					},
+					"slug": {
+						"description": "ARTICLE only. null re-derives it from the title.",
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 200
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": false
+			},
+			"ContentPostPin": {
+				"type": "object",
+				"properties": {
+					"pinned": {
+						"type": "boolean"
+					}
+				},
+				"required": ["pinned"],
+				"additionalProperties": false
+			},
+			"ContentPostPinned": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"pinnedAt": {
+						"description": "null when unpinned. At most one pinned post per workspace.",
+						"type": ["string", "null"]
+					}
+				},
+				"required": ["id", "pinnedAt"],
+				"additionalProperties": false
+			},
+			"ContentCommentDeleted": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"deleted": {
+						"type": "boolean",
+						"const": true
+					},
+					"deletedIds": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "The comment plus its live replies (top-level comments)."
+					}
+				},
+				"required": ["id", "deleted", "deletedIds"],
+				"additionalProperties": false
+			},
+			"CommunityChannel": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"kind": {
+						"type": "string",
+						"enum": ["ANNOUNCEMENTS", "GENERAL", "CITY", "CUSTOM"]
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string",
+						"description": "Tab URL slug. Does not change on rename."
+					},
+					"description": {
+						"type": ["string", "null"]
+					},
+					"city": {
+						"type": ["string", "null"]
+					},
+					"whoCanPost": {
+						"type": "string",
+						"enum": ["STAFF", "MEMBERS"]
+					},
+					"requiresApproval": {
+						"type": "boolean"
+					},
+					"position": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"id",
+					"kind",
+					"name",
+					"slug",
+					"description",
+					"city",
+					"whoCanPost",
+					"requiresApproval",
+					"position"
+				],
+				"additionalProperties": false
+			},
+			"CommunityChannelCreate": {
+				"type": "object",
+				"properties": {
+					"kind": {
+						"type": "string",
+						"enum": ["CITY", "CUSTOM"]
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 40
+					},
+					"description": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 200
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"city": {
+						"description": "Required when kind=CITY; ignored otherwise.",
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 60
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"whoCanPost": {
+						"default": "STAFF",
+						"type": "string",
+						"enum": ["STAFF", "MEMBERS"]
+					},
+					"requiresApproval": {
+						"default": true,
+						"type": "boolean"
+					}
+				},
+				"required": ["kind", "name", "whoCanPost", "requiresApproval"],
+				"additionalProperties": false
+			},
+			"CommunityChannelUpdate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 40
+					},
+					"description": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 200
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"city": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 60
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"whoCanPost": {
+						"type": "string",
+						"enum": ["STAFF", "MEMBERS"]
+					},
+					"requiresApproval": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": false
+			},
+			"CommunityChannelOrder": {
+				"type": "object",
+				"properties": {
+					"orderedIds": {
+						"minItems": 1,
+						"maxItems": 20,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 64
+						},
+						"description": "EVERY active channel id, in the new order, Announcements first."
+					}
+				},
+				"required": ["orderedIds"],
+				"additionalProperties": false
+			},
+			"ModerationQueueItem": {
+				"type": "object",
+				"properties": {
+					"commentId": {
+						"type": "string"
+					},
+					"body": {
+						"type": "string"
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"isReply": {
+						"type": "boolean"
+					},
+					"hidden": {
+						"type": "boolean"
+					},
+					"deleted": {
+						"type": "boolean",
+						"description": "Deleted (by its author or the team) with reports still open."
+					},
+					"hiddenSource": {
+						"description": "MODERATOR | AUTO_REPORTS",
+						"type": ["string", "null"]
+					},
+					"openReportCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"author": {
+						"type": "object",
+						"properties": {
+							"customerId": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							},
+							"image": {
+								"type": ["string", "null"]
+							},
+							"banned": {
+								"type": "boolean"
+							}
+						},
+						"required": ["customerId", "name", "image", "banned"],
+						"additionalProperties": false
+					},
+					"post": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"label": {
+								"type": "string"
+							}
+						},
+						"required": ["id", "label"],
+						"additionalProperties": false
+					},
+					"reasons": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"reason": {
+									"type": "string"
+								},
+								"count": {
+									"type": "integer",
+									"minimum": -9007199254740991,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": ["reason", "count"],
+							"additionalProperties": false
+						}
+					},
+					"details": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"lastReportAt": {
+						"type": ["string", "null"]
+					}
+				},
+				"required": [
+					"commentId",
+					"body",
+					"createdAt",
+					"isReply",
+					"hidden",
+					"deleted",
+					"hiddenSource",
+					"openReportCount",
+					"author",
+					"post",
+					"reasons",
+					"details",
+					"lastReportAt"
+				],
+				"additionalProperties": false
+			},
+			"CommunityBan": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"customerName": {
+						"type": "string"
+					},
+					"customerImage": {
+						"type": ["string", "null"]
+					},
+					"reason": {
+						"type": ["string", "null"]
+					},
+					"createdAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"customerName",
+					"customerImage",
+					"reason",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"MemberPostQueueItem": {
+				"type": "object",
+				"properties": {
+					"postId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": ["PENDING_REVIEW", "PUBLISHED"]
+					},
+					"content": {
+						"type": ["string", "null"]
+					},
+					"imageUrl": {
+						"description": "PENDING_REVIEW: short-lived signed URL (the image lives in a private bucket until approved).",
+						"type": ["string", "null"]
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"publishedAt": {
+						"type": "string"
+					},
+					"updatedAt": {
+						"type": "string",
+						"description": "Version read by the moderator: pass it as `expectedUpdatedAt` to approve."
+					},
+					"channelName": {
+						"type": ["string", "null"]
+					},
+					"author": {
+						"type": "object",
+						"properties": {
+							"customerId": {
+								"type": "string"
+							},
+							"displayName": {
+								"type": "string"
+							},
+							"handle": {
+								"type": ["string", "null"]
+							},
+							"avatarUrl": {
+								"type": ["string", "null"]
+							},
+							"banned": {
+								"type": "boolean"
+							}
+						},
+						"required": [
+							"customerId",
+							"displayName",
+							"handle",
+							"avatarUrl",
+							"banned"
+						],
+						"additionalProperties": false
+					},
+					"openReportCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"postId",
+					"status",
+					"content",
+					"imageUrl",
+					"createdAt",
+					"publishedAt",
+					"updatedAt",
+					"channelName",
+					"author",
+					"openReportCount"
+				],
+				"additionalProperties": false
+			},
+			"CommentModerated": {
+				"type": "object",
+				"properties": {
+					"commentId": {
+						"type": "string"
+					},
+					"changed": {
+						"type": "boolean",
+						"description": "false = it was already in that state (idempotent)."
+					}
+				},
+				"required": ["commentId", "changed"],
+				"additionalProperties": false
+			},
+			"MemberBanCreate": {
+				"type": "object",
+				"properties": {
+					"commentId": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Comment of this member in the workspace that motivates the ban (required: a ban always comes from a reported comment)."
+					},
+					"reason": {
+						"type": "string",
+						"maxLength": 500
+					},
+					"hideAllComments": {
+						"default": false,
+						"description": "true = hide every comment of the member in this workspace, not only `commentId`.",
+						"type": "boolean"
+					}
+				},
+				"required": ["commentId", "hideAllComments"],
+				"additionalProperties": false
+			},
+			"MemberBanResult": {
+				"type": "object",
+				"properties": {
+					"customerId": {
+						"type": "string"
+					},
+					"banned": {
+						"type": "boolean"
+					}
+				},
+				"required": ["customerId", "banned"],
+				"additionalProperties": false
+			},
+			"MemberPostApprove": {
+				"type": "object",
+				"properties": {
+					"expectedUpdatedAt": {
+						"type": "string",
+						"format": "date-time",
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+						"description": "`updatedAt` of the post as read from `GET /content/moderation/member-posts`."
+					}
+				},
+				"required": ["expectedUpdatedAt"],
+				"additionalProperties": false
+			},
+			"MemberPostDecision": {
+				"type": "object",
+				"properties": {
+					"reason": {
+						"description": "Shown to the author in their inbox.",
+						"type": "string",
+						"maxLength": 1000
+					},
+					"banAuthor": {
+						"default": false,
+						"description": "Also bans the author from the community. Requires ADMIN.",
+						"type": "boolean"
+					}
+				},
+				"required": ["banAuthor"],
+				"additionalProperties": false
+			},
+			"MemberPostReviewed": {
+				"type": "object",
+				"properties": {
+					"postId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": ["PUBLISHED", "REJECTED", "REMOVED"]
+					}
+				},
+				"required": ["postId", "status"],
+				"additionalProperties": false
+			},
+			"CommunityMeetupCreate": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"minLength": 3,
+						"maxLength": 120
+					},
+					"description": {
+						"type": "string",
+						"maxLength": 5000
+					},
+					"format": {
+						"type": "string",
+						"enum": ["IN_PERSON", "ONLINE"]
+					},
+					"startsAt": {
+						"type": "string",
+						"description": "Local wall time in the workspace's timezone, `YYYY-MM-DDTHH:mm` (same as the dashboard form)."
+					},
+					"endsAt": {
+						"description": "Local wall time in the workspace's timezone, `YYYY-MM-DDTHH:mm` (same as the dashboard form). Empty = none.",
+						"type": "string"
+					},
+					"city": {
+						"type": "string",
+						"maxLength": 80
+					},
+					"locationName": {
+						"type": "string",
+						"maxLength": 120
+					},
+					"locationDetail": {
+						"type": "string",
+						"maxLength": 500
+					},
+					"onlineUrl": {
+						"description": "ONLINE only; must start with https://",
+						"type": "string",
+						"maxLength": 500
+					},
+					"capacity": {
+						"description": "null = unlimited.",
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 100000
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"requiresApproval": {
+						"description": "true = the staff approves each RSVP request.",
+						"type": "boolean"
+					}
+				},
+				"required": ["title", "format", "startsAt"],
+				"additionalProperties": false
+			},
+			"CommunityMeetupUpdate": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"minLength": 3,
+						"maxLength": 120
+					},
+					"description": {
+						"type": "string",
+						"maxLength": 5000
+					},
+					"format": {
+						"type": "string",
+						"enum": ["IN_PERSON", "ONLINE"]
+					},
+					"startsAt": {
+						"type": "string",
+						"description": "Local wall time in the workspace's timezone, `YYYY-MM-DDTHH:mm` (same as the dashboard form)."
+					},
+					"endsAt": {
+						"description": "Local wall time in the workspace's timezone, `YYYY-MM-DDTHH:mm` (same as the dashboard form). Empty = none.",
+						"type": "string"
+					},
+					"city": {
+						"type": "string",
+						"maxLength": 80
+					},
+					"locationName": {
+						"type": "string",
+						"maxLength": 120
+					},
+					"locationDetail": {
+						"type": "string",
+						"maxLength": 500
+					},
+					"onlineUrl": {
+						"description": "ONLINE only; must start with https://",
+						"type": "string",
+						"maxLength": 500
+					},
+					"capacity": {
+						"description": "null = unlimited.",
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 100000
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"requiresApproval": {
+						"description": "true = the staff approves each RSVP request.",
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": false
+			},
+			"CommunityMeetup": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"format": {
+						"type": "string",
+						"enum": ["IN_PERSON", "ONLINE"]
+					},
+					"status": {
+						"type": "string",
+						"enum": ["DRAFT", "PUBLISHED", "CANCELLED"]
+					},
+					"startsAt": {
+						"type": "string"
+					},
+					"city": {
+						"type": ["string", "null"]
+					},
+					"capacity": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"goingCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"requiresApproval": {
+						"type": "boolean"
+					},
+					"pendingCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991,
+						"description": "PENDING RSVP requests."
+					}
+				},
+				"required": [
+					"id",
+					"title",
+					"format",
+					"status",
+					"startsAt",
+					"city",
+					"capacity",
+					"goingCount",
+					"requiresApproval",
+					"pendingCount"
+				],
+				"additionalProperties": false
+			},
+			"CommunityMeetupDetail": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"format": {
+						"type": "string",
+						"enum": ["IN_PERSON", "ONLINE"]
+					},
+					"status": {
+						"type": "string",
+						"enum": ["DRAFT", "PUBLISHED", "CANCELLED"]
+					},
+					"startsAt": {
+						"type": "string"
+					},
+					"city": {
+						"type": ["string", "null"]
+					},
+					"capacity": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"goingCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"requiresApproval": {
+						"type": "boolean"
+					},
+					"pendingCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991,
+						"description": "PENDING RSVP requests."
+					},
+					"endsAt": {
+						"type": ["string", "null"]
+					},
+					"publishedAt": {
+						"type": ["string", "null"]
+					},
+					"cancelledAt": {
+						"type": ["string", "null"]
+					},
+					"local": {
+						"type": "object",
+						"properties": {
+							"title": {
+								"type": "string"
+							},
+							"description": {
+								"type": "string"
+							},
+							"format": {
+								"type": "string",
+								"enum": ["IN_PERSON", "ONLINE"]
+							},
+							"startsAt": {
+								"type": "string"
+							},
+							"endsAt": {
+								"type": "string"
+							},
+							"city": {
+								"type": "string"
+							},
+							"locationName": {
+								"type": "string"
+							},
+							"locationDetail": {
+								"type": "string"
+							},
+							"onlineUrl": {
+								"type": "string"
+							},
+							"capacity": {
+								"anyOf": [
+									{
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"requiresApproval": {
+								"type": "boolean"
+							}
+						},
+						"required": [
+							"title",
+							"description",
+							"format",
+							"startsAt",
+							"endsAt",
+							"city",
+							"locationName",
+							"locationDetail",
+							"onlineUrl",
+							"capacity",
+							"requiresApproval"
+						],
+						"additionalProperties": false,
+						"description": "Editable values in the workspace's local wall time (the shape `PATCH /content/meetups/{id}` accepts)."
+					},
+					"attendees": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"rsvpId": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								},
+								"confirmedAt": {
+									"type": "string"
+								},
+								"checkedInAt": {
+									"type": ["string", "null"]
+								}
+							},
+							"required": ["rsvpId", "name", "confirmedAt", "checkedInAt"],
+							"additionalProperties": false
+						}
+					},
+					"requests": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"rsvpId": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								},
+								"email": {
+									"type": "string"
+								},
+								"requestedAt": {
+									"type": "string"
+								},
+								"status": {
+									"type": "string",
+									"enum": ["PENDING", "GOING", "DECLINED"]
+								}
+							},
+							"required": ["rsvpId", "name", "email", "requestedAt", "status"],
+							"additionalProperties": false
+						}
+					}
+				},
+				"required": [
+					"id",
+					"title",
+					"format",
+					"status",
+					"startsAt",
+					"city",
+					"capacity",
+					"goingCount",
+					"requiresApproval",
+					"pendingCount",
+					"endsAt",
+					"publishedAt",
+					"cancelledAt",
+					"local",
+					"attendees",
+					"requests"
+				],
+				"additionalProperties": false
+			},
+			"CommunityMeetupRsvpReview": {
+				"type": "object",
+				"properties": {
+					"decision": {
+						"type": "string",
+						"enum": ["APPROVE", "REJECT"]
+					}
+				},
+				"required": ["decision"],
+				"additionalProperties": false
+			},
+			"CommunityMeetupRsvpReviewed": {
+				"type": "object",
+				"properties": {
+					"rsvpId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": ["GOING", "DECLINED"]
+					}
+				},
+				"required": ["rsvpId", "status"],
+				"additionalProperties": false
+			},
+			"CommunityMeetupAttendance": {
+				"type": "object",
+				"properties": {
+					"rsvpId": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 64
+					},
+					"attended": {
+						"type": "boolean"
+					}
+				},
+				"required": ["rsvpId", "attended"],
+				"additionalProperties": false
+			},
+			"CommunityMeetupAttendanceResult": {
+				"type": "object",
+				"properties": {
+					"rsvpId": {
+						"type": "string"
+					},
+					"attended": {
+						"type": "boolean"
+					},
+					"changed": {
+						"type": "boolean",
+						"description": "false = already in that state, or the RSVP is not GOING / the meetup is cancelled."
+					}
+				},
+				"required": ["rsvpId", "attended", "changed"],
+				"additionalProperties": false
+			},
 			"ContentPost": {
 				"type": "object",
 				"properties": {
@@ -17926,6 +22418,424 @@
 					"customerId",
 					"source",
 					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"LiveAttendance": {
+				"type": "object",
+				"properties": {
+					"eventDateId": {
+						"type": "string"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"eventName": {
+						"type": "string"
+					},
+					"city": {
+						"type": ["string", "null"]
+					},
+					"imageUrl": {
+						"type": ["string", "null"]
+					},
+					"sold": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"validated": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"validatedPct": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"eventDateId",
+					"eventId",
+					"eventName",
+					"city",
+					"imageUrl",
+					"sold",
+					"validated",
+					"validatedPct"
+				],
+				"additionalProperties": false
+			},
+			"AccessCloseStatus": {
+				"type": "object",
+				"properties": {
+					"eventDateId": {
+						"type": "string"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"eventName": {
+						"type": "string"
+					},
+					"venueName": {
+						"type": ["string", "null"]
+					},
+					"label": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": ["pending", "manual", "auto"]
+					},
+					"closed": {
+						"type": "boolean"
+					},
+					"signable": {
+						"type": "boolean"
+					},
+					"signableFromLabel": {
+						"type": "string"
+					},
+					"closedByName": {
+						"type": ["string", "null"]
+					},
+					"closedAtLabel": {
+						"type": ["string", "null"]
+					},
+					"closedCheckins": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"live": {
+						"type": "object",
+						"properties": {
+							"issued": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"checkins": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							}
+						},
+						"required": ["issued", "checkins"],
+						"additionalProperties": false
+					}
+				},
+				"required": [
+					"eventDateId",
+					"eventId",
+					"eventName",
+					"venueName",
+					"label",
+					"status",
+					"closed",
+					"signable",
+					"signableFromLabel",
+					"closedByName",
+					"closedAtLabel",
+					"closedCheckins",
+					"live"
+				],
+				"additionalProperties": false
+			},
+			"AccessCloseSignRequest": {
+				"type": "object",
+				"properties": {
+					"confirm": {
+						"type": "boolean",
+						"const": true
+					}
+				},
+				"required": ["confirm"],
+				"additionalProperties": false
+			},
+			"AccessCloseSigned": {
+				"type": "object",
+				"properties": {
+					"eventDateId": {
+						"type": "string"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"const": "manual"
+					},
+					"closedAt": {
+						"type": "string"
+					},
+					"checkins": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"closedByName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"eventDateId",
+					"eventId",
+					"status",
+					"closedAt",
+					"checkins",
+					"closedByName"
+				],
+				"additionalProperties": false
+			},
+			"PaymentIntentRow": {
+				"type": "object",
+				"properties": {
+					"threadId": {
+						"type": "string"
+					},
+					"deviceTag": {
+						"type": "string"
+					},
+					"hasAccount": {
+						"type": "boolean"
+					},
+					"customerId": {
+						"type": ["string", "null"]
+					},
+					"personName": {
+						"type": ["string", "null"]
+					},
+					"personEmail": {
+						"type": ["string", "null"]
+					},
+					"personSource": {
+						"anyOf": [
+							{
+								"type": "string",
+								"enum": ["account", "checkout"]
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"seats": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"category": {
+						"type": ["string", "null"]
+					},
+					"eventDateId": {
+						"type": ["string", "null"]
+					},
+					"firstAt": {
+						"type": "string"
+					},
+					"lastAt": {
+						"type": "string"
+					},
+					"stage": {
+						"type": "string",
+						"enum": [
+							"seatmap",
+							"seats",
+							"continue",
+							"checkout",
+							"payment",
+							"purchased"
+						]
+					},
+					"outcome": {
+						"type": "string",
+						"enum": [
+							"NO_SALE",
+							"REJECTED",
+							"PENDING",
+							"CONFIRMED",
+							"ABANDONED",
+							"CANCELLED",
+							"REFUNDED"
+						]
+					},
+					"reason": {
+						"type": ["string", "null"]
+					},
+					"paymentStatus": {
+						"type": ["string", "null"]
+					},
+					"mapFailed": {
+						"type": "boolean"
+					},
+					"saleId": {
+						"type": ["string", "null"]
+					},
+					"saleReference": {
+						"type": ["string", "null"]
+					},
+					"saleTotal": {
+						"type": ["number", "null"]
+					}
+				},
+				"required": [
+					"threadId",
+					"deviceTag",
+					"hasAccount",
+					"customerId",
+					"personName",
+					"personEmail",
+					"personSource",
+					"seats",
+					"category",
+					"eventDateId",
+					"firstAt",
+					"lastAt",
+					"stage",
+					"outcome",
+					"reason",
+					"paymentStatus",
+					"mapFailed",
+					"saleId",
+					"saleReference",
+					"saleTotal"
+				],
+				"additionalProperties": false
+			},
+			"PaymentIntentsPage": {
+				"type": "object",
+				"properties": {
+					"event": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							},
+							"city": {
+								"type": ["string", "null"]
+							}
+						},
+						"required": ["id", "name", "city"],
+						"additionalProperties": false
+					},
+					"dates": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"startsAt": {
+									"type": "string"
+								},
+								"timezone": {
+									"type": "string"
+								},
+								"label": {
+									"type": ["string", "null"]
+								}
+							},
+							"required": ["id", "startsAt", "timezone", "label"],
+							"additionalProperties": false
+						}
+					},
+					"selectedDateId": {
+						"type": ["string", "null"]
+					},
+					"funnel": {
+						"type": "object",
+						"properties": {
+							"threads": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"opened": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"selected": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"continued": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"checkout": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"payment": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"purchased": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"abandoned": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"inferred": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							}
+						},
+						"required": [
+							"threads",
+							"opened",
+							"selected",
+							"continued",
+							"checkout",
+							"payment",
+							"purchased",
+							"abandoned",
+							"inferred"
+						],
+						"additionalProperties": false
+					},
+					"rows": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/PaymentIntentRow"
+						}
+					},
+					"nextCursor": {
+						"type": ["string", "null"]
+					}
+				},
+				"required": [
+					"event",
+					"dates",
+					"selectedDateId",
+					"funnel",
+					"rows",
+					"nextCursor"
 				],
 				"additionalProperties": false
 			}

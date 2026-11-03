@@ -12,7 +12,7 @@ MCP is already authenticated with nothing to configure (it reads
 
 The repo is a Claude Code plugin **and** its own marketplace. The plugin wires
 the remote server (`https://mcp.appfreeticket.com/mcp`, declared in
-[`.mcp.json`](.mcp.json)) and ships two skills.
+[`.mcp.json`](.mcp.json)) and ships three skills.
 
 ```text
 /plugin marketplace add AppFreeticket/freeticket-mcp
@@ -31,7 +31,8 @@ API key or header goes in the plugin.
 | Skill | What it does |
 |---|---|
 | `/freeticket:publish-event` | Venue → event → dates → ticket types → optional member presale and lineup → publish now or schedule. |
-| `/freeticket:show-day-close` | Capacity vs. sold, revenue, stuck payments, attendee export and settlement status for one date. |
+| `/freeticket:show-day-close` | Live attendance, access-close record, capacity vs. sold, revenue, stuck payments, attendee export and settlement status for one date. |
+| `/freeticket:community-moderation` | Reported comments, member posts awaiting review, bans and meetup RSVP requests, one approved action at a time. |
 
 Files: [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) (version kept
 equal to `package.json` by `src/plugin.test.ts`),
@@ -165,8 +166,10 @@ nothing.
 ## Tools
 
 **B2B `/api/v1`** (one tool = one contract operation). Destructive writes
-(`*_delete`, `*_refund`, `*_cancel`) carry `destructiveHint` and ask for
-confirmation.
+(`*_delete`, `*_refund`, `*_cancel`, and every operation the contract flags
+`x-ft-destructive`, such as `sales_abandon`, `event_dates_access_close_sign`,
+`content_channels_archive` or `content_members_ban`) carry `destructiveHint`
+and ask for confirmation.
 
 | Domain | Reads | Writes |
 |---|---|---|
@@ -175,7 +178,8 @@ confirmation.
 | Lineup | `artists_search` · `event_artist_invitations_list` | `events_artists_set` · `events_artists_delete` · `event_artist_invitations_resend` · `event_artist_invitations_cancel` |
 | Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_reassign` · `tickets_resend` |
 | Presales | `presale_windows_list` | `presale_windows_create` · `presale_windows_update` · `presale_windows_delete` |
-| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` | `sales_create` · `sales_cancel` · `sales_refund` |
+| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` · `sales_payment_intents` | `sales_create` · `sales_abandon` · `sales_cancel` · `sales_refund` |
+| Door | `reports_live_attendance` · `event_dates_access_close_status` | `event_dates_access_close_sign` |
 | Memberships | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
 | Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` · `staff_get` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_update` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` · `staff_delete` |
 | Reports | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reports_financials` · `reconciliation` | — |
@@ -184,7 +188,10 @@ confirmation.
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
 | Landing waitlist | `waitlist_list` | `waitlist_join` |
 | Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` |
-| Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` |
+| Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` · `content_posts_update` · `content_posts_pin` · `content_posts_delete` · `content_comments_delete` |
+| Community channels | `content_channels_list` | `content_channels_create` · `content_channels_update` · `content_channels_reorder` · `content_channels_archive` |
+| Community moderation | `content_moderation_queue` · `content_moderation_bans` · `content_member_posts_list` | `content_comments_hide` · `content_comments_unhide` · `content_comments_ignore_reports` · `content_member_posts_approve` · `content_member_posts_reject` · `content_member_posts_remove` · `content_members_ban` · `content_members_unban` |
+| Community meetups | `content_meetups_list` · `content_meetups_get` | `content_meetups_create` · `content_meetups_update` · `content_meetups_publish` · `content_meetups_cancel` · `content_meetups_rsvp_review` · `content_meetups_attendance` |
 
 Minting and revoking credentials (`ft api-keys`, `ft admin tokens`) is left out
 of the MCP on purpose: an agent lists credentials to audit them, it does not
@@ -257,7 +264,7 @@ draws them.
 - Hosts without the extension (or terminal clients) ignore `_meta` and see the
   same text as always: nothing breaks.
 
-**37 tools with a view** (v0.16.0) — every list and every report. Details
+**44 tools with a view** (v0.17.0) — every list and every report. Details
 (`*_get`) and writes deliberately have none: a lone object or a `delete`
 acknowledgement gains nothing from a table, and drawing one suggests there is
 data where there is not. `src/ui.test.ts` mounts the real view in jsdom and
@@ -273,7 +280,7 @@ pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contracts this build targets: B2B **1.27.0**, superadmin **1.8.0**, public
+Contracts this build targets: B2B **1.29.0**, superadmin **1.8.0**, public
 **0.10.1**. All three are served by `free-admin` and are the only source of
 truth, on separate semver lineages. To propagate a backend change, use the
 `contract-sync` agent from the

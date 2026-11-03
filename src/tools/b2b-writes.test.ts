@@ -39,6 +39,16 @@ const DESTRUCTIVE = [
 	"events_cancel",
 	"staff_delete",
 	"customer_order_release",
+	"presale_windows_delete",
+	"event_dates_access_close_sign",
+	"sales_abandon",
+	"content_posts_delete",
+	"content_comments_delete",
+	"content_channels_archive",
+	"content_member_posts_reject",
+	"content_member_posts_remove",
+	"content_members_ban",
+	"content_meetups_cancel",
 ];
 
 describe("writes destructivos", () => {

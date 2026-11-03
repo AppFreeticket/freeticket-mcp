@@ -151,8 +151,9 @@ describe("tool registration", () => {
 		// tickets_reassign, staff_delete, webhooks_update, customer_order_release,
 		// content_posts_create, workspaces_create) + the 10 from 1.21–1.27
 		// (events_schedule/unschedule, the lineup and its invitations, presale
-		// windows, waitlist_join).
-		expect(t.length).toBe(52);
+		// windows, waitlist_join) + the 24 from 1.28/1.29 (access-close sign,
+		// sales_abandon and the community: posts, channels, moderation, meetups).
+		expect(t.length).toBe(76);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -167,6 +168,8 @@ describe("tool registration", () => {
 			"venues_update",
 			"events_schedule",
 			"presale_windows_create",
+			"event_dates_access_close_sign",
+			"content_meetups_create",
 		]) {
 			expect(t).toContain(n);
 		}

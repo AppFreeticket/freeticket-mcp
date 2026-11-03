@@ -10,6 +10,15 @@ import type {
 	DeleteApiKeysIdData,
 	DeleteApiKeysIdError,
 	DeleteApiKeysIdResponse,
+	DeleteContentCommentsIdData,
+	DeleteContentCommentsIdError,
+	DeleteContentCommentsIdResponse,
+	DeleteContentMembersIdBanData,
+	DeleteContentMembersIdBanError,
+	DeleteContentMembersIdBanResponse,
+	DeleteContentPostsIdData,
+	DeleteContentPostsIdError,
+	DeleteContentPostsIdResponse,
 	DeleteDiscountsIdData,
 	DeleteDiscountsIdError,
 	DeleteDiscountsIdResponse,
@@ -52,12 +61,30 @@ import type {
 	GetArtistsData,
 	GetArtistsError,
 	GetArtistsResponse,
+	GetContentChannelsData,
+	GetContentChannelsError,
+	GetContentChannelsResponse,
 	GetContentLivesData,
 	GetContentLivesError,
 	GetContentLivesIdData,
 	GetContentLivesIdError,
 	GetContentLivesIdResponse,
 	GetContentLivesResponse,
+	GetContentMeetupsData,
+	GetContentMeetupsError,
+	GetContentMeetupsIdData,
+	GetContentMeetupsIdError,
+	GetContentMeetupsIdResponse,
+	GetContentMeetupsResponse,
+	GetContentModerationBansData,
+	GetContentModerationBansError,
+	GetContentModerationBansResponse,
+	GetContentModerationMemberPostsData,
+	GetContentModerationMemberPostsError,
+	GetContentModerationMemberPostsResponse,
+	GetContentModerationQueueData,
+	GetContentModerationQueueError,
+	GetContentModerationQueueResponse,
 	GetContentPostsData,
 	GetContentPostsError,
 	GetContentPostsResponse,
@@ -91,6 +118,9 @@ import type {
 	GetDiscountsData,
 	GetDiscountsError,
 	GetDiscountsResponse,
+	GetEventDatesIdAccessCloseData,
+	GetEventDatesIdAccessCloseError,
+	GetEventDatesIdAccessCloseResponse,
 	GetEventsData,
 	GetEventsError,
 	GetEventsIdArtistInvitationsData,
@@ -115,6 +145,9 @@ import type {
 	GetMembershipPlansIdSubscribersResponse,
 	GetMembershipPlansResponse,
 	GetMeResponse,
+	GetPaymentIntentsData,
+	GetPaymentIntentsError,
+	GetPaymentIntentsResponse,
 	GetReportsByEventData,
 	GetReportsByEventError,
 	GetReportsByEventResponse,
@@ -136,6 +169,9 @@ import type {
 	GetReportsInventoryData,
 	GetReportsInventoryError,
 	GetReportsInventoryResponse,
+	GetReportsLiveAttendanceData,
+	GetReportsLiveAttendanceError,
+	GetReportsLiveAttendanceResponse,
 	GetReportsReconciliationData,
 	GetReportsReconciliationError,
 	GetReportsReconciliationResponse,
@@ -197,6 +233,18 @@ import type {
 	GetWebhooksData,
 	GetWebhooksError,
 	GetWebhooksResponse,
+	PatchContentChannelsIdData,
+	PatchContentChannelsIdError,
+	PatchContentChannelsIdResponse,
+	PatchContentMeetupsIdData,
+	PatchContentMeetupsIdError,
+	PatchContentMeetupsIdResponse,
+	PatchContentMeetupsIdRsvpsRsvpIdData,
+	PatchContentMeetupsIdRsvpsRsvpIdError,
+	PatchContentMeetupsIdRsvpsRsvpIdResponse,
+	PatchContentPostsIdData,
+	PatchContentPostsIdError,
+	PatchContentPostsIdResponse,
 	PatchCustomerProfileData,
 	PatchCustomerProfileError,
 	PatchCustomerProfileResponse,
@@ -244,6 +292,42 @@ import type {
 	PostAuthSignupData,
 	PostAuthSignupError,
 	PostAuthSignupResponse,
+	PostContentChannelsData,
+	PostContentChannelsError,
+	PostContentChannelsIdArchiveData,
+	PostContentChannelsIdArchiveError,
+	PostContentChannelsIdArchiveResponse,
+	PostContentChannelsResponse,
+	PostContentMeetupsData,
+	PostContentMeetupsError,
+	PostContentMeetupsIdCancelData,
+	PostContentMeetupsIdCancelError,
+	PostContentMeetupsIdCancelResponse,
+	PostContentMeetupsIdPublishData,
+	PostContentMeetupsIdPublishError,
+	PostContentMeetupsIdPublishResponse,
+	PostContentMeetupsResponse,
+	PostContentMembersIdBanData,
+	PostContentMembersIdBanError,
+	PostContentMembersIdBanResponse,
+	PostContentModerationCommentsIdHideData,
+	PostContentModerationCommentsIdHideError,
+	PostContentModerationCommentsIdHideResponse,
+	PostContentModerationCommentsIdIgnoreReportsData,
+	PostContentModerationCommentsIdIgnoreReportsError,
+	PostContentModerationCommentsIdIgnoreReportsResponse,
+	PostContentModerationCommentsIdUnhideData,
+	PostContentModerationCommentsIdUnhideError,
+	PostContentModerationCommentsIdUnhideResponse,
+	PostContentModerationMemberPostsIdApproveData,
+	PostContentModerationMemberPostsIdApproveError,
+	PostContentModerationMemberPostsIdApproveResponse,
+	PostContentModerationMemberPostsIdRejectData,
+	PostContentModerationMemberPostsIdRejectError,
+	PostContentModerationMemberPostsIdRejectResponse,
+	PostContentModerationMemberPostsIdRemoveData,
+	PostContentModerationMemberPostsIdRemoveError,
+	PostContentModerationMemberPostsIdRemoveResponse,
 	PostContentPlaybackTokenData,
 	PostContentPlaybackTokenError,
 	PostContentPlaybackTokenResponse,
@@ -292,6 +376,9 @@ import type {
 	PostDiscountsData,
 	PostDiscountsError,
 	PostDiscountsResponse,
+	PostEventDatesIdAccessCloseData,
+	PostEventDatesIdAccessCloseError,
+	PostEventDatesIdAccessCloseResponse,
 	PostEventsData,
 	PostEventsError,
 	PostEventsIdArtistInvitationsInvitationIdResendData,
@@ -315,6 +402,9 @@ import type {
 	PostMembershipPlansResponse,
 	PostSalesData,
 	PostSalesError,
+	PostSalesIdAbandonData,
+	PostSalesIdAbandonError,
+	PostSalesIdAbandonResponse,
 	PostSalesIdCancelData,
 	PostSalesIdCancelError,
 	PostSalesIdCancelResponse,
@@ -352,6 +442,15 @@ import type {
 	PostWorkspacesData,
 	PostWorkspacesError,
 	PostWorkspacesResponse,
+	PutContentChannelsOrderData,
+	PutContentChannelsOrderError,
+	PutContentChannelsOrderResponse,
+	PutContentMeetupsIdAttendanceData,
+	PutContentMeetupsIdAttendanceError,
+	PutContentMeetupsIdAttendanceResponse,
+	PutContentPostsIdPinData,
+	PutContentPostsIdPinError,
+	PutContentPostsIdPinResponse,
 	PutEventsIdArtistsData,
 	PutEventsIdArtistsError,
 	PutEventsIdArtistsResponse,
@@ -3772,6 +3871,1229 @@ export const patchPresaleWindowsId = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/presale-windows/{id}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Events happening right now, with check-in progress
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same data as the "Live" cards of the dashboard summary (section `inicio`).
+ *
+ * Returns the event dates whose live window contains the current instant (doors open, or start, until `ends_at`; 6 hours after the start when there is no end), for PUBLISHED/SOLD_OUT events visible to the workspace (own and collaborative) plus shows of other organizers hosted in one of the workspace's venues (occupancy only). Sorted by `sold` descending. `sold`/`validated` count tickets (QR) of CONFIRMED sales; `validatedPct` is 0-100. Meant for polling (the dashboard polls every 20 s).
+ *
+ * `scope` narrows like the dashboard selector: `all` (default), `own` (only the workspace's own shows; hosted shows are excluded), `partner:<orgId>` (shows shared with that partner). An event-scoped API key only sees its events.
+ *
+ * Errors (`error.code`): 400 `BAD_REQUEST` (invalid `scope`).
+ */
+export const getReportsLiveAttendance = <ThrowOnError extends boolean = false>(
+	options?: Options<GetReportsLiveAttendanceData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetReportsLiveAttendanceResponse,
+		GetReportsLiveAttendanceError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/reports/live-attendance",
+		...options,
+	});
+};
+
+/**
+ * Live entry count and access-close status of an event date
+ * Minimum role: `STAFF` (any role that validates tickets), with the `validar` section when the access is scoped. Active workspace via the `X-Workspace-Id` header. Same gate and same count as the access-close screen of the dashboard: a door validator limited to some events only sees those.
+ *
+ * Only event dates of the workspace's OWN events that admit an access-close record (not cancelled, PUBLISHED/SOLD_OUT/COMPLETED event, no external ticketing). `live.issued` counts tickets of CONFIRMED sales (courtesies included); `live.checkins` is what a signature would freeze right now. Once closed, `closedCheckins` is the frozen number. Date fields are labels already formatted in the event date's time zone.
+ *
+ * Errors (`error.code`): 403 `ACCESS_CLOSE_FORBIDDEN` (role/section/validator scope), 404 (not found, another workspace, collaborative/hosted event or outside the key's `event_scope`).
+ */
+export const getEventDatesIdAccessClose = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetEventDatesIdAccessCloseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventDatesIdAccessCloseResponse,
+		GetEventDatesIdAccessCloseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/event-dates/{id}/access-close",
+		...options,
+	});
+};
+
+/**
+ * Sign the access-close record of an event date (irreversible)
+ * Minimum role: `ADMIN` (stricter than the dashboard, where door staff can also sign). Active workspace via the `X-Workspace-Id` header.
+ *
+ * DESTRUCTIVE and IRREVERSIBLE: freezes the number of check-ins of the event date as its access-close record, signed by the API key owner, and emails the record to the workspace. It does not stop the scanner. There is no endpoint to undo it. Requires the body `{"confirm": true}` (422 without it). Only one signature per date: concurrent calls are resolved atomically and the loser gets 409.
+ *
+ * Signing opens 2 hours after the date starts.
+ *
+ * Errors (`error.code`):
+ * - 403 `ACCESS_CLOSE_FORBIDDEN` (section/validator scope), 403 `EVENT_SCOPE_FORBIDDEN` (outside the key's `event_scope`).
+ * - 404: not found, another workspace, or a date that does not admit a record (cancelled, draft event, external ticketing, collaborative/hosted event).
+ * - 409 `ACCESS_CLOSE_NOT_SIGNABLE_YET`: `error.details.signableFrom` (ISO 8601).
+ * - 409 `ACCESS_ALREADY_CLOSED`: someone signed first or the automatic close ran; `error.details` has `closedAt`, `closedByName` (null if automatic) and `automatic`. Not retryable.
+ */
+export const postEventDatesIdAccessClose = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostEventDatesIdAccessCloseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventDatesIdAccessCloseResponse,
+		PostEventDatesIdAccessCloseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/event-dates/{id}/access-close",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Purchase intents of an event (checkout funnel and abandoned journeys)
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same data as the dashboard's Sales → Intents screen.
+ *
+ * Folds the checkout funnel log of ONE event (own or collaborative) into one journey per visitor (the buyer account when known, otherwise the device), with how far it got (`stage`) and how it ended (`outcome`: `NO_SALE`, `REJECTED` with `reason`, or the sale status). `funnel` counts ALL journeys of the filter, not only the page. Journeys are sorted by last activity, newest first.
+ *
+ * Pagination: pass `nextCursor` back as `cursor` (opaque); `null` means no more pages. `eventDate` must belong to the event, otherwise all dates are used (`selectedDateId` echoes the one applied). `onlyAbandoned=true` keeps journeys that picked seats and did not pay (excludes sales still PENDING).
+ *
+ * Personal data: `personName`/`personEmail` come from the buyer account or what was typed at checkout — the same data `GET /sales` returns. Device identifiers never leave the server (`threadId` is a hash).
+ *
+ * Errors (`error.code`): 400 `BAD_REQUEST` (missing `event`, invalid `limit`/`onlyAbandoned`), 404 (event not found, not visible, or outside the key's `event_scope`).
+ */
+export const getPaymentIntents = <ThrowOnError extends boolean = false>(
+	options: Options<GetPaymentIntentsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetPaymentIntentsResponse,
+		GetPaymentIntentsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/payment-intents",
+		...options,
+	});
+};
+
+/**
+ * Mark a pending sale as abandoned (releases its stock)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as "Mark as abandoned" in the dashboard.
+ *
+ * DESTRUCTIVE: a PENDING sale whose payment never started moves to ABANDONED (terminal) and its stock reservations are deleted, so the inventory goes back on sale immediately. It does not touch seats.io holds (same as the dashboard). Use `POST /sales/{id}/cancel` for confirmed sales.
+ *
+ * Errors (`error.code`):
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: an item of the sale is outside the key's `event_scope`.
+ * - 409 `SALE_NOT_PENDING`: only PENDING sales (also when it is already ABANDONED).
+ * - 409 `PAYMENT_IN_PROGRESS`: a payment was started (`payment_ref` set) and may still be confirmed by the gateway; wait for reconciliation.
+ * - 409 `SALE_STATE_CHANGED`: the sale changed between the read and the write (e.g. a payment started); re-read it.
+ */
+export const postSalesIdAbandon = <ThrowOnError extends boolean = false>(
+	options: Options<PostSalesIdAbandonData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSalesIdAbandonResponse,
+		PostSalesIdAbandonError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/abandon",
+		...options,
+	});
+};
+
+/**
+ * Delete a community post
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as deleting a post in the dashboard.
+ *
+ * DESTRUCTIVE: soft-deletes the post (organization post, article or member post), unpins it and redacts the member notifications that pointed to it. It disappears from the feed immediately and cannot be restored through the API. To take down a member post with a notice to its author, prefer `POST /content/moderation/member-posts/{id}/remove`.
+ *
+ * Errors: 404 `NOT_FOUND` (does not exist, already deleted or belongs to another workspace); 403 `EVENT_SCOPE_FORBIDDEN`.
+ */
+export const deleteContentPostsId = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteContentPostsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteContentPostsIdResponse,
+		DeleteContentPostsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/posts/{id}",
+		...options,
+	});
+};
+
+/**
+ * Update a community post or article
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as editing a post or an article in the dashboard.
+ *
+ * Partial update: absent fields keep their stored value; `null` clears a nullable field. The stored post decides the shape: an ARTICLE accepts `title`, `subtitle`, `body`, `slug`, `imageUrl` (cover), `locked`, `eventId` and `publishedAt`; a TEXT/IMAGE/VIDEO post accepts `type` (TEXT/IMAGE), `content`, `imageUrl`, `locked`, `eventId`, `channelId` and `publishedAt`. Unlike `POST /content/posts`, changing the text of a short post re-resolves its link preview, like the dashboard. Member posts cannot be edited (404); moderate them under `/content/moderation/member-posts`. The response is redacted like `GET /content/posts` when the post is `locked`.
+ *
+ * Errors (`error.code`):
+ * - 400 `BAD_REQUEST`: a field that does not apply to the post's type, or the result would be empty (a short post needs `content` or `imageUrl`).
+ * - 404 `NOT_FOUND`: the post, the linked `eventId` or the `channelId` does not exist in this workspace.
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: `channelId` was sent but channels are not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 409 `SLUG_CONFLICT`: another article of the organization already uses that slug.
+ */
+export const patchContentPostsId = <ThrowOnError extends boolean = false>(
+	options: Options<PatchContentPostsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchContentPostsIdResponse,
+		PatchContentPostsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/posts/{id}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Pin or unpin a community post
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as "Pin" in the dashboard.
+ *
+ * At most one pinned post per workspace: `pinned: true` unpins the previous one in the same transaction. Only a published post can be pinned; unpinning works on any post. Idempotent.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 404 `NOT_FOUND`: the post does not exist, is deleted, is not published (when pinning) or belongs to another workspace.
+ */
+export const putContentPostsIdPin = <ThrowOnError extends boolean = false>(
+	options: Options<PutContentPostsIdPinData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).put<
+		PutContentPostsIdPinResponse,
+		PutContentPostsIdPinError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/posts/{id}/pin",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Delete a community comment (moderation)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as deleting a comment from the dashboard.
+ *
+ * DESTRUCTIVE: soft-deletes the comment and, if it is a top-level comment, all its live replies; the post's comment count is recomputed. Cannot be undone through the API. To hide it reversibly use `POST /content/moderation/comments/{id}/hide`.
+ *
+ * Errors: 404 `NOT_FOUND` (does not exist, already deleted or belongs to another workspace); 403 `EVENT_SCOPE_FORBIDDEN`.
+ */
+export const deleteContentCommentsId = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteContentCommentsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteContentCommentsIdResponse,
+		DeleteContentCommentsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/comments/{id}",
+		...options,
+	});
+};
+
+/**
+ * List the community channels
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same list as the dashboard's Channels screen: active channels in display order (archived ones are omitted). Like the dashboard, the default Announcements and General channels are created on first read if the workspace has none.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ */
+export const getContentChannels = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentChannelsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentChannelsResponse,
+		GetContentChannelsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/channels",
+		...options,
+	});
+};
+
+/**
+ * Create a community channel
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as "New channel" in the dashboard: a CITY or CUSTOM channel, appended at the end. The slug is derived from the name, unique in the workspace, and never changes afterwards.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 400 `BAD_REQUEST`: `city` missing on a CITY channel.
+ * - 409 `CHANNEL_LIMIT_REACHED`: the workspace already has the maximum of active channels; archive one first.
+ */
+export const postContentChannels = <ThrowOnError extends boolean = false>(
+	options: Options<PostContentChannelsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentChannelsResponse,
+		PostContentChannelsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/channels",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Update a community channel
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as editing a channel in the dashboard. Partial: absent fields keep their value; `null` clears `description`/`city`. The slug does not change on rename. Archived channels cannot be edited.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 400 `ANNOUNCEMENTS_STAFF_ONLY`: Announcements cannot be opened to members (`whoCanPost` must stay STAFF).
+ * - 400 `CITY_REQUIRED`: a CITY channel needs a city.
+ * - 404 `NOT_FOUND`: the channel does not exist, is archived or belongs to another workspace.
+ */
+export const patchContentChannelsId = <ThrowOnError extends boolean = false>(
+	options: Options<PatchContentChannelsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchContentChannelsIdResponse,
+		PatchContentChannelsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/channels/{id}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Reorder the community channels
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as dragging channels in the dashboard. Send EVERY active channel id (from `GET /content/channels`) in the new order, Announcements first; a partial list is rejected, not applied halfway.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 400 `BAD_REQUEST`: repeated ids.
+ * - 400 `ANNOUNCEMENTS_FIRST`: Announcements must stay first.
+ * - 409 `CHANNEL_LIST_CHANGED`: the ids are not exactly the active channels (one was created/archived, or an id from another workspace); re-read and retry.
+ */
+export const putContentChannelsOrder = <ThrowOnError extends boolean = false>(
+	options: Options<PutContentChannelsOrderData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).put<
+		PutContentChannelsOrderResponse,
+		PutContentChannelsOrderError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/channels/order",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Archive a community channel
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as "Archive" in the dashboard.
+ *
+ * DESTRUCTIVE: the channel tab disappears for members and staff can no longer post to it; its posts remain visible under "All". There is no unarchive endpoint, and its slug stays taken.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 404 `NOT_FOUND`: the channel does not exist, is already archived or belongs to another workspace.
+ * - 409 `ANNOUNCEMENTS_NOT_ARCHIVABLE`: Announcements cannot be archived.
+ */
+export const postContentChannelsIdArchive = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostContentChannelsIdArchiveData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentChannelsIdArchiveResponse,
+		PostContentChannelsIdArchiveError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/channels/{id}/archive",
+		...options,
+	});
+};
+
+/**
+ * List reported community comments (moderation queue)
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same queue as the dashboard's Moderation screen: comments with open reports, most reported first, including auto-hidden ones and comments deleted with reports still open (deleting does not dodge a ban). 50 per page; `page` is 0-based (an empty array means no more pages).
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ */
+export const getContentModerationQueue = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentModerationQueueData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentModerationQueueResponse,
+		GetContentModerationQueueError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/moderation/queue",
+		...options,
+	});
+};
+
+/**
+ * List members banned from the community
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same list as the dashboard's Moderation screen: the latest 200 bans, newest first. Lift one with `DELETE /content/members/{customerId}/ban`.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ */
+export const getContentModerationBans = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentModerationBansData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentModerationBansResponse,
+		GetContentModerationBansError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/moderation/bans",
+		...options,
+	});
+};
+
+/**
+ * List member posts awaiting review (or recently published)
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same lists as the dashboard's Moderation → Posts view. `status=PENDING_REVIEW` (default): posts waiting for approval, oldest first, 30 per 0-based `page`; their `imageUrl` is a short-lived signed URL. `status=PUBLISHED`: the latest 30 published member posts (no paging), to remove one. Approving needs the `updatedAt` read here.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 403 `MEMBER_POSTS_UNAVAILABLE`: member posts are not enabled for this workspace.
+ */
+export const getContentModerationMemberPosts = <
+	ThrowOnError extends boolean = false,
+>(
+	options?: Options<GetContentModerationMemberPostsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentModerationMemberPostsResponse,
+		GetContentModerationMemberPostsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/moderation/member-posts",
+		...options,
+	});
+};
+
+/**
+ * Hide a community comment
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same action as "Hide" in the dashboard's moderation queue.
+ *
+ * Hides the comment (and its replies from the count) and resolves its open reports as HIDDEN. Reversible with `/unhide`. Idempotent: hiding a hidden comment returns `changed: false`.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `NOT_FOUND`: the comment does not exist, is deleted or belongs to another workspace.
+ */
+export const postContentModerationCommentsIdHide = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostContentModerationCommentsIdHideData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentModerationCommentsIdHideResponse,
+		PostContentModerationCommentsIdHideError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/moderation/comments/{id}/hide",
+		...options,
+	});
+};
+
+/**
+ * Show a hidden community comment again
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same action as "Show" in the dashboard's moderation queue.
+ *
+ * Shows the comment again, marks it as cleared (it will not be auto-hidden again) and resolves its open reports as IGNORED. Idempotent.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `NOT_FOUND`: the comment does not exist, is deleted or belongs to another workspace.
+ */
+export const postContentModerationCommentsIdUnhide = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostContentModerationCommentsIdUnhideData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentModerationCommentsIdUnhideResponse,
+		PostContentModerationCommentsIdUnhideError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/moderation/comments/{id}/unhide",
+		...options,
+	});
+};
+
+/**
+ * Dismiss the open reports of a community comment
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same action as "Ignore" in the dashboard's moderation queue.
+ *
+ * Leaves the comment as it is, resolves its open reports as IGNORED and takes it out of the queue; it will no longer be auto-hidden. New reports put it back in the queue. Works on deleted comments too.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `NOT_FOUND`: the comment does not exist or belongs to another workspace.
+ */
+export const postContentModerationCommentsIdIgnoreReports = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<
+		PostContentModerationCommentsIdIgnoreReportsData,
+		ThrowOnError
+	>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentModerationCommentsIdIgnoreReportsResponse,
+		PostContentModerationCommentsIdIgnoreReportsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/moderation/comments/{id}/ignore-reports",
+		...options,
+	});
+};
+
+/**
+ * Approve a pending member post
+ * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same action as "Approve" in the dashboard's Moderation → Posts view: the post is published at the top of the feed, its author is notified and mentioned members are notified.
+ *
+ * Only the version you read is approved: send the post's `updatedAt` from `GET /content/moderation/member-posts` as `expectedUpdatedAt`. If the author edited it since, nothing is published (409 `EDITED_SINCE_READ`): re-read and review again.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 403 `MEMBER_POSTS_UNAVAILABLE`: member posts are not enabled for this workspace.
+ * - 404 `NOT_FOUND`: not a member post of this workspace, or deleted.
+ * - 409 `ALREADY_REVIEWED`: it is no longer pending.
+ * - 409 `EDITED_SINCE_READ`: the author edited it after `expectedUpdatedAt`.
+ * - 502 `IMAGE_PROMOTION_FAILED`: the image could not be published; retry.
+ */
+export const postContentModerationMemberPostsIdApprove = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostContentModerationMemberPostsIdApproveData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentModerationMemberPostsIdApproveResponse,
+		PostContentModerationMemberPostsIdApproveError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/moderation/member-posts/{id}/approve",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Reject a pending member post
+ * Minimum role: `STAFF` (`ADMIN` with `banAuthor: true`). Active workspace via the `X-Workspace-Id` header. Same action as "Reject" in the dashboard's Moderation → Posts view.
+ *
+ * DESTRUCTIVE: the pending post is rejected (it never gets published), the author is notified in their inbox and the image is purged from storage. The optional `reason` is shown to the author. With `banAuthor` the author is also banned from the community in the same transaction.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 403 `BAN_REQUIRES_ADMIN`: `banAuthor` with a role below ADMIN.
+ * - 400 `BAD_REQUEST`: invalid `reason`.
+ * - 404 `NOT_FOUND`: not a member post of this workspace, or deleted.
+ * - 409 `ALREADY_REVIEWED`: another moderator already reviewed it.
+ */
+export const postContentModerationMemberPostsIdReject = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostContentModerationMemberPostsIdRejectData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentModerationMemberPostsIdRejectResponse,
+		PostContentModerationMemberPostsIdRejectError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/moderation/member-posts/{id}/reject",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Remove a published member post
+ * Minimum role: `STAFF` (`ADMIN` with `banAuthor: true`). Active workspace via the `X-Workspace-Id` header. Same action as "Remove" in the dashboard's Moderation → Posts view.
+ *
+ * DESTRUCTIVE: the published post is soft-deleted, the author is notified in their inbox and the image is purged from storage. The optional `reason` is shown to the author. With `banAuthor` the author is also banned from the community in the same transaction.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 403 `BAN_REQUIRES_ADMIN`: `banAuthor` with a role below ADMIN.
+ * - 400 `BAD_REQUEST`: invalid `reason`.
+ * - 404 `NOT_FOUND`: not a published member post of this workspace.
+ */
+export const postContentModerationMemberPostsIdRemove = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostContentModerationMemberPostsIdRemoveData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentModerationMemberPostsIdRemoveResponse,
+		PostContentModerationMemberPostsIdRemoveError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/moderation/member-posts/{id}/remove",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Lift a member's community ban
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as "Lift ban" in the dashboard. Deletes the ban (leaving an audit log entry); hidden comments stay hidden and cancelled RSVPs stay cancelled.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `NOT_FOUND`: the member is not banned in this workspace.
+ */
+export const deleteContentMembersIdBan = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteContentMembersIdBanData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteContentMembersIdBanResponse,
+		DeleteContentMembersIdBanError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/members/{id}/ban",
+		...options,
+	});
+};
+
+/**
+ * Ban a member from the community
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. `{id}` is the member's customer id (`author.customerId` in the moderation queue). Same action as "Ban" in the dashboard's moderation queue.
+ *
+ * DESTRUCTIVE: the member can no longer post, comment or RSVP in this workspace's community; their RSVPs to upcoming meetups are cancelled (the seat is released); `commentId` (or, with `hideAllComments`, all their comments in this workspace) is hidden and the open reports are resolved as BANNED. Idempotent on the ban itself. Lift it with `DELETE`.
+ *
+ * The ban always comes from a comment of this workspace: the banned member is that comment's author, and `{id}` must match it.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `NOT_FOUND`: the comment does not exist in this workspace or was not written by `{id}`.
+ */
+export const postContentMembersIdBan = <ThrowOnError extends boolean = false>(
+	options: Options<PostContentMembersIdBanData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentMembersIdBanResponse,
+		PostContentMembersIdBanError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/members/{id}/ban",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List community meetups
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same list as the dashboard's Meetups screen: the latest 100 meetups by start date (newest first), in any status, with confirmed and pending-request counts.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).
+ */
+export const getContentMeetups = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentMeetupsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentMeetupsResponse,
+		GetContentMeetupsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/meetups",
+		...options,
+	});
+};
+
+/**
+ * Create a community meetup (draft)
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same form as "New meetup" in the dashboard; it is created as DRAFT (publish it with `POST /content/meetups/{id}/publish`). `startsAt`/`endsAt` are local wall times in the workspace's timezone (`YYYY-MM-DDTHH:mm`). An ONLINE meetup keeps `onlineUrl` and drops the address; IN_PERSON the opposite.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).
+ * - 400 `BAD_REQUEST`: malformed wall time, `endsAt` not after `startsAt`, or `onlineUrl` not https.
+ * - 400 `STARTS_IN_PAST`: the start must be in the future.
+ */
+export const postContentMeetups = <ThrowOnError extends boolean = false>(
+	options: Options<PostContentMeetupsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentMeetupsResponse,
+		PostContentMeetupsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/meetups",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Get a community meetup with its attendees and requests
+ * Minimum role: `STAFF` (includes the name and email of members who requested a seat). Active workspace via the `X-Workspace-Id` header. Same detail as the dashboard: confirmed attendees (with check-in) and RSVP requests (pending first). `local` carries the editable values in the workspace's wall time.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).
+ * - 404 `NOT_FOUND`: the meetup does not exist in this workspace.
+ */
+export const getContentMeetupsId = <ThrowOnError extends boolean = false>(
+	options: Options<GetContentMeetupsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetContentMeetupsIdResponse,
+		GetContentMeetupsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/meetups/{id}",
+		...options,
+	});
+};
+
+/**
+ * Update a community meetup
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same form as editing a meetup in the dashboard. Partial: absent fields keep the stored value (see `local` in the detail); an empty string clears an optional text field. Times are local wall times in the workspace's timezone.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).
+ * - 400 `BAD_REQUEST`: malformed values (see `POST /content/meetups`).
+ * - 400 `STARTS_IN_PAST`: a past start is only accepted if it is the one already stored.
+ * - 404 `NOT_FOUND`: the meetup does not exist in this workspace.
+ * - 409 `EVENT_CANCELLED`: a cancelled meetup cannot be edited.
+ * - 409 `CAPACITY_BELOW_GOING`: `capacity` lower than the members already confirmed.
+ */
+export const patchContentMeetupsId = <ThrowOnError extends boolean = false>(
+	options: Options<PatchContentMeetupsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchContentMeetupsIdResponse,
+		PatchContentMeetupsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/meetups/{id}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Publish a draft community meetup
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as "Publish" in the dashboard: the draft becomes visible to members and a notification to the whole community is queued in the same transaction (sent by the background job, not by this request).
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).
+ * - 404 `NOT_FOUND`: the meetup does not exist in this workspace.
+ * - 409 `NOT_DRAFT`: only a draft can be published.
+ * - 409 `STARTS_IN_PAST`: its start already passed; update it first.
+ */
+export const postContentMeetupsIdPublish = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostContentMeetupsIdPublishData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentMeetupsIdPublishResponse,
+		PostContentMeetupsIdPublishError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/meetups/{id}/publish",
+		...options,
+	});
+};
+
+/**
+ * Cancel a community meetup
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as "Cancel meetup" in the dashboard.
+ *
+ * DESTRUCTIVE: the meetup (draft or published) moves to CANCELLED, which is terminal: it cannot be edited or published again. Members who confirmed are notified by email/inbox (queued in the same transaction, sent by the background job). RSVPs are kept as they are.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).
+ * - 404 `NOT_FOUND`: the meetup does not exist in this workspace.
+ * - 409 `ALREADY_CANCELLED`: it was already cancelled.
+ */
+export const postContentMeetupsIdCancel = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostContentMeetupsIdCancelData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentMeetupsIdCancelResponse,
+		PostContentMeetupsIdCancelError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/meetups/{id}/cancel",
+		...options,
+	});
+};
+
+/**
+ * Approve or reject a meetup RSVP request
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as approving/rejecting a request in the dashboard (meetups with `requiresApproval`). The member gets an email with the decision after the change is committed. APPROVE also works on a previously rejected request (the staff can change its mind); REJECT only on a pending one.
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).
+ * - 404 `NOT_FOUND`: the meetup or the request does not exist in this workspace.
+ * - 409 `NOT_PENDING`: already reviewed.
+ * - 409 `EVENT_FULL`: no seats left; raise the capacity first.
+ * - 409 `EVENT_CLOSED`: the meetup is not published or already started.
+ * - 409 `MEMBER_BANNED`: the member is banned from the community.
+ * - 409 `NO_MEMBERSHIP`: the member no longer has an active membership.
+ */
+export const patchContentMeetupsIdRsvpsRsvpId = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PatchContentMeetupsIdRsvpsRsvpIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchContentMeetupsIdRsvpsRsvpIdResponse,
+		PatchContentMeetupsIdRsvpsRsvpIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/meetups/{id}/rsvps/{rsvpId}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Mark or unmark a meetup attendee as checked in
+ * Minimum role: `STAFF` (door work, like `POST /tickets/{ticketCode}/checkin`). Active workspace via the `X-Workspace-Id` header. Same action as the "Attended" checkbox in the dashboard. Only on a confirmed (GOING) RSVP of a meetup that is not cancelled; repeating the same mark changes nothing (`changed: false`, also when the RSVP is not GOING or does not belong to the meetup).
+ *
+ * Errors (`error.code`):
+ * - 403 `FEATURE_LOCKED`: the workspace plan does not include Content.
+ * - 403 `COMMUNITY_UNAVAILABLE`: the community (`community_v2`) is not enabled for this workspace.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (meetups are community content, not ticketed events).
+ * - 404 `NOT_FOUND`: the meetup does not exist in this workspace.
+ */
+export const putContentMeetupsIdAttendance = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PutContentMeetupsIdAttendanceData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).put<
+		PutContentMeetupsIdAttendanceResponse,
+		PutContentMeetupsIdAttendanceError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/meetups/{id}/attendance",
 		...options,
 		headers: {
 			"Content-Type": "application/json",
