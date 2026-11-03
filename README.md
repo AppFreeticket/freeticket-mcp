@@ -175,19 +175,21 @@ and ask for confirmation.
 | Domain | Reads | Writes |
 |---|---|---|
 | Session | `whoami` | `workspaces_create` |
-| Events | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_schedule` · `events_unschedule` · `events_cancel` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
+| Events | `events_list` · `events_get` · `event_dates_list` · `event_dates_courtesy_seats` | `events_create` · `events_update` · `events_publish` · `events_schedule` · `events_unschedule` · `events_cancel` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
 | Lineup | `artists_search` · `event_artist_invitations_list` | `events_artists_set` · `events_artists_delete` · `event_artist_invitations_resend` · `event_artist_invitations_cancel` |
-| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_reassign` · `tickets_resend` |
+| Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_checkin_undo` · `tickets_reassign` · `tickets_resend` |
 | Presales | `presale_windows_list` | `presale_windows_create` · `presale_windows_update` · `presale_windows_delete` |
-| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` · `sales_payment_intents` | `sales_create` · `sales_abandon` · `sales_cancel` · `sales_refund` |
-| Door | `reports_live_attendance` · `event_dates_access_close_status` | `event_dates_access_close_sign` |
+| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` · `sales_payment_intents` | `sales_create` · `sales_abandon` · `sales_cancel` · `sales_refund` · `sales_transfer` · `sales_recipient_update` |
+| Door | `reports_live_attendance` · `event_dates_access_close_status` · `events_validators_list` | `event_dates_access_close_sign` · `events_validators_add` |
+| Event viewers (read-only stats) | `events_viewers_list` | `events_viewers_add` · `events_viewers_delete` |
 | Memberships | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
-| Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` · `staff_get` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_update` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` · `staff_delete` |
+| Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` · `staff_get` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_update` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` · `staff_access_set` · `staff_resend_invite` · `staff_delete` |
 | Reports | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reports_financials` · `reconciliation` | — |
 | Settlements | `settlements_list` · `settlements_get` · `settlements_document` · `settlements_proof` | — |
 | Credentials | `api_keys_list` | — |
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
 | Landing waitlist | `waitlist_list` | `waitlist_join` |
+| Landing merch store | `merch_catalog` · `merch_orders_lookup` | — (placing and paying an order needs the buyer's ID document and the card widget) |
 | Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` |
 | Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` · `content_posts_update` · `content_posts_pin` · `content_posts_delete` · `content_comments_delete` |
 | Community channels | `content_channels_list` | `content_channels_create` · `content_channels_update` · `content_channels_reorder` · `content_channels_archive` |
@@ -244,12 +246,12 @@ members-only).
 | Users | `admin_users` · `admin_users_get` · `admin_users_update` · `admin_impersonate` · `admin_impersonate_stop` |
 | Platform plans | `admin_platform_plans_list` · `admin_platform_plans_get` · `admin_platform_plans_create` · `admin_platform_plans_update` |
 | Feature flags | `admin_feature_flags_list` · `admin_feature_flags_set` |
-| Master CRM (reads) | `admin_crm_campaigns_list` · `admin_crm_campaigns_get` · `admin_crm_audience_preview` · `admin_crm_quota` · `admin_crm_options` · `admin_crm_events` · `admin_crm_event_dates` |
+| CRM master (reads only) | `admin_crm_campaigns` · `admin_crm_campaigns_get` · `admin_crm_audience_preview` (counts, sends nothing) · `admin_crm_quota` · `admin_crm_options` · `admin_crm_events` · `admin_crm_event_dates` |
 
-Launching, batching, stopping or cancelling a CRM campaign sends (or stops)
-real messages to customers. The contract marks those four operations
-`x-ft-mcp: { expose: false }`; they stay in the CLI (`ft admin crm`), and
-`src/coverage.test.ts` fails if a tool ever calls one.
+Launching, advancing or stopping batches and cancelling CRM campaigns is not
+exposed: those operations send real email and WhatsApp to buyers. The contract
+marks them `x-ft-mcp: { expose: false }` and `src/coverage.test.ts` fails if a
+tool calls them. Use the CLI (`ft admin crm`) or the panel.
 
 ## UI in the host (MCP Apps)
 
@@ -278,12 +280,21 @@ draws them.
 - Hosts without the extension (or terminal clients) ignore `_meta` and see the
   same text as always: nothing breaks.
 
-**48 tools with a view** (v0.19.0) — every list and every report. Details
+**49 tools with a view** (v0.20.0) — every list and every report. Details
 (`*_get`) and writes deliberately have none: a lone object or a `delete`
 acknowledgement gains nothing from a table, and drawing one suggests there is
 data where there is not. `src/ui.test.ts` mounts the real view in jsdom and
 fails if a new list registers without `_meta.ui`, if the host manages to
 override the branding, or if an API payload renders unescaped.
+
+## Support and privacy
+
+- Support: [soporte@freeticket.us](mailto:soporte@freeticket.us), or open an
+  issue at
+  [AppFreeticket/freeticket-mcp](https://github.com/AppFreeticket/freeticket-mcp/issues).
+- Privacy policy:
+  [appfreeticket.com/legal/privacidad](https://appfreeticket.com/legal/privacidad).
+  The server is stateless: it keeps no log or store of tool results.
 
 ## Development
 
@@ -294,7 +305,7 @@ pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contracts this build targets: B2B **1.30.0**, superadmin **1.8.0**, public
+Contracts this build targets: B2B **1.36.0**, superadmin **1.8.0**, public
 **0.10.1**. All three are served by `free-admin` and are the only source of
 truth, on separate semver lineages. To propagate a backend change, use the
 `contract-sync` agent from the

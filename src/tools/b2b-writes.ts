@@ -15,11 +15,13 @@ import {
 	deleteEventsIdArtistsOrganizationId,
 	deleteEventsIdDatesDateId,
 	deleteEventsIdSchedule,
+	deleteEventsIdViewersViewerId,
 	deleteMasterQrsId,
 	deleteMembershipPlansId,
 	deletePresaleWindowsId,
 	deleteProductsId,
 	deleteStaffId,
+	deleteTicketsTicketCodeCheckin,
 	deleteTicketTemplatesId,
 	deleteTicketTypesId,
 	deleteVenuesId,
@@ -42,6 +44,7 @@ import {
 	patchOrganizationProfile,
 	patchPresaleWindowsId,
 	patchProductsId,
+	patchSalesIdRecipient,
 	patchStaffIdRole,
 	patchTicketsTicketCode,
 	patchTicketTemplatesId,
@@ -78,6 +81,8 @@ import {
 	postEventsIdDates,
 	postEventsIdPublish,
 	postEventsIdSchedule,
+	postEventsIdValidators,
+	postEventsIdViewers,
 	postMasterQrs,
 	postMembershipPlans,
 	postProducts,
@@ -85,8 +90,10 @@ import {
 	postSales,
 	postSalesIdAbandon,
 	postSalesIdCancel,
+	postSalesIdItemsItemIdTransfer,
 	postSalesIdRefund,
 	postStaff,
+	postStaffIdResendInvite,
 	postSubscriptionsIdCancel,
 	postTicketsTicketCodeCheckin,
 	postTicketsTicketCodeResend,
@@ -106,6 +113,7 @@ import {
 	putContentVideosIdSeries,
 	putEventsIdArtists,
 	putMasterQrsIdActive,
+	putStaffIdAccess,
 	putWebsite,
 	putWebsitePublished,
 } from "../client/sdk.gen";
@@ -2421,5 +2429,202 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		{ id: z.string().describe("QR id") },
 		write("master_qrs_delete", { destructive: true }),
 		async ({ id }) => run(deleteMasterQrsId({ path: { id }, client })),
+	);
+
+	// ── Contract 1.33–1.36: transfers, courtesies, check-in undo, access ─────
+	server.tool(
+		"sales_transfer",
+		"Transfers ONE ticket of a sale to another person " +
+			"(POST /sales/{id}/items/{itemId}/transfer). Voids the previous QR " +
+			"(the ticket code rotates and Apple Wallet passes stop working) and " +
+			"emails the new holder and the buyer. The recipient must already have " +
+			"a verified FreeTicket buyer account; each ticket transfers only once, " +
+			"until the show starts. 422 RECIPIENT_NOT_REGISTERED / SELF_TRANSFER: " +
+			"ask the human for a different email. 409 CONFLICT: re-read the sale " +
+			`and retry. Not idempotent: do not retry after success.${CONFIRM}`,
+		{
+			saleId: z.string().describe("Sale id"),
+			itemId: z.string().describe("Sale item (ticket) id, from sales_tickets"),
+			email: z
+				.string()
+				.email()
+				.max(254)
+				.describe("Recipient's FreeTicket email"),
+		},
+		write("sales_transfer", {
+			destructive: true,
+			idempotent: false,
+			openWorld: true,
+		}),
+		async ({ saleId, itemId, email }) =>
+			run(
+				postSalesIdItemsItemIdTransfer({
+					path: { id: saleId, itemId },
+					body: { email },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"sales_recipient_update",
+		"Corrects the recipient of a dashboard-issued courtesy sale and resends " +
+			"its tickets by email (PATCH /sales/{id}/recipient). If the email " +
+			"changes, the QRs already sent are voided (`ticketCodesRotated: true`). " +
+			`Any non-courtesy sale answers 404.${CONFIRM}`,
+		{
+			saleId: z.string().describe("Courtesy sale id"),
+			name: z.string().min(2).max(120).describe("Recipient name"),
+			email: z.string().email().max(254).describe("Recipient email"),
+		},
+		write("sales_recipient_update", {
+			destructive: true,
+			idempotent: false,
+			openWorld: true,
+		}),
+		async ({ saleId, name, email }) =>
+			run(
+				patchSalesIdRecipient({
+					path: { id: saleId },
+					body: { name, email },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"tickets_checkin_undo",
+		"Undoes a door check-in so the ticket is valid again " +
+			"(DELETE /tickets/{code}/checkin), to fix a wrong scan; it is recorded " +
+			"in the audit log. Requires ADMIN. Idempotent: a ticket that is not " +
+			"checked in answers `undone: false`. 409 CHECKIN_CHANGED: re-read the " +
+			`ticket (tickets_access) and retry.${CONFIRM}`,
+		{ code: z.string().describe("Ticket QR code") },
+		write("tickets_checkin_undo", { destructive: true, idempotent: true }),
+		async ({ code }) =>
+			run(
+				deleteTicketsTicketCodeCheckin({ path: { ticketCode: code }, client }),
+			),
+	);
+	server.tool(
+		"events_viewers_add",
+		"Grants a person read-only access to one event's statistics and emails " +
+			"them the link (POST /events/{id}/viewers). Without an account for that " +
+			"email, a read-only account is created and a second email lets them set " +
+			"a password. 201 new access, 200 already existed (the email is sent " +
+			"again). 502 EMAIL_NOT_SENT: the access WAS granted, retry only to " +
+			"resend. 10 per 10 minutes per key (429).",
+		{
+			eventId: z.string().describe("Event id"),
+			email: z.string().email().max(255).describe("Viewer's email"),
+		},
+		write("events_viewers_add", { destructive: false, openWorld: true }),
+		async ({ eventId, email }) =>
+			run(
+				postEventsIdViewers({
+					path: { id: eventId },
+					body: { email },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"events_viewers_delete",
+		"Revokes one person's read-only access to an event's statistics " +
+			"(DELETE /events/{id}/viewers/{viewerId}); their account is kept. " +
+			"`viewerId` is the access id from `events_viewers_list`, not the user " +
+			`id.${CONFIRM}`,
+		{
+			eventId: z.string().describe("Event id"),
+			viewerId: z.string().describe("Access id from events_viewers_list"),
+		},
+		write("events_viewers_delete", { destructive: true }),
+		async ({ eventId, viewerId }) =>
+			run(
+				deleteEventsIdViewersViewerId({
+					path: { id: eventId, viewerId },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"events_validators_add",
+		"Assigns door staff to validate tickets for one event " +
+			"(POST /events/{id}/validators). Without an account for that email, a " +
+			"STAFF account is created and an invitation email is sent " +
+			"(`invited: true`). Assignments are additive. To remove a validator, " +
+			"use `staff_access_set` or `staff_delete`. 409 " +
+			"VALIDATOR_OTHER_WORKSPACE when that person cannot be a validator here. " +
+			"10 per 10 minutes per key (429).",
+		{
+			eventId: z.string().describe("Event id"),
+			name: z.string().min(2).max(100).describe("Validator's name"),
+			email: z.string().email().max(255).describe("Validator's email"),
+		},
+		write("events_validators_add", { destructive: false, openWorld: true }),
+		async ({ eventId, ...body }) =>
+			run(postEventsIdValidators({ path: { id: eventId }, body, client })),
+	);
+	server.tool(
+		"staff_resend_invite",
+		"Emails a staff member their invitation link again, the same persistent " +
+			"link (POST /staff/{id}/resend-invite); the link itself is never " +
+			"returned. 409 NO_EMAIL for quick-access accounts without email. 502 " +
+			"EMAIL_NOT_SENT: retry. 3 per hour per key and user (429).",
+		{ id: z.string().describe("Staff member (user) id") },
+		write("staff_resend_invite", { destructive: false, openWorld: true }),
+		async ({ id }) => run(postStaffIdResendInvite({ path: { id }, client })),
+	);
+	server.tool(
+		"staff_access_set",
+		"REPLACES what a staff member can do in the active workspace " +
+			"(PUT /staff/{id}/access): whatever the body leaves out is removed. " +
+			"`accessType`: `admin` (everything; only a SUPER_ADMIN grants it), " +
+			"`validador` (ticket validation only, limited to `validatorEventIds`, " +
+			"empty = every event), `personalizado` (only the listed `sections`; " +
+			"`validar` also enables validation) or `lectura` (read-only stats of " +
+			"`viewerEventIds`). `expiresAt` `YYYY-MM-DD` or null = permanent. " +
+			`Nobody can change their own access (409 SELF_ACCESS).${CONFIRM}`,
+		{
+			id: z.string().describe("Staff member (user) id"),
+			accessType: z.enum(["admin", "validador", "personalizado", "lectura"]),
+			sections: z
+				.array(
+					z.enum([
+						"inicio",
+						"eventos",
+						"validar",
+						"membresias",
+						"contenido",
+						"productos",
+						"pagina_web",
+						"comunicacion",
+						"informes",
+						"liquidaciones",
+						"tienda",
+						"perfil",
+					]),
+				)
+				.max(50)
+				.optional()
+				.describe("Dashboard sections, for `personalizado`"),
+			validatorEventIds: z
+				.array(z.string().min(1).max(64))
+				.max(200)
+				.optional()
+				.describe("Events it can validate (empty = all)"),
+			viewerEventIds: z
+				.array(z.string().min(1).max(64))
+				.max(200)
+				.optional()
+				.describe("Events whose stats it can read, for `lectura`"),
+			expiresAt: z
+				.string()
+				.regex(/^\d{4}-\d{2}-\d{2}$/)
+				.nullable()
+				.optional()
+				.describe("Last day of access (YYYY-MM-DD), null = permanent"),
+		},
+		write("staff_access_set", { destructive: true, idempotent: true }),
+		async ({ id, ...body }) =>
+			run(putStaffIdAccess({ path: { id }, body, client })),
 	);
 }

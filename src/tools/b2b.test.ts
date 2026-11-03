@@ -155,8 +155,11 @@ describe("tool registration", () => {
 		// sales_abandon and the community: posts, channels, moderation, meetups)
 		// + the 4 from 1.30 (products create/update/set_status/delete) + the 12
 		// from 1.31 (videos, series, lives) + the 13 from 1.32 (website,
-		// profile, organization, ticket templates, master QRs).
-		expect(t.length).toBe(105);
+		// profile, organization, ticket templates, master QRs) + the 8 from
+		// 1.33–1.36 (sales_transfer, sales_recipient_update, tickets_checkin_undo,
+		// events_viewers_add/delete, events_validators_add, staff_resend_invite,
+		// staff_access_set).
+		expect(t.length).toBe(113);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -177,6 +180,9 @@ describe("tool registration", () => {
 			"content_lives_reset_key",
 			"ticket_templates_instantiate",
 			"master_qrs_create",
+			"sales_transfer",
+			"tickets_checkin_undo",
+			"staff_access_set",
 		]) {
 			expect(t).toContain(n);
 		}
@@ -197,7 +203,7 @@ describe("tool registration", () => {
 		// 4 original reads + 15 from Wave C + admin_tokens (admin 1.1.0)
 		// + admin_workspaces_assign_plan (admin 1.3.0)
 		// + admin_workspaces_plan_get and admin_workspaces_delete (admin 1.5)
-		// + the 7 master CRM reads (admin 1.6–1.8).
+		// + 7 CRM master reads (admin 1.7.0; its writes stay out).
 		expect(t.length).toBe(30);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of t) expect(n).toMatch(/^admin_/);
@@ -206,6 +212,7 @@ describe("tool registration", () => {
 			"admin_impersonate",
 			"admin_platform_plans_create",
 			"admin_feature_flags_set",
+			"admin_crm_campaigns",
 			"admin_crm_audience_preview",
 		]) {
 			expect(t).toContain(n);

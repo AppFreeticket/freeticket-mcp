@@ -5,6 +5,46 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-03
+
+Brings the B2B contract to **1.36.0** (superadmin 1.8.0 and public 0.10.1
+unchanged in shape), emitted from free-admin `main` (80e6ce9) with
+`pnpm openapi:emit*` (production was not reachable to compare). Every
+operation the 0.17–0.19 tools call is in that `main` spec, so they no longer
+depend on an unmerged free-admin branch. Merges `main` (0.15.3, #28): the seven
+superadmin CRM reads keep #28's implementation (`admin_crm_campaigns`,
+`eventIds` as an array) and the coverage sweep keeps #28's rule — operations
+the contract marks `x-ft-mcp: { expose: false }` are excluded by the spec's own
+reason, not duplicated in `EXCLUDED`. Replaces the open PRs #34 and #35.
+Additions only. **221 tools** (B2B 185 · superadmin 30 · public 6), 49 with a
+view.
+
+### Added
+- Transfers and courtesies (from #35): `sales_transfer` (destructive, not
+  idempotent, open-world: voids the QR and emails the new holder),
+  `sales_recipient_update` (destructive, open-world: corrects a courtesy's
+  recipient, voids the QRs if the email changes and resends) and
+  `event_dates_courtesy_seats` (read: blocked seats that can be issued as
+  courtesies).
+- Door: `tickets_checkin_undo` (destructive, idempotent, ADMIN only),
+  `events_validators_list` (view) and `events_validators_add` (open-world: may
+  create a STAFF account and email the invitation).
+- Event viewers, read-only stats access: `events_viewers_list` (view),
+  `events_viewers_add` (open-world: emails the link) and
+  `events_viewers_delete` (destructive).
+- Staff: `staff_access_set` (PUT, full replace of the access: destructive,
+  idempotent) and `staff_resend_invite` (open-world).
+- Enterprise landing merch store: `merch_catalog` and `merch_orders_lookup`
+  (a POST that only reads, needs the buyer session).
+- Claude plugin directory metadata: `icon` (`assets/icon.png`, 512×512 PNG)
+  and `privacyPolicyUrl` (`https://appfreeticket.com/legal/privacidad`) in
+  `.claude-plugin/plugin.json`; a Support and privacy section in the README.
+
+### Not exposed (excluded with a reason in `src/coverage.test.ts`)
+- `POST /merch/orders` (landing checkout with the buyer's ID document and a
+  stock hold) and `POST /merch/orders/{code}/payment/card` (charges a Brick
+  card token), on the same grounds as the ticket landing checkout.
+
 ## [0.19.0] - 2026-11-03
 
 Brings the B2B contract to **1.32.0** (superadmin 1.8.0 and public 0.10.1
@@ -138,10 +178,6 @@ with a view.
   contract's `x-ft-destructive` says).
 - Landing waitlist: `waitlist_join` (enterprise key, optional buyer session)
   and `waitlist_list`.
-- Superadmin master CRM, reads only: `admin_crm_campaigns_list`,
-  `admin_crm_campaigns_get`, `admin_crm_audience_preview` (POST, but creates
-  nothing; the sample comes masked by the server), `admin_crm_quota`,
-  `admin_crm_options`, `admin_crm_events`, `admin_crm_event_dates`.
 - **Claude plugin and marketplace.** `.claude-plugin/plugin.json`,
   `.claude-plugin/marketplace.json` (plugin at the repo root) and `.mcp.json`
   pointing at the remote server over OAuth. Install with
@@ -159,14 +195,29 @@ with a view.
 - `ticket_types_create` / `ticket_types_update` take `saleStartsAt`,
   `saleEndsAt` and `seatsioCategoryKey`.
 - `staff_update_role` accepts the new `MERCH_MANAGER` role.
-- The coverage sweep honours the contract's `x-ft-mcp: { expose: false }`:
-  every flagged operation must be excluded and no tool may call it.
+- The seven superadmin CRM master reads came with 0.15.3 (#28); this
+  release keeps that implementation and does not add a second one.
 
-### Not exposed (excluded with a reason in `src/coverage.test.ts`)
-- CRM writes `POST /crm/campaigns`, `/crm/campaigns/{id}/batches/next`,
-  `/crm/campaigns/{id}/batches/stop` and `/crm/campaigns/{id}/cancel`: they
-  send or stop real messages to customers, and the contract itself marks them
-  `x-ft-mcp: { expose: false }`. CLI only (`ft admin crm`).
+## [0.15.3] - 2026-11-01
+
+Superadmin contract 1.5.1 → **1.7.0** (CRM master). Additions only.
+**124 tools** (B2B 88 · superadmin 30 · public 6).
+
+### Added
+- Superadmin, CRM master reads: `admin_crm_campaigns`,
+  `admin_crm_campaigns_get`, `admin_crm_audience_preview` (counts the audience
+  of a filter and returns a server-masked sample; creates and sends nothing),
+  `admin_crm_quota`, `admin_crm_options`, `admin_crm_events` and
+  `admin_crm_event_dates`. Each one is registered with `read()`.
+- The coverage sweep reads `x-ft-mcp: { expose: false, reason }` from the
+  spec: those operations count as excluded with the contract's own reason,
+  and the test fails if any tool calls them.
+
+### Not exposed
+- CRM master writes: `POST /crm/campaigns`,
+  `/crm/campaigns/{id}/batches/next`, `/crm/campaigns/{id}/batches/stop` and
+  `/crm/campaigns/{id}/cancel`. They send real messages to buyers; they stay
+  in the CLI (`ft admin crm`) and the panel.
 
 ## [0.15.2] - 2026-11-01
 

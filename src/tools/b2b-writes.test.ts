@@ -56,6 +56,12 @@ const DESTRUCTIVE = [
 	"content_lives_reset_key",
 	"ticket_templates_delete",
 	"master_qrs_delete",
+	// Contract 1.33–1.36: voids QRs, reopens a used ticket, revokes access.
+	"sales_transfer",
+	"sales_recipient_update",
+	"tickets_checkin_undo",
+	"events_viewers_delete",
+	"staff_access_set",
 	// Full replace: every null wipes a field, here and on the profile.
 	"website_put",
 ];

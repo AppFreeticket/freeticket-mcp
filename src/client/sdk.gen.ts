@@ -46,6 +46,9 @@ import type {
 	DeleteEventsIdScheduleData,
 	DeleteEventsIdScheduleError,
 	DeleteEventsIdScheduleResponse,
+	DeleteEventsIdViewersViewerIdData,
+	DeleteEventsIdViewersViewerIdError,
+	DeleteEventsIdViewersViewerIdResponse,
 	DeleteMasterQrsIdData,
 	DeleteMasterQrsIdError,
 	DeleteMasterQrsIdResponse,
@@ -61,6 +64,9 @@ import type {
 	DeleteStaffIdData,
 	DeleteStaffIdError,
 	DeleteStaffIdResponse,
+	DeleteTicketsTicketCodeCheckinData,
+	DeleteTicketsTicketCodeCheckinError,
+	DeleteTicketsTicketCodeCheckinResponse,
 	DeleteTicketTemplatesIdData,
 	DeleteTicketTemplatesIdError,
 	DeleteTicketTemplatesIdResponse,
@@ -145,6 +151,9 @@ import type {
 	GetEventDatesIdAccessCloseData,
 	GetEventDatesIdAccessCloseError,
 	GetEventDatesIdAccessCloseResponse,
+	GetEventDatesIdCourtesySeatsData,
+	GetEventDatesIdCourtesySeatsError,
+	GetEventDatesIdCourtesySeatsResponse,
 	GetEventsData,
 	GetEventsError,
 	GetEventsIdArtistInvitationsData,
@@ -156,6 +165,12 @@ import type {
 	GetEventsIdDatesResponse,
 	GetEventsIdError,
 	GetEventsIdResponse,
+	GetEventsIdValidatorsData,
+	GetEventsIdValidatorsError,
+	GetEventsIdValidatorsResponse,
+	GetEventsIdViewersData,
+	GetEventsIdViewersError,
+	GetEventsIdViewersResponse,
 	GetEventsResponse,
 	GetMasterQrsData,
 	GetMasterQrsError,
@@ -172,6 +187,9 @@ import type {
 	GetMembershipPlansIdSubscribersResponse,
 	GetMembershipPlansResponse,
 	GetMeResponse,
+	GetMerchCatalogData,
+	GetMerchCatalogError,
+	GetMerchCatalogResponse,
 	GetOrganizationProfileData,
 	GetOrganizationProfileError,
 	GetOrganizationProfileResponse,
@@ -329,6 +347,9 @@ import type {
 	PatchProductsIdData,
 	PatchProductsIdError,
 	PatchProductsIdResponse,
+	PatchSalesIdRecipientData,
+	PatchSalesIdRecipientError,
+	PatchSalesIdRecipientResponse,
 	PatchStaffIdRoleData,
 	PatchStaffIdRoleError,
 	PatchStaffIdRoleResponse,
@@ -474,6 +495,12 @@ import type {
 	PostEventsIdScheduleData,
 	PostEventsIdScheduleError,
 	PostEventsIdScheduleResponse,
+	PostEventsIdValidatorsData,
+	PostEventsIdValidatorsError,
+	PostEventsIdValidatorsResponse,
+	PostEventsIdViewersData,
+	PostEventsIdViewersError,
+	PostEventsIdViewersResponse,
 	PostEventsResponse,
 	PostMasterQrsData,
 	PostMasterQrsError,
@@ -481,6 +508,15 @@ import type {
 	PostMembershipPlansData,
 	PostMembershipPlansError,
 	PostMembershipPlansResponse,
+	PostMerchOrdersCodePaymentCardData,
+	PostMerchOrdersCodePaymentCardError,
+	PostMerchOrdersCodePaymentCardResponse,
+	PostMerchOrdersData,
+	PostMerchOrdersError,
+	PostMerchOrdersLookupData,
+	PostMerchOrdersLookupError,
+	PostMerchOrdersLookupResponse,
+	PostMerchOrdersResponse,
 	PostProductsData,
 	PostProductsError,
 	PostProductsIdStatusData,
@@ -495,12 +531,18 @@ import type {
 	PostSalesIdCancelData,
 	PostSalesIdCancelError,
 	PostSalesIdCancelResponse,
+	PostSalesIdItemsItemIdTransferData,
+	PostSalesIdItemsItemIdTransferError,
+	PostSalesIdItemsItemIdTransferResponse,
 	PostSalesIdRefundData,
 	PostSalesIdRefundError,
 	PostSalesIdRefundResponse,
 	PostSalesResponse,
 	PostStaffData,
 	PostStaffError,
+	PostStaffIdResendInviteData,
+	PostStaffIdResendInviteError,
+	PostStaffIdResendInviteResponse,
 	PostStaffResponse,
 	PostSubscriptionsIdCancelData,
 	PostSubscriptionsIdCancelError,
@@ -559,6 +601,9 @@ import type {
 	PutMasterQrsIdActiveData,
 	PutMasterQrsIdActiveError,
 	PutMasterQrsIdActiveResponse,
+	PutStaffIdAccessData,
+	PutStaffIdAccessError,
+	PutStaffIdAccessResponse,
 	PutWebsiteData,
 	PutWebsiteError,
 	PutWebsitePublishedData,
@@ -1229,6 +1274,161 @@ export const getArtists = <ThrowOnError extends boolean = false>(
 };
 
 /**
+ * List read-only viewers of an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * People with read-only access to this event's statistics (they see only `/stats`, nothing else of the workspace), newest first. Only events owned by the active workspace (an event where the workspace is just a linked artist is 404). A key restricted by `event_scope` gets 403 `EVENT_SCOPE_FORBIDDEN` for events outside its scope.
+ */
+export const getEventsIdViewers = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsIdViewersData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsIdViewersResponse,
+		GetEventsIdViewersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/viewers",
+		...options,
+	});
+};
+
+/**
+ * Grant read-only access to an event's statistics
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Gives the owner of `email` read-only access to this event's statistics and emails them the link. If no account exists for that email, a read-only (`VIEWER`) account is created with no access to the rest of the workspace, and a second email lets them set a password. The response does not say whether an account already existed (`newAccount` is deprecated and never sent). Idempotent per event and person: 201 when the access is new, 200 when it already existed (the notice email is sent again). 502 `EMAIL_NOT_SENT` when the email provider failed (the access WAS granted; retry to resend). Rate limited: 10 invitations per 10 minutes per API key (429 `RATE_LIMITED` with `Retry-After`).
+ */
+export const postEventsIdViewers = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdViewersData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdViewersResponse,
+		PostEventsIdViewersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/viewers",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Revoke a read-only viewer of an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * DESTRUCTIVE: removes this person's read-only access to the event's statistics. Their account is kept (it may have access to other events). `viewerId` is the access id returned by `GET /events/{id}/viewers`, not the user id. An access of another event or workspace is 404.
+ */
+export const deleteEventsIdViewersViewerId = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<DeleteEventsIdViewersViewerIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteEventsIdViewersViewerIdResponse,
+		DeleteEventsIdViewersViewerIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/viewers/{viewerId}",
+		...options,
+	});
+};
+
+/**
+ * List the ticket validators of an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Door staff who can validate tickets for this event: those assigned to it plus those with no events assigned (`allEvents: true`, they validate every event of the workspace). Includes inactive validators (`isActive: false`). `userId` and `name` are only returned for members of the active workspace. Only events owned by the active workspace. A key restricted by `event_scope` gets 403 `EVENT_SCOPE_FORBIDDEN` for events outside its scope.
+ */
+export const getEventsIdValidators = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsIdValidatorsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsIdValidatorsResponse,
+		GetEventsIdValidatorsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/validators",
+		...options,
+	});
+};
+
+/**
+ * Add a ticket validator to an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Assigns door staff to this event. If no account exists for `email`, a `STAFF` account is created in the workspace and an invitation email is sent so they can set a password (`invited: true`). If the person is already a validator of this workspace, they are reactivated and this event is added to their list (assignments are additive: existing events are never removed; a validator with no events assigned already validates every event of the workspace, so nothing is added and they keep `allEvents: true`). `userId` and `name` are only returned when the person is a member of the active workspace (otherwise only the `email` sent is echoed). 409 `VALIDATOR_OTHER_WORKSPACE` when that person cannot be assigned as a validator of this workspace (the message is intentionally generic). To remove a validator, change their access with `PUT /staff/{id}/access` or revoke it with `DELETE /staff/{id}`. Rate limited: 10 per 10 minutes per API key (429 `RATE_LIMITED` with `Retry-After`).
+ */
+export const postEventsIdValidators = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdValidatorsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdValidatorsResponse,
+		PostEventsIdValidatorsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/validators",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
  * List workspace ticket types
  * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
  */
@@ -1403,6 +1603,8 @@ export const getSales = <ThrowOnError extends boolean = false>(
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  *
  * Accepts `Idempotency-Key`: retrying with the same key returns the sale created on the first attempt (a 201 response with the `Idempotent-Replay: true` header) instead of issuing another one. Recommended for any client that retries on its own.
+ *
+ * `comp: true` issues complimentary tickets at price 0. The sale is flagged as a courtesy, like the ones issued from the dashboard: reports count it apart from paid sales, and `PATCH /sales/{id}/recipient` can correct its recipient.
  */
 export const postSales = <ThrowOnError extends boolean = false>(
 	options: Options<PostSalesData, ThrowOnError>,
@@ -1517,6 +1719,99 @@ export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
 			"Content-Type": "application/json",
 			...options?.headers,
 		},
+	});
+};
+
+/**
+ * Transfer one ticket of a sale to another person (destructive)
+ * DESTRUCTIVE: changes the ticket holder and voids the previous QR code (the ticket code is rotated and any installed Apple Wallet pass stops working). The new holder receives the ticket by email and the buyer is notified. Same rules as the dashboard and the buyer: the recipient must already have a verified FreeTicket buyer account (the holder name comes from that account), each ticket can be transferred only once (no staff override) and only until the show starts. 422 RECIPIENT_NOT_REGISTERED / SELF_TRANSFER: fix the recipient. 409 NOT_CONFIRMED, ALREADY_TRANSFERRED, CHECKED_IN, REFUNDED, ADDON, PRESALE_NOT_TRANSFERABLE, MULTI_QUANTITY, EVENT_STARTED or CONFLICT (the ticket changed in flight; re-read and retry). Not idempotent: a retry after success answers 409 ALREADY_TRANSFERRED. Minimum role: `ADMIN`.
+ */
+export const postSalesIdItemsItemIdTransfer = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostSalesIdItemsItemIdTransferData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSalesIdItemsItemIdTransferResponse,
+		PostSalesIdItemsItemIdTransferError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/items/{itemId}/transfer",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Correct the recipient of a courtesy sale and resend its tickets
+ * DESTRUCTIVE when the email changes (previous QR codes are voided). Only for courtesy sales issued from the dashboard (confirmed, `is_courtesy`); any other sale answers 404. Updates the recipient's name and email and resends the tickets to the corrected address. When the email changes, the ticket codes of the non-transferred tickets are rotated, so the QR codes sent to the wrong address stop working (`ticketCodesRotated: true`). Minimum role: `ADMIN`.
+ */
+export const patchSalesIdRecipient = <ThrowOnError extends boolean = false>(
+	options: Options<PatchSalesIdRecipientData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchSalesIdRecipientResponse,
+		PatchSalesIdRecipientError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/recipient",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List blocked seats that can be issued as courtesies
+ * For a numbered (seats.io) event date: the seats that are booked on the map without an order (blocked from sale by the event wizard or by hand) and are not claimed by any live sale, grouped by numbered ticket type (matched by seats.io category). These are the seats the dashboard offers when issuing a courtesy. A date without a seat map, or without numbered ticket types, returns `ticketTypes: []`. 503 SEATSIO_UNAVAILABLE (retryable) when seats.io could not be read. Minimum role: `ADMIN`.
+ */
+export const getEventDatesIdCourtesySeats = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetEventDatesIdCourtesySeatsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventDatesIdCourtesySeatsResponse,
+		GetEventDatesIdCourtesySeatsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/event-dates/{id}/courtesy-seats",
+		...options,
 	});
 };
 
@@ -1943,6 +2238,68 @@ export const patchStaffIdRole = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/staff/{id}/role",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Resend a staff member's invitation email
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Emails the staff member their invitation link again (to set a password and enter the panel). The link is the same persistent one already shared, so previously shared links and QR codes keep working; the link itself is never returned by the API. An `ADMIN` can only target users whose home workspace is the active one (otherwise 404). 409 `NO_EMAIL` for quick-access accounts without an email address (share their QR from the panel). 502 `EMAIL_NOT_SENT` when the email provider failed (retry). Rate limited: 3 resends per hour per API key and user (429 `RATE_LIMITED` with `Retry-After`). Keys restricted by `event_scope` get 403.
+ */
+export const postStaffIdResendInvite = <ThrowOnError extends boolean = false>(
+	options: Options<PostStaffIdResendInviteData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostStaffIdResendInviteResponse,
+		PostStaffIdResendInviteError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/staff/{id}/resend-invite",
+		...options,
+	});
+};
+
+/**
+ * Replace a staff member's access in this workspace
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * DESTRUCTIVE (full replace): sets what the user can do in the active workspace and removes whatever is not in the body. `accessType`: `admin` (role `ADMIN`, everything; only a `SUPER_ADMIN` can grant it, otherwise 403 `ADMIN_REQUIRES_SUPER_ADMIN`), `validador` (role `STAFF`, ticket validation only; `validatorEventIds` limits which events, empty = all events of the workspace), `personalizado` (role `STAFF`, only the listed `sections`; including `validar` also enables validation, limited by `validatorEventIds`) or `lectura` (role `VIEWER`, read-only statistics of `viewerEventIds`). `expiresAt` (`YYYY-MM-DD`, end of that day in the workspace timezone; null = permanent). `expiresAt` in the past is rejected (422). Event ids must belong to the workspace (422 `INVALID_EVENTS`). Nobody can change their own access (409 `SELF_ACCESS`). Only a `SUPER_ADMIN` can change the access of a user whose global role is `SUPER_ADMIN`, `ADMIN` or `MINCULTURA`, or who is an `OWNER`/`ADMIN` of the organization that owns the workspace (403 `TARGET_ROLE_FORBIDDEN`). 409 `VALIDATOR_OTHER_WORKSPACE` when the access enables ticket validation and the user cannot be assigned as a validator of this workspace (nothing is written). An `ADMIN` can only target users whose home workspace is the active one (otherwise 404). Note: the role is the user's global role. Keys restricted by `event_scope` get 403.
+ */
+export const putStaffIdAccess = <ThrowOnError extends boolean = false>(
+	options: Options<PutStaffIdAccessData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).put<
+		PutStaffIdAccessResponse,
+		PutStaffIdAccessError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/staff/{id}/access",
 		...options,
 		headers: {
 			"Content-Type": "application/json",
@@ -2753,6 +3110,35 @@ export const postTicketsTicketCodeResend = <
 			},
 		],
 		url: "/tickets/{ticketCode}/resend",
+		...options,
+	});
+};
+
+/**
+ * Undo a ticket check-in (destructive)
+ * DESTRUCTIVE: reverts a door check-in so the ticket is valid again. Use it to fix a wrong scan; it is recorded in the audit log as CHECKIN_UNDO. Requires `ADMIN` (not `STAFF`): a checked-in ticket blocks cancelling its sale, and undoing the check-in reopens that path. The show's validation window does not apply. Idempotent: a ticket that is not checked in answers 200 with `undone: false`. 409 CHECKIN_CHANGED when the check-in changed between the read and the write (another undo or a new scan): re-read the ticket and retry. Minimum role: `ADMIN`.
+ */
+export const deleteTicketsTicketCodeCheckin = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<DeleteTicketsTicketCodeCheckinData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteTicketsTicketCodeCheckinResponse,
+		DeleteTicketsTicketCodeCheckinError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/tickets/{ticketCode}/checkin",
 		...options,
 	});
 };
@@ -6513,6 +6899,128 @@ export const putMasterQrsIdActive = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/master-qrs/{id}/active",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Merch store catalog of the key's brand
+ * Requires an enterprise service API key (Legend headless landing, called server-side); the store is ALWAYS the one of the key's organization. Returns the store settings (brand, support, shipping fees by zone — Bogotá is DANE 11001 —, free-shipping threshold, delivery modes), the PUBLISHED products with their active variants and `stock` (units available right now, already net of open 15-minute reservations), the active pickup points (only when pickup is enabled) and the MercadoPago public key for the Payment Brick. Prices are COP integers, VAT included; the buyer pays no service fee. 403 `MERCH_STORE_LOCKED` when the brand's Legend plan is not active; 404 `STORE_NOT_READY` when the brand has no store or its onboarding is incomplete.
+ */
+export const getMerchCatalog = <ThrowOnError extends boolean = false>(
+	options?: Options<GetMerchCatalogData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetMerchCatalogResponse,
+		GetMerchCatalogError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/catalog",
+		...options,
+	});
+};
+
+/**
+ * Create a merch order and reserve its stock
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the buyer email is the session's (it is NOT sent in the body) and the order is always linked to that customer. The order belongs to the key's organization store (variant ids from another store respond 409 `VARIANT_UNAVAILABLE`). Creates a PENDING order and reserves the stock for 15 minutes, all-or-nothing: if any variant lacks units nothing is reserved (409 `OUT_OF_STOCK` with `details: [{ variantId, requested, available }]`). Prices, shipping and totals are computed server-side from the catalog (`total = subtotal + shippingFee`; shipping is 0 for pickup or above the free-shipping threshold). `max_per_order` is per product, adding all its variants (422 `MAX_PER_ORDER`); a delivery mode that is disabled, or an inactive pickup point, responds 422 `DELIVERY_UNAVAILABLE`. DANE codes are validated by shape (department 2 digits, city 5 digits starting with the department). Accepts `Idempotency-Key` (unique per store): retrying with the same key returns the order created on the first attempt (201 with `Idempotent-Replay: true`) without reserving stock again; the replay is only returned to the same customer as the original order (otherwise 422 `IDEMPOTENCY_KEY_REUSED`). A customer with a live PENDING order in the store who places another one REPLACES it (the previous order is cancelled and its stock returned in the same transaction), unless that order already has a payment attempt in flight (409 `ACTIVE_ORDER_EXISTS`). A live PENDING order of ANOTHER customer with the same phone (normalized to E.164, any country code) also responds 409 `ACTIVE_ORDER_EXISTS` (the existing order is never revealed). Optional `X-Buyer-Ip` (the buyer's IPv4/IPv6, sent by the landing server-to-server; invalid values are ignored): at most 10 orders per 10 minutes per store and IP (429 `RATE_LIMITED`). Rate limited: 5 orders/min per customer (429 `RATE_LIMITED` with `Retry-After`). 403 `MERCH_STORE_LOCKED` without an active Legend plan; 404 `STORE_NOT_READY` without a ready store. The buyer document is never returned.
+ */
+export const postMerchOrders = <ThrowOnError extends boolean = false>(
+	options: Options<PostMerchOrdersData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostMerchOrdersResponse,
+		PostMerchOrdersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/orders",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Look up one of the session buyer's merch orders by code
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it). Only orders of the key's organization store that belong to the session's customer are visible, found by the public `code` (e.g. `M-7K3Q9ZTA`, case-insensitive). An unknown code, a code from another brand and a code of another customer all respond the same 404 `ORDER_NOT_FOUND`. The buyer document is never returned. Rate limited: 10 lookups/min per key and code (429 `RATE_LIMITED` with `Retry-After`). Lookups keep working after the brand's Legend plan lapses (the order was already placed); 404 `STORE_NOT_READY` when the brand has no store.
+ */
+export const postMerchOrdersLookup = <ThrowOnError extends boolean = false>(
+	options: Options<PostMerchOrdersLookupData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostMerchOrdersLookupResponse,
+		PostMerchOrdersLookupError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/orders/lookup",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Charge a merch order with the Payment Brick token
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it). Only orders of the key's organization store that belong to the session's customer are reachable (an unknown code, a code from another brand and a code of another customer all respond the same 404 `ORDER_NOT_FOUND`). Receives the token the Payment Brick produced on the landing's domain and charges through the MercadoPago Orders API using the order total from the database (never one sent by the client); the reservation is extended (capped at 45 minutes after creation) before the charge. Card only. `status` is `approved`, `pending` (normal: bank authentication or processing, also for an unrecognized MercadoPago status; confirmed later by webhook — poll `/merch/orders/lookup`) or `rejected` (business decline, reason in `message`; the order stays pending until its reservation expires, so the buyer can retry with another card) — all three return 200. Responds 409 `RESERVATION_EXPIRED` when the reservation lapsed (start a new order), 409 `ORDER_NOT_PAYABLE` when the order is no longer pending, 409 `PAYMENT_IN_PROGRESS` when another charge of the order is still in flight (pending bank authentication or processing, or a concurrent request with a different token): poll `/merch/orders/lookup` instead of charging another card — a definitively rejected charge never blocks a new attempt, and retrying with the SAME token is allowed (idempotent at MercadoPago), 409 `PAYMENT_REFUNDED` when the card was approved after the reservation expired and the stock ran out (the amount is refunded automatically), 502 `PAYMENT_GATEWAY_ERROR` when MercadoPago did not answer or failed (timeout, network, 5xx): the payment may still confirm via webhook, so until it is resolved another card gets 409 `PAYMENT_IN_PROGRESS` — the block lifts when MercadoPago reports the charge rejected, or about 90 seconds later if MercadoPago has no record of it. 403 `MERCH_STORE_LOCKED` when the brand's Legend plan is not active; 404 `STORE_NOT_READY` when the brand has no store. Limited to 10 attempts per minute per API key, customer and order code (429 with `Retry-After`).
+ */
+export const postMerchOrdersCodePaymentCard = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostMerchOrdersCodePaymentCardData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostMerchOrdersCodePaymentCardResponse,
+		PostMerchOrdersCodePaymentCardError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/orders/{code}/payment/card",
 		...options,
 		headers: {
 			"Content-Type": "application/json",

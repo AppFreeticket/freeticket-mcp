@@ -26,15 +26,19 @@ import {
 	getCustomerTicketsId,
 	getDiscounts,
 	getEventDatesIdAccessClose,
+	getEventDatesIdCourtesySeats,
 	getEvents,
 	getEventsId,
 	getEventsIdArtistInvitations,
 	getEventsIdDates,
+	getEventsIdValidators,
+	getEventsIdViewers,
 	getMasterQrs,
 	getMe,
 	getMembershipPlans,
 	getMembershipPlansId,
 	getMembershipPlansIdSubscribers,
+	getMerchCatalog,
 	getOrganizationProfile,
 	getPaymentIntents,
 	getProducts,
@@ -68,6 +72,7 @@ import {
 	getWaitlist,
 	getWebhooks,
 	getWebsite,
+	postMerchOrdersLookup,
 } from "../client/sdk.gen";
 import { read } from "../tool-meta";
 import { uiTool } from "../ui";
@@ -1140,5 +1145,73 @@ export function registerB2bTools(
 			"them in shared places; refer to a QR by `id`/`label`.",
 		{},
 		async () => run(getMasterQrs({ client })),
+	);
+
+	// ── Contract 1.33–1.36: event access, courtesy seats, merch store ────────
+	uiTool(
+		server,
+		"events_viewers_list",
+		"People with read-only access to one event's statistics (they see only " +
+			"its stats, nothing else of the workspace), newest first " +
+			"(GET /events/{id}/viewers). Requires ADMIN. Revoke one with " +
+			"`events_viewers_delete` using the access `id` returned here.",
+		{ eventId: z.string().describe("Event id") },
+		async ({ eventId }) =>
+			run(getEventsIdViewers({ path: { id: eventId }, client })),
+	);
+	uiTool(
+		server,
+		"events_validators_list",
+		"Door staff who can validate tickets for one event: the ones assigned " +
+			"to it plus those with no events assigned (`allEvents: true`), " +
+			"inactive ones included (GET /events/{id}/validators). Requires ADMIN.",
+		{ eventId: z.string().describe("Event id") },
+		async ({ eventId }) =>
+			run(getEventsIdValidators({ path: { id: eventId }, client })),
+	);
+	server.tool(
+		"event_dates_courtesy_seats",
+		"Seats of a numbered (seats.io) event date that are blocked on the map " +
+			"without an order and free to be issued as courtesies, grouped by " +
+			"numbered ticket type (GET /event-dates/{id}/courtesy-seats). A date " +
+			"without a seat map answers `ticketTypes: []`. 503 " +
+			"SEATSIO_UNAVAILABLE is retryable. Requires ADMIN.",
+		{ id: z.string().describe("Event date id") },
+		read("event_dates_courtesy_seats"),
+		async ({ id }) =>
+			run(getEventDatesIdCourtesySeats({ path: { id }, client })),
+	);
+	server.tool(
+		"merch_catalog",
+		"Merch store catalog of the key's brand (GET /merch/catalog): store " +
+			"settings, shipping fees by zone, published products with active " +
+			"variants and live `stock`, and pickup points. Prices are COP integers, " +
+			"VAT included. Requires an enterprise service API key. 403 " +
+			"MERCH_STORE_LOCKED without an active Legend plan; 404 STORE_NOT_READY " +
+			"without a ready store. Placing and paying orders is not a tool: it " +
+			"needs the buyer's ID document and the card widget on the landing.",
+		read("merch_catalog"),
+		async () => run(getMerchCatalog({ client })),
+	);
+	server.tool(
+		"merch_orders_lookup",
+		"Status of one of the session buyer's merch orders by its public code, " +
+			"e.g. `M-7K3Q9ZTA` (POST /merch/orders/lookup — a POST, but it only " +
+			"reads). Requires an enterprise service API key and the buyer session. " +
+			"Unknown code, another brand's or another buyer's order: all 404 " +
+			"ORDER_NOT_FOUND. The buyer document is never returned.",
+		{
+			code: z.string().min(3).max(20).describe("Public order code"),
+			customerSession,
+		},
+		read("merch_orders_lookup"),
+		async ({ code, customerSession }) =>
+			run(
+				postMerchOrdersLookup({
+					body: { code },
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
 	);
 }

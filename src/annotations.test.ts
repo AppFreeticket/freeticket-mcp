@@ -57,10 +57,15 @@ describe("tool annotations", () => {
 			"event_artist_invitations_resend",
 			"event_dates_access_close_sign",
 			"events_artists_set",
+			"events_validators_add",
+			"events_viewers_add",
 			"products_update",
 			"public_orders_create",
 			"public_tickets_resend",
+			"sales_recipient_update",
 			"sales_refund",
+			"sales_transfer",
+			"staff_resend_invite",
 			"tickets_resend",
 		]);
 	});
