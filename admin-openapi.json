@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket Admin API",
-		"version": "1.5.1",
+		"version": "1.7.0",
 		"description": "API REST de superadmin de FreeTicket (cross-tenant). Autenticación por sesión de plataforma (staff con rol SUPER_ADMIN) o por service token (PAT) vía `Authorization: Bearer <token>` — NO usa API key de tenant. Aislada del contrato B2B /api/v1."
 	},
 	"servers": [
@@ -2273,6 +2273,1118 @@
 					}
 				}
 			}
+		},
+		"/crm/campaigns": {
+			"get": {
+				"operationId": "getCrmCampaigns",
+				"tags": ["crm"],
+				"summary": "Listar campañas del CRM maestro (las que lanzó el equipo)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "channel",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": ["EMAIL", "WHATSAPP"]
+						}
+					},
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string",
+							"enum": [
+								"SENT",
+								"FAILED",
+								"DENIED",
+								"PROCESSING",
+								"APPROVED",
+								"SCHEDULED",
+								"CANCELLED"
+							]
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"description": "1-100, default 50",
+						"schema": {
+							"type": "integer",
+							"default": 50
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminCrmCampaign"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postCrmCampaigns",
+				"tags": ["crm"],
+				"summary": "Lanzar una campaña del CRM maestro (ESCRITURA: envía mensajes)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: crea la campaña ya aprobada y, con `timing.mode = now`, empieza a enviar a toda la audiencia al responder. Un WhatsApp con `timing.mode = now` fuera de las 9:00–20:00 de Bogotá responde 409 `OUTSIDE_SEND_WINDOW` (reintentable) con `Retry-After` hasta la próxima apertura, antes de contar la audiencia; `ignoreSendWindow: true` la salta (el correo no tiene ventana; programada y lotes se ajustan solos). No expuesta por el MCP (`x-ft-mcp`). Errores: 422 con `error.details[].path` (filtro, remitente, reglas de canal, ids que no existen) o `EMPTY_AUDIENCE`; 409 `DUPLICATE_CAMPAIGN` con `error.details.existingId` si hace menos de 10 minutos se lanzó otra con el mismo canal, remitente y asunto; 409 `WHATSAPP_BLOCKED` (plantilla) o 503 `WHATSAPP_UNAVAILABLE` (Kapso no contestó, reintentable). Queda en `GET /audit-log` como `crm_campaign.launch`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura del CRM maestro: dispara o frena envíos reales a clientes. Solo por el CLI (`ft admin crm`) o el panel, no por un agente MCP."
+				},
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminCrmLaunchInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmLaunchResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "Service unavailable: an external dependency is down or initialization failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/campaigns/{id}": {
+			"get": {
+				"operationId": "getCrmCampaignsId",
+				"tags": ["crm"],
+				"summary": "Detalle de una campaña del CRM maestro",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmCampaignDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/campaigns/{id}/batches/next": {
+			"post": {
+				"operationId": "postCrmCampaignsIdBatchesNext",
+				"tags": ["crm"],
+				"summary": "Mandar ya el siguiente lote de WhatsApp (ESCRITURA: envía mensajes)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: reclama la campaña y envía hasta un lote de destinatarios pendientes al responder. Solo campañas del equipo (otra es 404). Respeta la ventana de 9:00–20:00 de Bogotá: fuera de ella responde 409 `OUTSIDE_SEND_WINDOW` (reintentable) con `Retry-After` hasta la próxima apertura; `ignoreSendWindow: true` la salta. Otros 409: `INVALID_STATE` (no hay pendientes, ya está saliendo un lote, no es WhatsApp) o `WHATSAPP_BLOCKED`; 429 `QUOTA_EXHAUSTED` con `Retry-After` si se usó el cupo diario; 503 `WHATSAPP_UNAVAILABLE`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_campaign.batch_next`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura del CRM maestro: dispara o frena envíos reales a clientes. Solo por el CLI (`ft admin crm`) o el panel, no por un agente MCP."
+				},
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": false,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminCrmBatchNextInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmBatchNextResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "Service unavailable: an external dependency is down or initialization failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/campaigns/{id}/batches/stop": {
+			"post": {
+				"operationId": "postCrmCampaignsIdBatchesStop",
+				"tags": ["crm"],
+				"summary": "Detener los lotes pendientes de una campaña (ESCRITURA)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA irreversible: los destinatarios pendientes pasan a SKIPPED y ya no se envían. Solo campañas del equipo (otra es 404). 409 `INVALID_STATE` si no es de WhatsApp o tiene un lote saliendo (reintentar en un minuto). No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_campaign.batch_stop`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura del CRM maestro: dispara o frena envíos reales a clientes. Solo por el CLI (`ft admin crm`) o el panel, no por un agente MCP."
+				},
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmBatchStopResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/campaigns/{id}/cancel": {
+			"post": {
+				"operationId": "postCrmCampaignsIdCancel",
+				"tags": ["crm"],
+				"summary": "Cancelar una campaña programada (ESCRITURA)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: la campaña programada no sale (queda `DENIED`, con un motivo que ve el organizador). Solo campañas del equipo (otra es 404). 409 `INVALID_STATE` si ya no está programada (salió, está saliendo o alguien la canceló antes). No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_campaign.cancel`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura del CRM maestro: dispara o frena envíos reales a clientes. Solo por el CLI (`ft admin crm`) o el panel, no por un agente MCP."
+				},
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmCancelResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/audience/preview": {
+			"post": {
+				"operationId": "postCrmAudiencePreview",
+				"tags": ["crm"],
+				"summary": "Contar la audiencia de un filtro del CRM (solo lectura)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. Solo lectura: no crea nada. Devuelve contadores, una muestra de hasta 10 personas enmascarada en el servidor (correo, teléfono y nombre: solo la inicial), quién puede firmar y, si hay WhatsApp alcanzable, los días que tomaría con el cupo. Un filtro inválido responde 422 con `error.details[].path`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminCrmPreviewInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmAudiencePreview"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/quota": {
+			"get": {
+				"operationId": "getCrmQuota",
+				"tags": ["crm"],
+				"summary": "Cupo de WhatsApp y lotes comprometidos",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmQuotaOutlook"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/options": {
+			"get": {
+				"operationId": "getCrmOptions",
+				"tags": ["crm"],
+				"summary": "Opciones para armar una campaña (ciudades, facetas, planes, plantillas)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmWizardOptions"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/events": {
+			"get": {
+				"operationId": "getCrmEvents",
+				"tags": ["crm"],
+				"summary": "Buscar shows para una campaña del CRM",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "query",
+						"in": "query",
+						"required": false,
+						"description": "Texto (hasta 120 caracteres).",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "purpose",
+						"in": "query",
+						"required": true,
+						"description": "`promote` solo devuelve shows publicados (y, con `senderWorkspaceId`, solo los de esa organización).",
+						"schema": {
+							"type": "string",
+							"enum": ["scope", "promote", "except"]
+						}
+					},
+					{
+						"name": "senderWorkspaceId",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminCrmEventOption"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/event-dates": {
+			"get": {
+				"operationId": "getCrmEventDates",
+				"tags": ["crm"],
+				"summary": "Funciones de unos shows (para acotar una condición)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "eventIds",
+						"in": "query",
+						"required": true,
+						"description": "Ids de shows separados por coma (1 a 50).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminCrmEventDateOption"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	},
 	"components": {
@@ -3332,6 +4444,1326 @@
 					}
 				},
 				"required": ["name"],
+				"additionalProperties": false
+			},
+			"AdminCrmChannel": {
+				"type": "string",
+				"enum": ["EMAIL", "WHATSAPP"]
+			},
+			"AdminCrmCampaignStatus": {
+				"type": "string",
+				"enum": [
+					"SENT",
+					"FAILED",
+					"DENIED",
+					"PROCESSING",
+					"APPROVED",
+					"SCHEDULED",
+					"CANCELLED"
+				]
+			},
+			"AdminCrmAudienceFilter": {
+				"type": "object",
+				"description": "Filtro de audiencia v2 (`{ version: 2, scope, include, except }`). Objeto abierto en el contrato: lo valida el servidor con `audienceFilterSchema` (src/lib/crm/filter.ts). Un filtro inválido responde 422 con `error.details[].path` relativo al body (ej. `filter.scope.level`).",
+				"properties": {
+					"version": {
+						"type": "integer",
+						"enum": [2]
+					}
+				},
+				"required": ["version"],
+				"additionalProperties": true,
+				"examples": [
+					{
+						"version": 2,
+						"scope": {
+							"level": "platform"
+						},
+						"include": [
+							{
+								"type": "purchased",
+								"window": {
+									"kind": "last_days",
+									"days": 90
+								}
+							}
+						],
+						"except": [
+							{
+								"type": "received_campaign",
+								"days": 7
+							}
+						]
+					}
+				]
+			},
+			"AdminCrmSender": {
+				"oneOf": [
+					{
+						"type": "object",
+						"properties": {
+							"kind": {
+								"type": "string",
+								"const": "freeticket"
+							}
+						},
+						"required": ["kind"],
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"properties": {
+							"kind": {
+								"type": "string",
+								"const": "organization"
+							},
+							"workspaceId": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 64
+							}
+						},
+						"required": ["kind", "workspaceId"],
+						"additionalProperties": false
+					}
+				],
+				"description": "Quién firma. `freeticket` es obligatorio si el alcance es la plataforma, varias organizaciones o eventos de más de un dueño: el servidor RECHAZA otra firma (422), no la corrige."
+			},
+			"AdminCrmCampaign": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"subject": {
+						"type": "string"
+					},
+					"channel": {
+						"$ref": "#/components/schemas/AdminCrmChannel"
+					},
+					"status": {
+						"type": "string",
+						"description": "`BroadcastStatus`"
+					},
+					"senderName": {
+						"type": "string"
+					},
+					"isPlatform": {
+						"type": "boolean"
+					},
+					"audienceLabel": {
+						"type": "string"
+					},
+					"createdAt": {
+						"type": "string",
+						"description": "ISO 8601"
+					},
+					"scheduledAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"nextBatchAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"recipientCount": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"sentCount": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"failedCount": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"deliveredCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"readCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"deferredCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"attributed": {
+						"type": "object",
+						"properties": {
+							"sales": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"revenueCop": {
+								"type": "number"
+							},
+							"feeCop": {
+								"type": "number"
+							}
+						},
+						"required": ["sales", "revenueCop", "feeCop"],
+						"additionalProperties": false
+					}
+				},
+				"required": [
+					"id",
+					"subject",
+					"channel",
+					"status",
+					"senderName",
+					"isPlatform",
+					"audienceLabel",
+					"createdAt",
+					"scheduledAt",
+					"nextBatchAt",
+					"recipientCount",
+					"sentCount",
+					"failedCount",
+					"deliveredCount",
+					"readCount",
+					"deferredCount",
+					"attributed"
+				],
+				"additionalProperties": false
+			},
+			"AdminCrmCampaignDetail": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"subject": {
+						"type": "string"
+					},
+					"channel": {
+						"$ref": "#/components/schemas/AdminCrmChannel"
+					},
+					"status": {
+						"type": "string",
+						"description": "`BroadcastStatus`"
+					},
+					"senderName": {
+						"type": "string"
+					},
+					"isPlatform": {
+						"type": "boolean"
+					},
+					"audienceLabel": {
+						"type": "string"
+					},
+					"createdAt": {
+						"type": "string",
+						"description": "ISO 8601"
+					},
+					"scheduledAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"nextBatchAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"recipientCount": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"sentCount": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"failedCount": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"deliveredCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"readCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"deferredCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"attributed": {
+						"type": "object",
+						"properties": {
+							"sales": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"revenueCop": {
+								"type": "number"
+							},
+							"feeCop": {
+								"type": "number"
+							}
+						},
+						"required": ["sales", "revenueCop", "feeCop"],
+						"additionalProperties": false
+					},
+					"body": {
+						"type": "string"
+					},
+					"imageUrl": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"templateName": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"promotedEvent": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string"
+									},
+									"name": {
+										"type": "string"
+									},
+									"slug": {
+										"type": "string"
+									}
+								},
+								"required": ["id", "name", "slug"],
+								"additionalProperties": false
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"filter": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/AdminCrmAudienceFilter"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "null = campaña v1 (segmento previo al CRM v2)."
+					},
+					"batchPlan": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"batchSize": {
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									},
+									"perDay": {
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									},
+									"intervalMinutes": {
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									}
+								},
+								"required": ["batchSize", "perDay", "intervalMinutes"],
+								"additionalProperties": false
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"deliveriesByStatus": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {
+							"type": "integer",
+							"minimum": -9007199254740991,
+							"maximum": 9007199254740991
+						}
+					},
+					"topErrors": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"error": {
+									"type": "string"
+								},
+								"count": {
+									"type": "number"
+								}
+							},
+							"required": ["error", "count"],
+							"additionalProperties": false
+						}
+					},
+					"sentByHour": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"hour": {
+									"type": "string",
+									"description": "ISO 8601"
+								},
+								"count": {
+									"type": "number"
+								}
+							},
+							"required": ["hour", "count"],
+							"additionalProperties": false
+						}
+					},
+					"conversions": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"reference": {
+									"type": "string"
+								},
+								"total": {
+									"type": "number"
+								},
+								"createdAt": {
+									"type": "string",
+									"description": "ISO 8601"
+								},
+								"eventName": {
+									"anyOf": [
+										{
+											"type": "string"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"utmSource": {
+									"anyOf": [
+										{
+											"type": "string"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"required": [
+								"reference",
+								"total",
+								"createdAt",
+								"eventName",
+								"utmSource"
+							],
+							"additionalProperties": false
+						}
+					}
+				},
+				"required": [
+					"id",
+					"subject",
+					"channel",
+					"status",
+					"senderName",
+					"isPlatform",
+					"audienceLabel",
+					"createdAt",
+					"scheduledAt",
+					"nextBatchAt",
+					"recipientCount",
+					"sentCount",
+					"failedCount",
+					"deliveredCount",
+					"readCount",
+					"deferredCount",
+					"attributed",
+					"body",
+					"imageUrl",
+					"templateName",
+					"promotedEvent",
+					"filter",
+					"batchPlan",
+					"deliveriesByStatus",
+					"topErrors",
+					"sentByHour",
+					"conversions"
+				],
+				"additionalProperties": false
+			},
+			"AdminCrmPreviewInput": {
+				"type": "object",
+				"properties": {
+					"filter": {
+						"$ref": "#/components/schemas/AdminCrmAudienceFilter"
+					},
+					"sender": {
+						"description": "Opcional. Solo SUMA bajas (las del remitente): uno que no corresponda al alcance recorta de más, nunca agrega gente.",
+						"$ref": "#/components/schemas/AdminCrmSender"
+					}
+				},
+				"required": ["filter"],
+				"additionalProperties": false
+			},
+			"AdminCrmAudiencePreview": {
+				"type": "object",
+				"properties": {
+					"counts": {
+						"type": "object",
+						"properties": {
+							"matched": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"excludedByExcept": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"excludedByFrequency": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"suppressed": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"total": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"reachableWhatsapp": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							"withoutPhone": {
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							}
+						},
+						"required": [
+							"matched",
+							"excludedByExcept",
+							"excludedByFrequency",
+							"suppressed",
+							"total",
+							"reachableWhatsapp",
+							"withoutPhone"
+						],
+						"additionalProperties": false
+					},
+					"sample": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"anyOf": [
+										{
+											"type": "string"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"emailMasked": {
+									"type": "string"
+								},
+								"phoneMasked": {
+									"anyOf": [
+										{
+											"type": "string"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"lastPurchaseAt": {
+									"anyOf": [
+										{
+											"type": "string",
+											"description": "ISO 8601"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"required": [
+								"name",
+								"emailMasked",
+								"phoneMasked",
+								"lastPurchaseAt"
+							],
+							"additionalProperties": false
+						},
+						"description": "Hasta 10 personas, enmascaradas en el servidor."
+					},
+					"involvedWorkspaceIds": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"senderChoice": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"forced": {
+										"type": "boolean",
+										"const": true
+									}
+								},
+								"required": ["forced"],
+								"additionalProperties": false
+							},
+							{
+								"type": "object",
+								"properties": {
+									"forced": {
+										"type": "boolean",
+										"const": false
+									},
+									"organization": {
+										"type": "object",
+										"properties": {
+											"id": {
+												"type": "string"
+											},
+											"name": {
+												"type": "string"
+											},
+											"logoUrl": {
+												"anyOf": [
+													{
+														"type": "string"
+													},
+													{
+														"type": "null"
+													}
+												]
+											}
+										},
+										"required": ["id", "name", "logoUrl"],
+										"additionalProperties": false
+									}
+								},
+								"required": ["forced", "organization"],
+								"additionalProperties": false
+							}
+						]
+					},
+					"whatsappEstimate": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"days": {
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									},
+									"dailyCap": {
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									},
+									"remainingToday": {
+										"type": "integer",
+										"minimum": -9007199254740991,
+										"maximum": 9007199254740991
+									}
+								},
+								"required": ["days", "dailyCap", "remainingToday"],
+								"additionalProperties": false
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"counts",
+					"sample",
+					"involvedWorkspaceIds",
+					"senderChoice",
+					"whatsappEstimate"
+				],
+				"additionalProperties": false
+			},
+			"AdminCrmQuotaOutlook": {
+				"type": "object",
+				"properties": {
+					"limit": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"used": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"remaining": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"nextFreeAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"platformDailyShare": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"committed": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"at": {
+									"type": "string",
+									"description": "ISO 8601"
+								},
+								"size": {
+									"type": "integer",
+									"minimum": -9007199254740991,
+									"maximum": 9007199254740991
+								},
+								"messageId": {
+									"type": "string"
+								}
+							},
+							"required": ["at", "size", "messageId"],
+							"additionalProperties": false
+						}
+					}
+				},
+				"required": [
+					"limit",
+					"used",
+					"remaining",
+					"nextFreeAt",
+					"platformDailyShare",
+					"committed"
+				],
+				"additionalProperties": false
+			},
+			"AdminCrmWizardOptions": {
+				"type": "object",
+				"properties": {
+					"cities": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"facets": {
+						"type": "object",
+						"properties": {
+							"genre": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"code": {
+											"type": "string"
+										},
+										"label": {
+											"type": "string"
+										}
+									},
+									"required": ["code", "label"],
+									"additionalProperties": false
+								}
+							},
+							"format": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"code": {
+											"type": "string"
+										},
+										"label": {
+											"type": "string"
+										}
+									},
+									"required": ["code", "label"],
+									"additionalProperties": false
+								}
+							}
+						},
+						"required": ["genre", "format"],
+						"additionalProperties": false
+					},
+					"plans": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								},
+								"orgName": {
+									"type": "string"
+								}
+							},
+							"required": ["id", "name", "orgName"],
+							"additionalProperties": false
+						}
+					},
+					"templates": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"name": {
+									"type": "string"
+								},
+								"language": {
+									"type": "string"
+								},
+								"hasImageHeader": {
+									"type": "boolean"
+								},
+								"body": {
+									"type": "string"
+								},
+								"footerText": {
+									"anyOf": [
+										{
+											"type": "string"
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"urlButtonText": {
+									"anyOf": [
+										{
+											"type": "string"
+										},
+										{
+											"type": "null"
+										}
+									]
+								}
+							},
+							"required": ["name", "language", "hasImageHeader", "body"],
+							"additionalProperties": false
+						}
+					},
+					"whatsappBlockedReason": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"cities",
+					"facets",
+					"plans",
+					"templates",
+					"whatsappBlockedReason"
+				],
+				"additionalProperties": false
+			},
+			"AdminCrmEventOption": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"startsAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"lastAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"nextAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"dateCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"venueName": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"city": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"status": {
+						"type": "string"
+					},
+					"orgName": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"slug",
+					"startsAt",
+					"lastAt",
+					"nextAt",
+					"dateCount",
+					"venueName",
+					"city",
+					"status",
+					"orgName"
+				],
+				"additionalProperties": false
+			},
+			"AdminCrmEventDateOption": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"startsAt": {
+						"type": "string",
+						"description": "ISO 8601"
+					},
+					"label": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"status": {
+						"type": "string"
+					},
+					"venueName": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"city": {
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"past": {
+						"type": "boolean"
+					},
+					"buyers": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": [
+					"id",
+					"eventId",
+					"startsAt",
+					"label",
+					"status",
+					"venueName",
+					"city",
+					"past",
+					"buyers"
+				],
+				"additionalProperties": false
+			},
+			"AdminCrmTiming": {
+				"oneOf": [
+					{
+						"type": "object",
+						"properties": {
+							"mode": {
+								"type": "string",
+								"const": "now"
+							}
+						},
+						"required": ["mode"],
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"properties": {
+							"mode": {
+								"type": "string",
+								"const": "scheduled"
+							},
+							"at": {
+								"type": "string",
+								"description": "ISO 8601 con offset (ej. `2026-11-03T19:00:00-05:00`)."
+							}
+						},
+						"required": ["mode", "at"],
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"properties": {
+							"mode": {
+								"type": "string",
+								"const": "batches"
+							},
+							"firstAt": {
+								"type": "string",
+								"description": "ISO 8601 con offset (ej. `2026-11-03T19:00:00-05:00`)."
+							},
+							"batchSize": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 200
+							},
+							"perDay": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 24
+							},
+							"intervalMinutes": {
+								"type": "integer",
+								"minimum": 15,
+								"maximum": 1440
+							}
+						},
+						"required": [
+							"mode",
+							"firstAt",
+							"batchSize",
+							"perDay",
+							"intervalMinutes"
+						],
+						"additionalProperties": false
+					}
+				],
+				"description": "Cuándo sale. `scheduled` y `batches` tienen que estar en el futuro. Por WhatsApp, la hora se ajusta a la ventana de 9:00–20:00 de Bogotá (la respuesta trae la real en `scheduledAt`). Lotes solo por WhatsApp, con un tope diario de 150 si firma FreeTicket y 200 si firma una organización."
+			},
+			"AdminCrmLaunchInput": {
+				"type": "object",
+				"properties": {
+					"channel": {
+						"$ref": "#/components/schemas/AdminCrmChannel"
+					},
+					"sender": {
+						"$ref": "#/components/schemas/AdminCrmSender"
+					},
+					"templateName": {
+						"description": "Plantilla de WhatsApp aprobada (obligatoria por WhatsApp; el correo la rechaza). Ver `GET /crm/options`.",
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"subject": {
+						"type": "string",
+						"minLength": 1
+					},
+					"body": {
+						"type": "string",
+						"minLength": 1
+					},
+					"imageUrl": {
+						"description": "Por WhatsApp tiene que salir de la biblioteca de medios propia.",
+						"type": "string"
+					},
+					"promotedEventId": {
+						"description": "Show PUBLICADO que se promociona (si firma una organización, uno suyo).",
+						"type": "string"
+					},
+					"filter": {
+						"$ref": "#/components/schemas/AdminCrmAudienceFilter"
+					},
+					"timing": {
+						"$ref": "#/components/schemas/AdminCrmTiming"
+					},
+					"ignoreSendWindow": {
+						"description": "Solo WhatsApp con `timing.mode = now`: true = sale aunque sea fuera de las 9:00–20:00 de Bogotá. Por defecto la respeta y responde 409 `OUTSIDE_SEND_WINDOW` con `Retry-After`.",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"channel",
+					"sender",
+					"subject",
+					"body",
+					"filter",
+					"timing"
+				],
+				"additionalProperties": false
+			},
+			"AdminCrmLaunchResult": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"enum": ["APPROVED", "SCHEDULED"]
+					},
+					"scheduledAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Hora real de salida (ya ajustada a la ventana); null si sale ahora."
+					}
+				},
+				"required": ["id", "status", "scheduledAt"],
+				"additionalProperties": false
+			},
+			"AdminCrmBatchNextInput": {
+				"type": "object",
+				"properties": {
+					"ignoreSendWindow": {
+						"description": "true = manda aunque sea fuera de las 9:00–20:00 de Bogotá. Por defecto la respeta y responde 409 `OUTSIDE_SEND_WINDOW` con `Retry-After`.",
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": false
+			},
+			"AdminCrmBatchNextResult": {
+				"type": "object",
+				"properties": {
+					"batch": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991,
+						"description": "Cuántos salen como máximo en este lote (lo envía el pipeline)."
+					}
+				},
+				"required": ["batch"],
+				"additionalProperties": false
+			},
+			"AdminCrmBatchStopResult": {
+				"type": "object",
+				"properties": {
+					"skipped": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991,
+						"description": "Destinatarios pendientes que ya no se enviarán."
+					}
+				},
+				"required": ["skipped"],
+				"additionalProperties": false
+			},
+			"AdminCrmCancelResult": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"const": "DENIED"
+					}
+				},
+				"required": ["id", "status"],
 				"additionalProperties": false
 			}
 		},

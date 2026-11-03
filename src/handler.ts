@@ -22,8 +22,10 @@
  *   FT_API_URL        B2B/admin API base (default https://admin.appfreeticket.com)
  *   MCP_PUBLIC_URL    public URL of the /mcp endpoint (for the issuer and
  *                     `resource`); without it, derived from Host + X-Forwarded-Proto
- *   MCP_TOKEN_SECRET  secret that seals the tokens; without it an ephemeral one
- *                     is generated per process (tokens die on restart — dev only)
+ *   MCP_TOKEN_SECRET  secret that seals the tokens. Required on Vercel (production
+ *                     and preview): without it every instance would seal with its
+ *                     own key. Locally an ephemeral one is generated per process
+ *                     (tokens die on restart — dev only)
  *   FT_OAUTH_ISSUER   delegates to an external authorization server (for
  *                     instance once free-admin publishes its own); turns the
  *                     embedded AS off
@@ -41,8 +43,11 @@ import {
 	ACCESS_PREFIX,
 	ACCESS_TTL,
 	authServerMetadata,
+	CLIENT_PREFIX,
+	CLIENT_TTL,
 	CODE_PREFIX,
 	CODE_TTL,
+	checkRedirect,
 	consentPage,
 	type DeviceStart,
 	open,
@@ -66,8 +71,13 @@ const EXTERNAL_ISSUER = process.env.FT_OAUTH_ISSUER?.replace(/\/$/, "");
  */
 const OPENAI_APPS_CHALLENGE = process.env.OPENAI_APPS_CHALLENGE?.trim();
 const TOKEN_SECRET =
-	process.env.MCP_TOKEN_SECRET ??
+	process.env.MCP_TOKEN_SECRET?.trim() ||
 	(() => {
+		// Fail closed where instances are many: each one would mint its own
+		// secret and reject the tokens of the others at random.
+		const env = process.env.VERCEL_ENV;
+		if (env === "production" || env === "preview")
+			throw new Error("MCP_TOKEN_SECRET is required on Vercel");
 		process.stderr.write(
 			"MCP_TOKEN_SECRET not set: ephemeral secret, tokens do not survive a restart\n",
 		);
@@ -165,9 +175,11 @@ function mintCode(
 	creds: { apiKey?: string; workspaceId?: string; adminSession?: string },
 	challenge: string,
 	redirectUri: string,
+	clientId: string,
 ): string {
 	return seal(
 		{
+			c: clientId,
 			k: creds.apiKey ?? "",
 			w: creds.workspaceId ?? "",
 			a: creds.adminSession ?? "",
@@ -205,19 +217,6 @@ async function startDeviceFlow(): Promise<DeviceStart | undefined> {
 	if (!r?.ok) return undefined;
 	const d = (await r.json()) as DeviceStart;
 	return d.device_code && d.verification_uri_complete ? d : undefined;
-}
-
-function validRedirect(uri: string): boolean {
-	try {
-		const u = new URL(uri);
-		return (
-			u.protocol === "https:" ||
-			u.hostname === "localhost" ||
-			u.hostname === "127.0.0.1"
-		);
-	} catch {
-		return false;
-	}
 }
 
 async function handleMcp(
@@ -313,21 +312,44 @@ export async function handleHttp(
 			return json(res, 200, authServerMetadata(origin));
 		}
 
-		// RFC 7591: dynamic registration. Stateless — nothing is persisted; the
-		// real security comes from PKCE plus redirect_uri validation in /authorize.
+		// RFC 7591: dynamic registration. Stateless — nothing is persisted: the
+		// client_id IS the sealed list of redirect_uris, and /authorize only
+		// redirects to one registered with that id (see checkRedirect).
 		if (
 			req.method === "POST" &&
 			url.pathname === "/register" &&
 			!EXTERNAL_ISSUER
 		) {
 			const body = (asJson(await readBody(req)) ?? {}) as {
-				redirect_uris?: string[];
-				client_name?: string;
+				redirect_uris?: unknown;
+				client_name?: unknown;
 			};
+			// Entries this server can never redirect to (custom schemes and the
+			// like) are dropped rather than failing the whole registration.
+			const uris = (Array.isArray(body.redirect_uris) ? body.redirect_uris : [])
+				.filter(
+					(u): u is string =>
+						typeof u === "string" && !!checkRedirect("", u, TOKEN_SECRET).host,
+				)
+				.slice(0, 10);
+			if (!uris.length)
+				return json(res, 400, {
+					error: "invalid_redirect_uri",
+					error_description:
+						"redirect_uris must list 1-10 https (or loopback) URLs",
+				});
+			const name =
+				typeof body.client_name === "string"
+					? body.client_name.slice(0, 80)
+					: "mcp-client";
 			return json(res, 201, {
-				client_id: `ftmcp-${randomBytes(8).toString("hex")}`,
-				client_name: body.client_name ?? "mcp-client",
-				redirect_uris: body.redirect_uris ?? [],
+				client_id: seal(
+					{ rus: uris, n: name, exp: Date.now() / 1000 + CLIENT_TTL },
+					TOKEN_SECRET,
+					CLIENT_PREFIX,
+				),
+				client_name: name,
+				redirect_uris: uris,
 				token_endpoint_auth_method: "none",
 				grant_types: ["authorization_code", "refresh_token"],
 				response_types: ["code"],
@@ -340,10 +362,16 @@ export async function handleHttp(
 			url.pathname === "/authorize" &&
 			!EXTERNAL_ISSUER
 		) {
-			if (!validRedirect(url.searchParams.get("redirect_uri") ?? ""))
+			const redirect = checkRedirect(
+				url.searchParams.get("client_id") ?? "",
+				url.searchParams.get("redirect_uri") ?? "",
+				TOKEN_SECRET,
+			);
+			if (!redirect.ok)
 				return json(res, 400, {
 					error: "invalid_request",
-					error_description: "redirect_uri inválido",
+					error_description:
+						"redirect_uri is not registered for this client_id",
 				});
 			if (!url.searchParams.get("code_challenge"))
 				return json(res, 400, {
@@ -352,7 +380,7 @@ export async function handleHttp(
 				});
 			// Primary path: login with the free-admin session (device flow).
 			const device = await startDeviceFlow();
-			return html(res, consentPage(url.searchParams, { device }));
+			return html(res, consentPage(url.searchParams, { device, redirect }));
 		}
 
 		// Device flow polling from the consent page. Stateless: the device_code
@@ -365,13 +393,17 @@ export async function handleHttp(
 		) {
 			const body = (asJson(await readBody(req)) ?? {}) as {
 				device_code?: string;
+				client_id?: string;
 				redirect_uri?: string;
 				code_challenge?: string;
 				state?: string;
 			};
 			const redirectUri = body.redirect_uri ?? "";
 			const challenge = body.code_challenge ?? "";
-			if (!validRedirect(redirectUri) || !challenge)
+			if (
+				!checkRedirect(body.client_id ?? "", redirectUri, TOKEN_SECRET).ok ||
+				!challenge
+			)
 				return json(res, 400, { error: "invalid_request" });
 			const state = body.state || null;
 
@@ -414,6 +446,7 @@ export async function handleHttp(
 				{ apiKey: grant.access_token },
 				challenge,
 				redirectUri,
+				body.client_id ?? "",
 			);
 			return json(res, 200, {
 				redirect: redirectWithCode(redirectUri, code, state),
@@ -429,7 +462,12 @@ export async function handleHttp(
 			const form = asForm(await readBody(req));
 			const redirectUri = form.get("redirect_uri") ?? "";
 			const challenge = form.get("code_challenge") ?? "";
-			if (!validRedirect(redirectUri) || !challenge)
+			const redirect = checkRedirect(
+				form.get("client_id") ?? "",
+				redirectUri,
+				TOKEN_SECRET,
+			);
+			if (!redirect.ok || !challenge)
 				return json(res, 400, { error: "invalid_request" });
 			const creds = {
 				apiKey: form.get("api_key")?.trim() ?? "",
@@ -437,8 +475,13 @@ export async function handleHttp(
 				adminSession: form.get("admin_session")?.trim() ?? "",
 			};
 			const error = await validateCreds(creds);
-			if (error) return html(res, consentPage(form, { error }));
-			const code = mintCode(creds, challenge, redirectUri);
+			if (error) return html(res, consentPage(form, { error, redirect }));
+			const code = mintCode(
+				creds,
+				challenge,
+				redirectUri,
+				form.get("client_id") ?? "",
+			);
 			res
 				.writeHead(302, {
 					location: redirectWithCode(redirectUri, code, form.get("state")),
@@ -463,7 +506,9 @@ export async function handleHttp(
 					p &&
 					p.ch &&
 					pkceMatches(verifier, p.ch) &&
-					form.get("redirect_uri") === p.ru
+					form.get("redirect_uri") === p.ru &&
+					// RFC 6749 §4.1.3: the code is redeemed by the client it was issued to.
+					(p.c === undefined || form.get("client_id") === p.c)
 				)
 					sealed = p;
 			} else if (grant === "refresh_token") {
