@@ -234,6 +234,343 @@ export type AdminTokenCreate = {
 	expiresAt?: string;
 };
 
+export type AdminCrmChannel = "EMAIL" | "WHATSAPP";
+
+export type AdminCrmCampaignStatus =
+	| "SENT"
+	| "FAILED"
+	| "DENIED"
+	| "PROCESSING"
+	| "APPROVED"
+	| "SCHEDULED"
+	| "CANCELLED";
+
+/**
+ * Filtro de audiencia v2 (`{ version: 2, scope, include, except }`). Objeto abierto en el contrato: lo valida el servidor con `audienceFilterSchema` (src/lib/crm/filter.ts). Un filtro inválido responde 422 con `error.details[].path` relativo al body (ej. `filter.scope.level`).
+ */
+export type AdminCrmAudienceFilter = {
+	version: 2;
+	[key: string]: unknown | 2;
+};
+
+/**
+ * Quién firma. `freeticket` es obligatorio si el alcance es la plataforma, varias organizaciones o eventos de más de un dueño: el servidor RECHAZA otra firma (422), no la corrige.
+ */
+export type AdminCrmSender =
+	| {
+			kind: "freeticket";
+	  }
+	| {
+			kind: "organization";
+			workspaceId: string;
+	  };
+
+export type AdminCrmCampaign = {
+	id: string;
+	subject: string;
+	channel: AdminCrmChannel;
+	/**
+	 * `BroadcastStatus`
+	 */
+	status: string;
+	senderName: string;
+	isPlatform: boolean;
+	audienceLabel: string;
+	/**
+	 * ISO 8601
+	 */
+	createdAt: string;
+	scheduledAt: string | null;
+	nextBatchAt: string | null;
+	recipientCount: number | null;
+	sentCount: number | null;
+	failedCount: number | null;
+	deliveredCount: number;
+	readCount: number;
+	deferredCount: number;
+	attributed: {
+		sales: number;
+		revenueCop: number;
+		feeCop: number;
+	};
+};
+
+export type AdminCrmCampaignDetail = {
+	id: string;
+	subject: string;
+	channel: AdminCrmChannel;
+	/**
+	 * `BroadcastStatus`
+	 */
+	status: string;
+	senderName: string;
+	isPlatform: boolean;
+	audienceLabel: string;
+	/**
+	 * ISO 8601
+	 */
+	createdAt: string;
+	scheduledAt: string | null;
+	nextBatchAt: string | null;
+	recipientCount: number | null;
+	sentCount: number | null;
+	failedCount: number | null;
+	deliveredCount: number;
+	readCount: number;
+	deferredCount: number;
+	attributed: {
+		sales: number;
+		revenueCop: number;
+		feeCop: number;
+	};
+	body: string;
+	imageUrl: string | null;
+	templateName: string | null;
+	promotedEvent: {
+		id: string;
+		name: string;
+		slug: string;
+	} | null;
+	/**
+	 * null = campaña v1 (segmento previo al CRM v2).
+	 */
+	filter: AdminCrmAudienceFilter | null;
+	batchPlan: {
+		batchSize: number;
+		perDay: number;
+		intervalMinutes: number;
+	} | null;
+	deliveriesByStatus: {
+		[key: string]: number;
+	};
+	topErrors: Array<{
+		error: string;
+		count: number;
+	}>;
+	sentByHour: Array<{
+		/**
+		 * ISO 8601
+		 */
+		hour: string;
+		count: number;
+	}>;
+	conversions: Array<{
+		reference: string;
+		total: number;
+		/**
+		 * ISO 8601
+		 */
+		createdAt: string;
+		eventName: string | null;
+		utmSource: string | null;
+	}>;
+};
+
+export type AdminCrmPreviewInput = {
+	filter: AdminCrmAudienceFilter;
+	/**
+	 * Opcional. Solo SUMA bajas (las del remitente): uno que no corresponda al alcance recorta de más, nunca agrega gente.
+	 */
+	sender?: AdminCrmSender;
+};
+
+export type AdminCrmAudiencePreview = {
+	counts: {
+		matched: number;
+		excludedByExcept: number;
+		excludedByFrequency: number;
+		suppressed: number;
+		total: number;
+		reachableWhatsapp: number;
+		withoutPhone: number;
+	};
+	/**
+	 * Hasta 10 personas, enmascaradas en el servidor.
+	 */
+	sample: Array<{
+		name: string | null;
+		emailMasked: string;
+		phoneMasked: string | null;
+		lastPurchaseAt: string | null;
+	}>;
+	involvedWorkspaceIds: Array<string>;
+	senderChoice:
+		| {
+				forced: true;
+		  }
+		| {
+				forced: false;
+				organization: {
+					id: string;
+					name: string;
+					logoUrl: string | null;
+				};
+		  };
+	whatsappEstimate: {
+		days: number;
+		dailyCap: number;
+		remainingToday: number;
+	} | null;
+};
+
+export type AdminCrmQuotaOutlook = {
+	limit: number;
+	used: number;
+	remaining: number;
+	nextFreeAt: string | null;
+	platformDailyShare: number;
+	committed: Array<{
+		/**
+		 * ISO 8601
+		 */
+		at: string;
+		size: number;
+		messageId: string;
+	}>;
+};
+
+export type AdminCrmWizardOptions = {
+	cities: Array<string>;
+	facets: {
+		genre: Array<{
+			code: string;
+			label: string;
+		}>;
+		format: Array<{
+			code: string;
+			label: string;
+		}>;
+	};
+	plans: Array<{
+		id: string;
+		name: string;
+		orgName: string;
+	}>;
+	templates: Array<{
+		name: string;
+		language: string;
+		hasImageHeader: boolean;
+		body: string;
+		footerText?: string | null;
+		urlButtonText?: string | null;
+	}>;
+	whatsappBlockedReason: string | null;
+};
+
+export type AdminCrmEventOption = {
+	id: string;
+	name: string;
+	slug: string;
+	startsAt: string | null;
+	lastAt: string | null;
+	nextAt: string | null;
+	dateCount: number;
+	venueName: string | null;
+	city: string | null;
+	status: string;
+	orgName: string;
+};
+
+export type AdminCrmEventDateOption = {
+	id: string;
+	eventId: string;
+	/**
+	 * ISO 8601
+	 */
+	startsAt: string;
+	label: string | null;
+	status: string;
+	venueName: string | null;
+	city: string | null;
+	past: boolean;
+	buyers: number;
+};
+
+/**
+ * Cuándo sale. `scheduled` y `batches` tienen que estar en el futuro. Por WhatsApp, la hora se ajusta a la ventana de 9:00–20:00 de Bogotá (la respuesta trae la real en `scheduledAt`). Lotes solo por WhatsApp, con un tope diario de 150 si firma FreeTicket y 200 si firma una organización.
+ */
+export type AdminCrmTiming =
+	| {
+			mode: "now";
+	  }
+	| {
+			mode: "scheduled";
+			/**
+			 * ISO 8601 con offset (ej. `2026-11-03T19:00:00-05:00`).
+			 */
+			at: string;
+	  }
+	| {
+			mode: "batches";
+			/**
+			 * ISO 8601 con offset (ej. `2026-11-03T19:00:00-05:00`).
+			 */
+			firstAt: string;
+			batchSize: number;
+			perDay: number;
+			intervalMinutes: number;
+	  };
+
+export type AdminCrmLaunchInput = {
+	channel: AdminCrmChannel;
+	sender: AdminCrmSender;
+	/**
+	 * Plantilla de WhatsApp aprobada (obligatoria por WhatsApp; el correo la rechaza). Ver `GET /crm/options`.
+	 */
+	templateName?: string | null;
+	subject: string;
+	body: string;
+	/**
+	 * Por WhatsApp tiene que salir de la biblioteca de medios propia.
+	 */
+	imageUrl?: string;
+	/**
+	 * Show PUBLICADO que se promociona (si firma una organización, uno suyo).
+	 */
+	promotedEventId?: string;
+	filter: AdminCrmAudienceFilter;
+	timing: AdminCrmTiming;
+	/**
+	 * Solo WhatsApp con `timing.mode = now`: true = sale aunque sea fuera de las 9:00–20:00 de Bogotá. Por defecto la respeta y responde 409 `OUTSIDE_SEND_WINDOW` con `Retry-After`.
+	 */
+	ignoreSendWindow?: boolean;
+};
+
+export type AdminCrmLaunchResult = {
+	id: string;
+	status: "APPROVED" | "SCHEDULED";
+	/**
+	 * Hora real de salida (ya ajustada a la ventana); null si sale ahora.
+	 */
+	scheduledAt: string | null;
+};
+
+export type AdminCrmBatchNextInput = {
+	/**
+	 * true = manda aunque sea fuera de las 9:00–20:00 de Bogotá. Por defecto la respeta y responde 409 `OUTSIDE_SEND_WINDOW` con `Retry-After`.
+	 */
+	ignoreSendWindow?: boolean;
+};
+
+export type AdminCrmBatchNextResult = {
+	/**
+	 * Cuántos salen como máximo en este lote (lo envía el pipeline).
+	 */
+	batch: number;
+};
+
+export type AdminCrmBatchStopResult = {
+	/**
+	 * Destinatarios pendientes que ya no se enviarán.
+	 */
+	skipped: number;
+};
+
+export type AdminCrmCancelResult = {
+	id: string;
+	status: "DENIED";
+};
+
 export type GetMeData = {
 	body?: never;
 	path?: never;
@@ -1365,6 +1702,555 @@ export type DeleteTokensIdResponses = {
 
 export type DeleteTokensIdResponse =
 	DeleteTokensIdResponses[keyof DeleteTokensIdResponses];
+
+export type GetCrmCampaignsData = {
+	body?: never;
+	path?: never;
+	query?: {
+		channel?: "EMAIL" | "WHATSAPP";
+		status?:
+			| "SENT"
+			| "FAILED"
+			| "DENIED"
+			| "PROCESSING"
+			| "APPROVED"
+			| "SCHEDULED"
+			| "CANCELLED";
+		/**
+		 * 1-100, default 50
+		 */
+		limit?: number;
+	};
+	url: "/crm/campaigns";
+};
+
+export type GetCrmCampaignsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetCrmCampaignsError =
+	GetCrmCampaignsErrors[keyof GetCrmCampaignsErrors];
+
+export type GetCrmCampaignsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<AdminCrmCampaign>;
+	};
+};
+
+export type GetCrmCampaignsResponse =
+	GetCrmCampaignsResponses[keyof GetCrmCampaignsResponses];
+
+export type PostCrmCampaignsData = {
+	body: AdminCrmLaunchInput;
+	path?: never;
+	query?: never;
+	url: "/crm/campaigns";
+};
+
+export type PostCrmCampaignsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCrmCampaignsError =
+	PostCrmCampaignsErrors[keyof PostCrmCampaignsErrors];
+
+export type PostCrmCampaignsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: AdminCrmLaunchResult;
+	};
+};
+
+export type PostCrmCampaignsResponse =
+	PostCrmCampaignsResponses[keyof PostCrmCampaignsResponses];
+
+export type GetCrmCampaignsIdData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/crm/campaigns/{id}";
+};
+
+export type GetCrmCampaignsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetCrmCampaignsIdError =
+	GetCrmCampaignsIdErrors[keyof GetCrmCampaignsIdErrors];
+
+export type GetCrmCampaignsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmCampaignDetail;
+	};
+};
+
+export type GetCrmCampaignsIdResponse =
+	GetCrmCampaignsIdResponses[keyof GetCrmCampaignsIdResponses];
+
+export type PostCrmCampaignsIdBatchesNextData = {
+	body?: AdminCrmBatchNextInput;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/crm/campaigns/{id}/batches/next";
+};
+
+export type PostCrmCampaignsIdBatchesNextErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCrmCampaignsIdBatchesNextError =
+	PostCrmCampaignsIdBatchesNextErrors[keyof PostCrmCampaignsIdBatchesNextErrors];
+
+export type PostCrmCampaignsIdBatchesNextResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmBatchNextResult;
+	};
+};
+
+export type PostCrmCampaignsIdBatchesNextResponse =
+	PostCrmCampaignsIdBatchesNextResponses[keyof PostCrmCampaignsIdBatchesNextResponses];
+
+export type PostCrmCampaignsIdBatchesStopData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/crm/campaigns/{id}/batches/stop";
+};
+
+export type PostCrmCampaignsIdBatchesStopErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCrmCampaignsIdBatchesStopError =
+	PostCrmCampaignsIdBatchesStopErrors[keyof PostCrmCampaignsIdBatchesStopErrors];
+
+export type PostCrmCampaignsIdBatchesStopResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmBatchStopResult;
+	};
+};
+
+export type PostCrmCampaignsIdBatchesStopResponse =
+	PostCrmCampaignsIdBatchesStopResponses[keyof PostCrmCampaignsIdBatchesStopResponses];
+
+export type PostCrmCampaignsIdCancelData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/crm/campaigns/{id}/cancel";
+};
+
+export type PostCrmCampaignsIdCancelErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCrmCampaignsIdCancelError =
+	PostCrmCampaignsIdCancelErrors[keyof PostCrmCampaignsIdCancelErrors];
+
+export type PostCrmCampaignsIdCancelResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmCancelResult;
+	};
+};
+
+export type PostCrmCampaignsIdCancelResponse =
+	PostCrmCampaignsIdCancelResponses[keyof PostCrmCampaignsIdCancelResponses];
+
+export type PostCrmAudiencePreviewData = {
+	body: AdminCrmPreviewInput;
+	path?: never;
+	query?: never;
+	url: "/crm/audience/preview";
+};
+
+export type PostCrmAudiencePreviewErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCrmAudiencePreviewError =
+	PostCrmAudiencePreviewErrors[keyof PostCrmAudiencePreviewErrors];
+
+export type PostCrmAudiencePreviewResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmAudiencePreview;
+	};
+};
+
+export type PostCrmAudiencePreviewResponse =
+	PostCrmAudiencePreviewResponses[keyof PostCrmAudiencePreviewResponses];
+
+export type GetCrmQuotaData = {
+	body?: never;
+	path?: never;
+	query?: never;
+	url: "/crm/quota";
+};
+
+export type GetCrmQuotaErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetCrmQuotaError = GetCrmQuotaErrors[keyof GetCrmQuotaErrors];
+
+export type GetCrmQuotaResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmQuotaOutlook;
+	};
+};
+
+export type GetCrmQuotaResponse =
+	GetCrmQuotaResponses[keyof GetCrmQuotaResponses];
+
+export type GetCrmOptionsData = {
+	body?: never;
+	path?: never;
+	query?: never;
+	url: "/crm/options";
+};
+
+export type GetCrmOptionsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetCrmOptionsError = GetCrmOptionsErrors[keyof GetCrmOptionsErrors];
+
+export type GetCrmOptionsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmWizardOptions;
+	};
+};
+
+export type GetCrmOptionsResponse =
+	GetCrmOptionsResponses[keyof GetCrmOptionsResponses];
+
+export type GetCrmEventsData = {
+	body?: never;
+	path?: never;
+	query: {
+		/**
+		 * Texto (hasta 120 caracteres).
+		 */
+		query?: string;
+		/**
+		 * `promote` solo devuelve shows publicados (y, con `senderWorkspaceId`, solo los de esa organización).
+		 */
+		purpose: "scope" | "promote" | "except";
+		senderWorkspaceId?: string;
+	};
+	url: "/crm/events";
+};
+
+export type GetCrmEventsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetCrmEventsError = GetCrmEventsErrors[keyof GetCrmEventsErrors];
+
+export type GetCrmEventsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<AdminCrmEventOption>;
+	};
+};
+
+export type GetCrmEventsResponse =
+	GetCrmEventsResponses[keyof GetCrmEventsResponses];
+
+export type GetCrmEventDatesData = {
+	body?: never;
+	path?: never;
+	query: {
+		/**
+		 * Ids de shows separados por coma (1 a 50).
+		 */
+		eventIds: string;
+	};
+	url: "/crm/event-dates";
+};
+
+export type GetCrmEventDatesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetCrmEventDatesError =
+	GetCrmEventDatesErrors[keyof GetCrmEventDatesErrors];
+
+export type GetCrmEventDatesResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<AdminCrmEventDateOption>;
+	};
+};
+
+export type GetCrmEventDatesResponse =
+	GetCrmEventDatesResponses[keyof GetCrmEventDatesResponses];
 
 export type ClientOptions = {
 	baseUrl: "https://admin.appfreeticket.com/api/admin" | (string & {});
