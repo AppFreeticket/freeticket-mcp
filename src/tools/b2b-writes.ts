@@ -1781,9 +1781,11 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			"value (PATCH /products/{id}). ⚠️ `modules`, when sent, REPLACES THE " +
 			"WHOLE COURSE TREE: modules, lessons and resources are matched by " +
 			"`id` and every one missing from the list is deleted, with the " +
-			"buyers' progress on it. Read the course with `products_get` first " +
-			"and send the full tree back with its ids; omit `modules` to edit " +
-			"only product fields. New lessons on a published course with buyers " +
+			"buyers' progress on it. Read the course with `products_get` " +
+			"right before and send the full tree back with its ids. Omit " +
+			"`modules` to edit only product fields: the course tree is left " +
+			"untouched. Changing `type` or `unlockMode` requires `modules` " +
+			"(400 `MODULES_REQUIRED`). New lessons on a published course with buyers " +
 			"notify them, like the dashboard. Requires ADMIN. Returns the full " +
 			`product.${UPLOADS}${PRODUCT_ERRORS} 409 \`COURSE_CHANGED\` (the ` +
 			"course changed concurrently: read it again and retry).",

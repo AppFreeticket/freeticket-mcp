@@ -5256,7 +5256,7 @@ export const getProductsId = <ThrowOnError extends boolean = false>(
 
 /**
  * Update a digital product or course
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as saving the dashboard's product wizard. Partial: absent fields keep their saved value. `modules`, when sent, is the FULL course tree: modules, lessons and resources are matched by `id` (keep them so buyers keep their progress) and the ones missing from the list are deleted. New lessons on a published course with buyers notify them, like the dashboard. Returns the full product.
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as saving the dashboard's product wizard. Partial: absent fields keep their saved value. Omit `modules` to leave the course tree untouched (only product fields are written). Sending `modules` replaces the WHOLE tree: modules, lessons and resources are matched by `id` and the ones missing from the list are deleted, along with buyers' progress on those lessons — fetch a fresh `GET /products/{id}` right before and send its tree back with your changes. Changing `type` or `unlockMode` requires sending `modules`. New lessons on a published course with buyers notify them, like the dashboard. Returns the full product.
  *
  * Errors (`error.code`):
  * - 400 `BAD_REQUEST`: a dashboard validation rule failed (e.g. a DOWNLOADABLE without a file, a COURSE without modules or a module without lessons, decimals in a COP price, more than one free preview lesson per module, a QUIZ lesson without questions). `error.message` says which.
@@ -5265,6 +5265,7 @@ export const getProductsId = <ThrowOnError extends boolean = false>(
  * - 400 `INVALID_LESSON_VIDEO`: a lesson `videoId` is not a course video of this workspace, or is linked to another product.
  * - 400 `DUPLICATE_LESSON_VIDEO`: the same `videoId` is used in two lessons.
  * - 403 `LIVE_LESSONS_PLAN_REQUIRED`: a lesson has `isLive: true` and the workspace plan does not include streaming (Icon).
+ * - 400 `MODULES_REQUIRED`: `type` or `unlockMode` changes without `modules`.
  * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
  * - 404 `NOT_FOUND`: the product does not exist, was deleted or belongs to another workspace.
  * - 409 `COURSE_CHANGED`: the course changed concurrently (e.g. a lesson id no longer exists); read it again and retry.

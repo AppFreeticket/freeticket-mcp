@@ -2276,7 +2276,7 @@ export type ProductUpdate = {
 	sampleName?: string | null;
 	samplePath?: string | null;
 	/**
-	 * Full course tree (replaces it: modules/lessons/resources missing from the list are deleted). Absent keeps the saved tree.
+	 * Omit to leave the course tree untouched. When sent, it replaces the WHOLE tree: modules, lessons and resources missing from the list are deleted, along with buyers' progress on those lessons. Fetch a fresh GET right before and send its tree back with your changes. Required when changing `type` or `unlockMode`.
 	 */
 	modules?: Array<ProductModuleInput>;
 	/**
