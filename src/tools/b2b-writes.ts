@@ -4,39 +4,54 @@ import { z } from "zod";
 import { run } from "../api";
 import {
 	deleteContentCommentsId,
+	deleteContentLivesId,
 	deleteContentMembersIdBan,
 	deleteContentPostsId,
+	deleteContentSeriesId,
+	deleteContentVideosId,
 	deleteDiscountsId,
 	deleteEventsId,
 	deleteEventsIdArtistInvitationsInvitationId,
 	deleteEventsIdArtistsOrganizationId,
 	deleteEventsIdDatesDateId,
 	deleteEventsIdSchedule,
+	deleteMasterQrsId,
 	deleteMembershipPlansId,
 	deletePresaleWindowsId,
 	deleteProductsId,
 	deleteStaffId,
+	deleteTicketTemplatesId,
 	deleteTicketTypesId,
 	deleteVenuesId,
 	deleteWebhooksId,
 	patchContentChannelsId,
+	patchContentLivesId,
 	patchContentMeetupsId,
 	patchContentMeetupsIdRsvpsRsvpId,
 	patchContentPostsId,
+	patchContentSeriesId,
+	patchContentVideosId,
 	patchCustomerProfile,
 	patchDiscountsId,
 	patchEventsId,
 	patchEventsIdDatesDateId,
+	patchMasterQrsId,
 	patchMembershipPlansId,
+	patchOrganization,
+	patchOrganizationAnalytics,
+	patchOrganizationProfile,
 	patchPresaleWindowsId,
 	patchProductsId,
 	patchStaffIdRole,
 	patchTicketsTicketCode,
+	patchTicketTemplatesId,
 	patchTicketTypesId,
 	patchVenuesId,
 	patchWebhooksId,
 	postContentChannels,
 	postContentChannelsIdArchive,
+	postContentLives,
+	postContentLivesIdResetKey,
 	postContentMeetups,
 	postContentMeetupsIdCancel,
 	postContentMeetupsIdPublish,
@@ -49,6 +64,7 @@ import {
 	postContentModerationMemberPostsIdRemove,
 	postContentPlaybackToken,
 	postContentPosts,
+	postContentSeries,
 	postCustomerLogout,
 	postCustomerOrdersIdRelease,
 	postCustomerSubscriptions,
@@ -62,6 +78,7 @@ import {
 	postEventsIdDates,
 	postEventsIdPublish,
 	postEventsIdSchedule,
+	postMasterQrs,
 	postMembershipPlans,
 	postProducts,
 	postProductsIdStatus,
@@ -73,6 +90,8 @@ import {
 	postSubscriptionsIdCancel,
 	postTicketsTicketCodeCheckin,
 	postTicketsTicketCodeResend,
+	postTicketTemplates,
+	postTicketTemplatesIdInstantiate,
 	postTicketTypes,
 	postTicketTypesIdPresaleWindows,
 	postVenues,
@@ -82,7 +101,13 @@ import {
 	putContentChannelsOrder,
 	putContentMeetupsIdAttendance,
 	putContentPostsIdPin,
+	putContentSeriesIdPublished,
+	putContentVideosIdPublished,
+	putContentVideosIdSeries,
 	putEventsIdArtists,
+	putMasterQrsIdActive,
+	putWebsite,
+	putWebsitePublished,
 } from "../client/sdk.gen";
 import { write } from "../tool-meta";
 
@@ -1841,5 +1866,560 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		{ id: z.string().describe("Product id") },
 		write("products_delete", { destructive: true }),
 		async ({ id }) => run(deleteProductsId({ path: { id }, client })),
+	);
+
+	// ── On-demand videos, series and live streams, Mux (contract 1.31) ──────
+	// Same rules as the dashboard's Content screen; writes need ADMIN and an
+	// event-scoped key gets 403. Uploading a video is not possible through the
+	// API (the Mux direct upload needs a browser); course lesson videos are
+	// managed from their course (`products_update`) and answer 404 here.
+	const STREAM_KEY_SECRET =
+		" 🔒 SECRET: `streamKey` lets whoever has it broadcast on this stream in " +
+		"the organization's name. Hand it to the human only if they explicitly " +
+		"ask for it; do not echo it into the chat, summaries or docs otherwise, " +
+		"and never paste it in shared places (tickets, channels, repos). If it " +
+		"leaked, rotate it with `content_lives_reset_key`.";
+	const scheduledAt =
+		'Wall-clock time "YYYY-MM-DDTHH:mm" in the WORKSPACE time zone (not ' +
+		"UTC, no offset); future and at most 2 years ahead";
+	server.tool(
+		"content_videos_update",
+		"Edits an on-demand video (draft or published); only the fields sent " +
+			"are written, at least one (PATCH /content/videos/{id}). Requires ADMIN.",
+		{
+			id: z.string().describe("Video id"),
+			title: z.string().min(1).max(120).optional(),
+			description: z
+				.string()
+				.max(2000)
+				.nullish()
+				.describe('null or "" clears it'),
+			memberOnly: z
+				.boolean()
+				.optional()
+				.describe("true = only current members can play it"),
+		},
+		write("content_videos_update", { destructive: false }),
+		async ({ id, ...body }) =>
+			run(patchContentVideosId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"content_videos_set_published",
+		"Publishes or unpublishes an on-demand video; publishing puts it in the " +
+			"community feed as a VIDEO post and notifies members (once, even if " +
+			"republished), unpublishing removes it from the feed " +
+			"(PUT /content/videos/{id}/published). Errors: 409 `VIDEO_NOT_READY` " +
+			"(Mux still processing), 409 `MEMBERSHIP_PREREQ` (no active " +
+			"membership plan), 403 `FEATURE_LOCKED`. Requires ADMIN.",
+		{ id: z.string().describe("Video id"), published: z.boolean() },
+		// openWorld: publishing notifies the members.
+		write("content_videos_set_published", {
+			destructive: false,
+			idempotent: true,
+			openWorld: true,
+		}),
+		async ({ id, published }) =>
+			run(
+				putContentVideosIdPublished({
+					path: { id },
+					body: { published },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"content_videos_set_series",
+		"Moves a video into a series, or out of it with `seriesId: null`; does " +
+			"not change whether it is published (PUT /content/videos/{id}/series). " +
+			"Requires ADMIN.",
+		{
+			id: z.string().describe("Video id"),
+			seriesId: z
+				.string()
+				.min(1)
+				.nullable()
+				.describe("Series id (`content_series_list`); null leaves it loose"),
+		},
+		write("content_videos_set_series", {
+			destructive: false,
+			idempotent: true,
+		}),
+		async ({ id, seriesId }) =>
+			run(
+				putContentVideosIdSeries({ path: { id }, body: { seriesId }, client }),
+			),
+	);
+	server.tool(
+		"content_videos_delete",
+		"Deletes an on-demand video and its asset in Mux: the encoded file is " +
+			"gone (no restore through the API or the dashboard) and members lose " +
+			`access immediately (DELETE /content/videos/{id}). Requires ADMIN.${CONFIRM}`,
+		{ id: z.string().describe("Video id") },
+		// openWorld: deletes the asset in Mux.
+		write("content_videos_delete", { destructive: true, openWorld: true }),
+		async ({ id }) => run(deleteContentVideosId({ path: { id }, client })),
+	);
+	server.tool(
+		"content_series_create",
+		"Creates a video series, born unpublished and empty " +
+			"(POST /content/series). Add videos with `content_videos_set_series` " +
+			"and publish it with `content_series_set_published`. Errors: 409 " +
+			"`MEMBERSHIP_PREREQ`, 403 `FEATURE_LOCKED`. Requires ADMIN.",
+		{
+			title: z.string().min(1).max(120),
+			description: z.string().max(2000).nullish(),
+			coverImageUrl: z.string().nullish().describe("Absolute URL of the cover"),
+			memberOnly: z.boolean().optional().describe("Default true"),
+		},
+		write("content_series_create", { destructive: false }),
+		async (body) => run(postContentSeries({ body, client })),
+	);
+	server.tool(
+		"content_series_update",
+		"Edits a video series; only the fields sent are written, at least one " +
+			"(PATCH /content/series/{id}). Requires ADMIN.",
+		{
+			id: z.string().describe("Series id"),
+			title: z.string().min(1).max(120).optional(),
+			description: z.string().max(2000).nullish().describe("null clears it"),
+			coverImageUrl: z
+				.string()
+				.nullish()
+				.describe("Absolute URL; null clears it"),
+			memberOnly: z.boolean().optional(),
+		},
+		write("content_series_update", { destructive: false }),
+		async ({ id, ...body }) =>
+			run(patchContentSeriesId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"content_series_set_published",
+		"Publishes or unpublishes a video series; its videos keep their own " +
+			"published state. Publishing again refreshes `publishedAt` " +
+			"(PUT /content/series/{id}/published). Requires ADMIN.",
+		{ id: z.string().describe("Series id"), published: z.boolean() },
+		write("content_series_set_published", {
+			destructive: false,
+			idempotent: true,
+		}),
+		async ({ id, published }) =>
+			run(
+				putContentSeriesIdPublished({
+					path: { id },
+					body: { published },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"content_series_delete",
+		"Deletes a video series (soft delete, no restore through the API). Its " +
+			"videos are NOT deleted or unpublished but are left loose, so the " +
+			`grouping and order are lost (DELETE /content/series/{id}). Requires ADMIN.${CONFIRM}`,
+		{ id: z.string().describe("Series id") },
+		write("content_series_delete", { destructive: true }),
+		async ({ id }) => run(deleteContentSeriesId({ path: { id }, client })),
+	);
+	server.tool(
+		"content_lives_create",
+		"Creates a live stream in Mux and returns the RTMPS server (`rtmpUrl`) " +
+			"and the `streamKey` to configure OBS or any encoder " +
+			"(POST /content/lives). The key comes back ONLY here and from " +
+			"`content_lives_reset_key`, never from the reads. `memberOnly` is " +
+			"forced to false without an active membership plan; with " +
+			"`eventDateId` and no `scheduledAt` it inherits the show's start. " +
+			"Errors: 400 `INVALID_SCHEDULE`, 403 `FEATURE_LOCKED`, 409 " +
+			"`EVENT_DATE_HAS_LIVE`, 502 `MUX_ERROR` (nothing created). Requires " +
+			`ADMIN.${STREAM_KEY_SECRET}`,
+		{
+			title: z.string().min(1).max(120),
+			eventDateId: z
+				.string()
+				.nullish()
+				.describe("Show date to tie it to (one stream per date)"),
+			memberOnly: z.boolean().optional().describe("Default true"),
+			scheduledAt: z.string().nullish().describe(scheduledAt),
+		},
+		// openWorld: creates the stream in Mux.
+		write("content_lives_create", { destructive: false, openWorld: true }),
+		async (body) => run(postContentLives({ body, client })),
+	);
+	server.tool(
+		"content_lives_update",
+		"Changes a live stream's scheduled time and/or members-only flag; absent " +
+			"fields keep their value. Never returns the stream key " +
+			"(PATCH /content/lives/{id}). Errors: 409 `LIVE_NOT_IDLE` " +
+			"(`scheduledAt` on a stream on air or ended), 409 `MEMBERSHIP_PREREQ`. " +
+			"Requires ADMIN.",
+		{
+			id: z.string().describe("Live stream id"),
+			scheduledAt: z
+				.string()
+				.nullish()
+				.describe(`${scheduledAt}; null removes it. Only while IDLE`),
+			memberOnly: z.boolean().optional(),
+		},
+		write("content_lives_update", { destructive: false }),
+		async ({ id, ...body }) =>
+			run(patchContentLivesId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"content_lives_reset_key",
+		"Rotates a live stream's stream key in Mux and returns the new one with " +
+			"the RTMPS server (POST /content/lives/{id}/reset-key). The current " +
+			"key stops working immediately: an encoder on it is disconnected and " +
+			"must be reconfigured. Use it when the key may have leaked. 502 " +
+			`\`MUX_ERROR\`: the old key keeps working. Requires ADMIN.${CONFIRM}` +
+			STREAM_KEY_SECRET,
+		{ id: z.string().describe("Live stream id") },
+		// openWorld: calls Mux.
+		write("content_lives_reset_key", { destructive: true, openWorld: true }),
+		async ({ id }) => run(postContentLivesIdResetKey({ path: { id }, client })),
+	);
+	server.tool(
+		"content_lives_delete",
+		"Deletes a live stream in Mux (its stream key stops working and an " +
+			"encoder on air is cut off) and soft-deletes it locally; no restore " +
+			`through the API (DELETE /content/lives/{id}). Requires ADMIN.${CONFIRM}`,
+		{ id: z.string().describe("Live stream id") },
+		// openWorld: deletes the stream in Mux.
+		write("content_lives_delete", { destructive: true, openWorld: true }),
+		async ({ id }) => run(deleteContentLivesId({ path: { id }, client })),
+	);
+
+	// ── Workspace configuration (contract 1.32) ──────────────────────────────
+	// Website, profile, organization identity, ticket templates and box-office
+	// QR codes. Writes need ADMIN; an event-scoped key gets 403.
+	const nullableText = (max: number) => z.string().max(max).nullable();
+	const nullableUrl = z.string().url().max(500).nullish();
+	server.tool(
+		"website_put",
+		"Saves the workspace website configuration (PUT /website). ⚠️ FULL " +
+			"REPLACEMENT: every field is required and `null` clears an optional " +
+			"text. Read `website_get` first and send everything back. `name`, " +
+			"`bio`, `instagramUrl`, `tiktokUrl` and `youtubeUrl` are the same " +
+			"columns `organization_profile_update` edits: a `null` here wipes them " +
+			"there too. Photo and cover are not edited here " +
+			"(`organization_update`). Errors: 403 `FEATURE_LOCKED` (plan without " +
+			`custom landing), 400 \`INVALID_SECTIONS\`. Requires ADMIN.${CONFIRM}`,
+		{
+			name: z.string().min(1).max(100),
+			tagline: nullableText(200),
+			bio: nullableText(5000),
+			instagramUrl: nullableText(500),
+			tiktokUrl: nullableText(500),
+			youtubeUrl: nullableText(500),
+			accentColor: z
+				.string()
+				.regex(/^#[0-9a-fA-F]{6}$/)
+				.describe("#RRGGBB"),
+			webTemplate: z.string().min(1).max(32),
+			webSections: z
+				.record(z.union([z.boolean(), z.array(z.string())]))
+				.describe(
+					"Visibility booleans for shows, productos, posts, membresias, " +
+						"contenido, bio, redes, plus `order` (array of section ids). " +
+						"Unknown keys are dropped",
+				),
+		},
+		// destructive: a full replace; any field sent as null is wiped, here and
+		// on the profile that shares the columns.
+		write("website_put", { destructive: true, idempotent: true }),
+		async (body) => run(putWebsite({ body, client })),
+	);
+	server.tool(
+		"website_set_published",
+		"Lists or unlists the organization's public page in /artistas " +
+			"(PUT /website/published); send the desired state. Only the " +
+			"organization's primary workspace can do it. Errors: 409 " +
+			"`NOT_PRIMARY_WORKSPACE`, 409 `NO_ORGANIZATION`, 409 " +
+			"`PROFILE_INCOMPLETE` (publishing needs brand name and profile " +
+			"photo). Requires ADMIN.",
+		{ published: z.boolean() },
+		write("website_set_published", { destructive: false, idempotent: true }),
+		async ({ published }) =>
+			run(putWebsitePublished({ body: { published }, client })),
+	);
+	server.tool(
+		"organization_update",
+		"Updates the umbrella organization's public identity: name, profile " +
+			"photo and cover; absent fields keep their value, `null` clears an " +
+			"image (PATCH /organization). The name is mirrored to the primary " +
+			"workspace; the slug cannot be changed here. Requires ADMIN and being " +
+			"OWNER/ADMIN of the organization (403 `ORG_ADMIN_REQUIRED`).",
+		{
+			name: z.string().min(2).max(80).optional(),
+			logoUrl: nullableUrl,
+			coverUrl: nullableUrl,
+		},
+		write("organization_update", { destructive: false }),
+		async (body) => run(patchOrganization({ body, client })),
+	);
+	server.tool(
+		"organization_analytics_update",
+		"Sets the brand's own GA4 Measurement ID, added to the checkout of its " +
+			"events next to FreeTicket's; `null` disconnects it " +
+			"(PATCH /organization/analytics). Requires ADMIN and being " +
+			"OWNER/ADMIN of the organization (403 `ORG_ADMIN_REQUIRED`).",
+		{
+			ga4MeasurementId: z
+				.string()
+				.max(32)
+				.nullable()
+				.describe("G-XXXXXXXXXX; null disconnects it"),
+		},
+		write("organization_analytics_update", {
+			destructive: false,
+			idempotent: true,
+		}),
+		async (body) => run(patchOrganizationAnalytics({ body, client })),
+	);
+	server.tool(
+		"organization_profile_update",
+		"Updates the workspace profile by optional sections: `artist`, `visual` " +
+			"(brand photo/cover, on the umbrella organization), `contact` and " +
+			"`social` (PATCH /organization/profile). Only the fields sent are " +
+			"written; `null` clears an optional one. Sections apply in order " +
+			"artist → visual → contact → social and a failure keeps the earlier " +
+			"ones saved. Changing `artist.slug` changes the workspace's URLs. " +
+			"`visual` and `artist.name` also require being OWNER/ADMIN of the " +
+			"organization (403 `ORG_ADMIN_REQUIRED`, checked before writing " +
+			"anything). Errors: 409 `SLUG_TAKEN`, 409 `ORG_NOT_INITIALIZED`. " +
+			"Requires ADMIN.",
+		{
+			artist: z
+				.object({
+					name: z.string().min(1).max(100).optional(),
+					slug: z
+						.string()
+						.min(1)
+						.max(50)
+						.regex(/^[a-z0-9-]+$/)
+						.optional(),
+					bio: z.string().max(5000).nullish(),
+					type: z.enum(["ARTIST", "VENUE", "ORGANIZER"]).optional(),
+					country: z
+						.string()
+						.length(2)
+						.optional()
+						.describe("ISO 3166-1 alpha-2"),
+					timezone: z.string().min(1).optional().describe("IANA time zone"),
+				})
+				.optional(),
+			visual: z
+				.object({ logoUrl: nullableUrl, coverUrl: nullableUrl })
+				.optional(),
+			contact: z
+				.object({
+					email: z.string().email().max(200).nullish(),
+					phone: z.string().max(40).nullish(),
+					website: nullableUrl,
+				})
+				.optional(),
+			social: z
+				.object({
+					instagramUrl: nullableUrl,
+					facebookUrl: nullableUrl,
+					twitterUrl: nullableUrl,
+					spotifyUrl: nullableUrl,
+					youtubeUrl: nullableUrl,
+					tiktokUrl: nullableUrl,
+				})
+				.optional(),
+		},
+		write("organization_profile_update", { destructive: false }),
+		async (body) => run(patchOrganizationProfile({ body, client })),
+	);
+
+	const templateField = z.object({
+		label: z.string().min(1).max(100),
+		fieldType: z.enum(["TEXT", "NUMBER", "SELECT", "EMAIL", "PHONE"]),
+		options: z
+			.array(z.string().min(1).max(100))
+			.max(20)
+			.optional()
+			.describe("SELECT only: at least 2 options"),
+		isRequired: z.boolean().default(false),
+	});
+	const templateFields = {
+		description: nullableText(500).optional(),
+		capacity: z.number().int().positive().nullish().describe("null = no cap"),
+		accentColor: z.string().nullish(),
+		includes: nullableText(500).optional(),
+		instructions: nullableText(2000).optional(),
+		discount: z
+			.object({
+				planId: z
+					.string()
+					.min(1)
+					.max(50)
+					.describe("Active membership plan of this workspace"),
+				percent: z.number().int().min(1).max(100),
+			})
+			.nullish()
+			.describe("Member discount; null = none"),
+		membersOnlyPlanId: z
+			.string()
+			.min(1)
+			.max(50)
+			.nullish()
+			.describe("Members-only gate plan; null = open to everyone"),
+	};
+	const TEMPLATE_ERRORS =
+		" Errors: 400 `INVALID_CURRENCY`, 400 `DISCOUNT_PLAN_INVALID`, 400 " +
+		"`MEMBERS_ONLY_PLAN_INVALID`.";
+	server.tool(
+		"ticket_templates_create",
+		"Creates a reusable ticket template (POST /ticket-templates). A SELECT " +
+			`field needs at least 2 options (422). Requires ADMIN.${TEMPLATE_ERRORS}`,
+		{
+			name: z.string().min(1).max(100),
+			price: z.number().min(0),
+			currency: z.string().length(3).default("COP"),
+			maxPerOrder: z.number().int().positive().default(10),
+			organizerAbsorbsFee: z.boolean().default(false),
+			isActive: z.boolean().default(true),
+			sortOrder: z.number().int().default(0),
+			fields: z
+				.array(templateField)
+				.max(15)
+				.default([])
+				.describe("Buyer form fields"),
+			...templateFields,
+		},
+		write("ticket_templates_create", { destructive: false }),
+		async (body) => run(postTicketTemplates({ body, client })),
+	);
+	server.tool(
+		"ticket_templates_update",
+		"Edits a ticket template; only the fields sent are written and `null` " +
+			"clears an optional one (PATCH /ticket-templates/{id}). `fields`, when " +
+			"sent, replaces the whole buyer-form list. Ticket types already " +
+			"created from the template are copies and do not change. Requires " +
+			`ADMIN.${TEMPLATE_ERRORS}`,
+		{
+			id: z.string().describe("Template id"),
+			name: z.string().min(1).max(100).optional(),
+			price: z.number().min(0).optional(),
+			currency: z.string().length(3).optional(),
+			maxPerOrder: z.number().int().positive().optional(),
+			organizerAbsorbsFee: z.boolean().optional(),
+			isActive: z.boolean().optional(),
+			sortOrder: z.number().int().optional(),
+			fields: z
+				.array(templateField)
+				.max(15)
+				.optional()
+				.describe("Replaces the whole list; absent keeps it"),
+			...templateFields,
+		},
+		write("ticket_templates_update", { destructive: false }),
+		async ({ id, ...body }) =>
+			run(patchTicketTemplatesId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"ticket_templates_delete",
+		"Deletes a ticket template (soft delete, no restore through the API); " +
+			"ticket types already created from it keep working " +
+			`(DELETE /ticket-templates/{id}). Requires ADMIN.${CONFIRM}`,
+		{ id: z.string().describe("Template id") },
+		write("ticket_templates_delete", { destructive: true }),
+		async ({ id }) => run(deleteTicketTemplatesId({ path: { id }, client })),
+	);
+	server.tool(
+		"ticket_templates_instantiate",
+		"Creates a ticket type on an event date by copying a template (price, " +
+			"capacity, discount, members-only gate, buyer form) " +
+			"(POST /ticket-templates/{id}/instantiate). `name`, `price` and " +
+			"`capacity` override the template's; a discount or gate whose plan " +
+			"is no longer valid is dropped instead of failing. Returns " +
+			"`ticketTypeId`. Errors: 404 `EVENT_DATE_NOT_FOUND`, 400 " +
+			"`CAPACITY_REQUIRED` (template without capacity). Requires ADMIN.",
+		{
+			id: z.string().describe("Template id"),
+			eventDateId: z.string().min(1).describe("Event date of this workspace"),
+			name: z.string().min(1).max(100).optional(),
+			price: z.number().min(0).optional(),
+			capacity: z
+				.number()
+				.int()
+				.positive()
+				.optional()
+				.describe("Required when the template has no capacity"),
+		},
+		write("ticket_templates_instantiate", { destructive: false }),
+		async ({ id, ...body }) =>
+			run(postTicketTemplatesIdInstantiate({ path: { id }, body, client })),
+	);
+
+	const QR_SECRET =
+		" 🔒 SECRET: the returned `code` and `url` are what the printed QR " +
+		"encodes and open the sale flow; they cannot be rotated. Do not echo " +
+		"them into the chat or any doc unless the human explicitly asks, and " +
+		"never paste them in shared places; refer to the QR by `id`/`label`.";
+	const qrTarget = {
+		eventId: z
+			.string()
+			.min(1)
+			.max(60)
+			.nullish()
+			.describe("Event id; absent/null = org-wide QR (all shows)"),
+		ticketTypeId: z
+			.string()
+			.min(1)
+			.max(60)
+			.nullish()
+			.describe("Pins a ticket type of that event; not on org-wide QRs"),
+	};
+	const qrMode = z
+		.enum(["EVENT", "TODAY"])
+		.describe(
+			"EVENT: opens the event page (or the tenant listings when org-wide). " +
+				"TODAY: jumps to today's show",
+		);
+	server.tool(
+		"master_qrs_create",
+		"Creates a master box-office QR code (POST /master-qrs). Error: 400 " +
+			`\`INVALID_TARGET\`. Requires ADMIN.${QR_SECRET}`,
+		{ label: z.string().min(1).max(80), mode: qrMode, ...qrTarget },
+		write("master_qrs_create", { destructive: false }),
+		async (body) => run(postMasterQrs({ body, client })),
+	);
+	server.tool(
+		"master_qrs_update",
+		"Edits a master QR: `label` and `mode` alone, or the target " +
+			"(`eventId` + `ticketTypeId`) as a pair, 422 otherwise " +
+			"(PATCH /master-qrs/{id}). The code does not change: the printed QR " +
+			"keeps working and now points to the new target. Requires " +
+			`ADMIN.${QR_SECRET}`,
+		{
+			id: z.string().describe("QR id"),
+			label: z.string().min(1).max(80).optional(),
+			mode: qrMode.optional(),
+			...qrTarget,
+		},
+		write("master_qrs_update", { destructive: false }),
+		async ({ id, ...body }) =>
+			run(patchMasterQrsId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"master_qrs_set_active",
+		"Activates or pauses a master QR; while inactive, scanning it answers " +
+			"404 (PUT /master-qrs/{id}/active). Send the desired state. Requires " +
+			"ADMIN.",
+		{ id: z.string().describe("QR id"), active: z.boolean() },
+		write("master_qrs_set_active", { destructive: false, idempotent: true }),
+		async ({ id, active }) =>
+			run(putMasterQrsIdActive({ path: { id }, body: { active }, client })),
+	);
+	server.tool(
+		"master_qrs_delete",
+		"Deletes a master QR: the printed code stops working for good (soft " +
+			"delete, scan history kept, no restore through the API) " +
+			"(DELETE /master-qrs/{id}). To pause it instead use " +
+			`\`master_qrs_set_active\`. Requires ADMIN.${CONFIRM}`,
+		{ id: z.string().describe("QR id") },
+		write("master_qrs_delete", { destructive: true }),
+		async ({ id }) => run(deleteMasterQrsId({ path: { id }, client })),
 	);
 }

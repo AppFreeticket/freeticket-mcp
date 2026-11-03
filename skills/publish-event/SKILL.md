@@ -22,6 +22,10 @@ several, ask which one and confirm with `whoami`.
 5. **Ticket types.** `event_dates_list` to get the date ids, then
    `ticket_types_create` per date (price in COP, `capacity`, `maxPerOrder`,
    `isVisible`, `organizerAbsorbsFee`; `saleStartsAt`/`saleEndsAt` optional).
+   If the workspace has reusable templates (`ticket_templates_list`), prefer
+   `ticket_templates_instantiate` with `eventDateId` (override `name`,
+   `price` or `capacity` if needed): it copies price, discount, members-only
+   gate and buyer form in one call.
 6. **Member presale (optional).** `plans_list` → `presale_windows_create` on
    each ticket type (`planId`, `presaleStartsAt`, `presaleEndsAt` in UTC `…Z`,
    optional `presaleCapacity`). Check with `presale_windows_list`.

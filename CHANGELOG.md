@@ -5,6 +5,52 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-03
+
+Brings the B2B contract to **1.32.0** (superadmin 1.8.0 and public 0.10.1
+unchanged): lots 4 (1.31.0) and 5 (1.32.0) of the dashboard parity. The spec
+comes from free-admin commit `1ceb2ea` on branch
+`claude/funny-albattani-iz4k0r` (PR AppFreeticket/free-admin#1169), **not yet
+merged to `main` nor deployed**: these tools answer 404 against production
+until that PR ships. Additions only. **208 tools** (B2B 172 · superadmin 30 ·
+public 6), 48 with a view.
+
+### Added
+- On-demand videos (Mux): `content_videos_update`,
+  `content_videos_set_published` (open-world: publishing notifies members),
+  `content_videos_set_series` and `content_videos_delete` (destructive,
+  open-world: deletes the Mux asset). Uploading stays in the dashboard.
+- Video series: `content_series_list` (view), `content_series_create`,
+  `content_series_update`, `content_series_set_published` and
+  `content_series_delete` (destructive; its videos are left loose).
+- Live streams (Mux): `content_lives_create`, `content_lives_update`,
+  `content_lives_reset_key` (destructive: the old key dies at once),
+  `content_lives_delete` (destructive) and `content_lives_chat` (personal
+  data). The three Mux calls are open-world.
+- Website and profile: `website_get`, `website_put`, `website_set_published`,
+  `organization_profile_get`, `organization_profile_update`,
+  `organization_update` and `organization_analytics_update` (GA4).
+  `website_put` is a **full replacement** (every `null` wipes a field, and
+  five of its columns are shared with the profile), so it is annotated
+  destructive and asks for confirmation although the contract does not flag
+  it `x-ft-destructive`.
+- Ticket templates: `ticket_templates_list` (view), `ticket_templates_create`,
+  `ticket_templates_update`, `ticket_templates_delete` (destructive) and
+  `ticket_templates_instantiate` (creates a ticket type on a date from a
+  template).
+- Box-office QR codes: `master_qrs_list` (view), `master_qrs_create`,
+  `master_qrs_update`, `master_qrs_set_active` and `master_qrs_delete`
+  (destructive).
+
+### Security
+- Secrets in results: `content_lives_create` / `content_lives_reset_key`
+  return the live's `streamKey`, and `master_qrs_list` / `_create` /
+  `_update` return the QR `code` and `url`. Their descriptions mark the value
+  as SECRET: the agent must not echo it into the chat or docs unless the
+  human explicitly asks, nor paste it in shared places. The server keeps no
+  log or store of tool results (stateless HTTP transport; stderr only gets
+  transport errors), so the value lives only in the client's transcript.
+
 ## [0.18.0] - 2026-11-03
 
 Brings the B2B contract to **1.30.0** (superadmin 1.8.0 and public 0.10.1

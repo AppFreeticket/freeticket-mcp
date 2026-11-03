@@ -194,6 +194,10 @@ and ask for confirmation.
 | Community moderation | `content_moderation_queue` · `content_moderation_bans` · `content_member_posts_list` | `content_comments_hide` · `content_comments_unhide` · `content_comments_ignore_reports` · `content_member_posts_approve` · `content_member_posts_reject` · `content_member_posts_remove` · `content_members_ban` · `content_members_unban` |
 | Community meetups | `content_meetups_list` · `content_meetups_get` | `content_meetups_create` · `content_meetups_update` · `content_meetups_publish` · `content_meetups_cancel` · `content_meetups_rsvp_review` · `content_meetups_attendance` |
 | Digital products and courses | `products_list` · `products_get` | `products_create` · `products_update` (with `modules` replaces the whole course tree) · `products_set_status` · `products_delete` |
+| Videos, series and lives (Mux) | `content_series_list` · `content_lives_chat` | `content_videos_update` · `content_videos_set_published` · `content_videos_set_series` · `content_videos_delete` · `content_series_create` · `content_series_update` · `content_series_set_published` · `content_series_delete` · `content_lives_create` 🔒 · `content_lives_update` · `content_lives_reset_key` 🔒 · `content_lives_delete` |
+| Website and profile | `website_get` · `organization_profile_get` | `website_put` (full replace, destructive) · `website_set_published` · `organization_update` · `organization_analytics_update` · `organization_profile_update` |
+| Ticket templates | `ticket_templates_list` | `ticket_templates_create` · `ticket_templates_update` · `ticket_templates_delete` · `ticket_templates_instantiate` |
+| Box-office QR codes | `master_qrs_list` 🔒 | `master_qrs_create` 🔒 · `master_qrs_update` 🔒 · `master_qrs_set_active` · `master_qrs_delete` |
 
 Minting and revoking credentials (`ft api-keys`, `ft admin tokens`) is left out
 of the MCP on purpose: an agent lists credentials to audit them, it does not
@@ -205,6 +209,14 @@ either — it mints third-party sessions.
 `settlements_document` and `settlements_proof` return a **signed URL with a
 5-minute TTL**, not the file: the API answers 302, and following the redirect
 would drop the whole PDF into the model's context.
+
+🔒 = the result carries a **secret**: the stream key of a live (`streamKey`,
+broadcast rights in the organization's name; only `content_lives_create` and
+`content_lives_reset_key` return it) or the code/URL of a master QR (opens the
+sale flow, cannot be rotated). The descriptions tell the agent not to echo it
+into the chat or docs unless the human explicitly asks. The server does not
+log or store tool results: the value only lives in the client's transcript.
+Videos cannot be uploaded through the API (the Mux upload needs a browser).
 
 The content tools list what is published without the playback id; to play
 anything you need `content_playback_token` (30 min live, 1 h video), and
@@ -266,7 +278,7 @@ draws them.
 - Hosts without the extension (or terminal clients) ignore `_meta` and see the
   same text as always: nothing breaks.
 
-**45 tools with a view** (v0.18.0) — every list and every report. Details
+**48 tools with a view** (v0.19.0) — every list and every report. Details
 (`*_get`) and writes deliberately have none: a lone object or a `delete`
 acknowledgement gains nothing from a table, and drawing one suggests there is
 data where there is not. `src/ui.test.ts` mounts the real view in jsdom and

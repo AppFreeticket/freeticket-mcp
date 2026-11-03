@@ -153,8 +153,10 @@ describe("tool registration", () => {
 		// (events_schedule/unschedule, the lineup and its invitations, presale
 		// windows, waitlist_join) + the 24 from 1.28/1.29 (access-close sign,
 		// sales_abandon and the community: posts, channels, moderation, meetups)
-		// + the 4 from 1.30 (products create/update/set_status/delete).
-		expect(t.length).toBe(80);
+		// + the 4 from 1.30 (products create/update/set_status/delete) + the 12
+		// from 1.31 (videos, series, lives) + the 13 from 1.32 (website,
+		// profile, organization, ticket templates, master QRs).
+		expect(t.length).toBe(105);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -172,6 +174,9 @@ describe("tool registration", () => {
 			"event_dates_access_close_sign",
 			"content_meetups_create",
 			"products_update",
+			"content_lives_reset_key",
+			"ticket_templates_instantiate",
+			"master_qrs_create",
 		]) {
 			expect(t).toContain(n);
 		}

@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket B2B API",
-		"version": "1.30.0",
+		"version": "1.32.0",
 		"description": "FreeTicket B2B REST API for integrations, the `ft` CLI and the FreeTicket MCP server. Authentication is by API key (`Authorization: Bearer <key>` header or `x-api-key`); the active workspace is selected with the `X-Workspace-Id` header.\n\nScopes: each key is either `read` (GET/HEAD only) or `write` (additionally creates, edits, deletes, cancels, refunds and checks in). Self-service keys are issued as `read`. A `read` key calling a mutating method gets a 403. The machine-readable declaration lives at `/.well-known/oauth-protected-resource` (RFC 9728).\n\nGetting a key (self-serve, no sales contact): `ft login` runs the Device Authorization Grant (RFC 8628, `POST /auth/device/code` + `POST /auth/device/token`); the user approves the code at https://admin.appfreeticket.com/device and the CLI receives a key. New organizers can bootstrap headless with `POST /auth/signup` (verify-first, then `ft login`). With a key, `POST /api-keys` mints more (born `read` unless `write` is requested). There is no sandbox environment: test against a dedicated workspace with `read` keys.\n\n## Versioning and deprecation\n\n- **Path version.** The B2B API is versioned in the path (`/api/v1`). A breaking change ships under a new path (`/api/v2`); the previous version keeps running in parallel until its sunset date.\n- **Contract version.** `info.version` is the semantic version of this document. MINOR = additive (new endpoints, new optional fields, new enum values, new error codes; clients must ignore unknown fields). PATCH = documentation or fixes that do not change shapes. The public API (`/api/public`) is pre-1.0 and not versioned in the path: there, a MINOR bump may include a breaking change and PATCH never does.\n- **Deprecation signals.** A deprecated operation is marked `deprecated: true` in this document and its responses carry `Deprecation` (RFC 9745, e.g. `Deprecation: @1767225600`), `Sunset` (RFC 8594, an HTTP-date after which the operation may stop working) and `Link: <https://appfreeticket.com/desarrolladores>; rel=\"deprecation\"`.\n- **Timeline.** At least 6 months between the first `Deprecation` header and the `Sunset` date for `/api/v1`, and at least 90 days for `/api/public`. A path version is only retired after all its operations have sunset.\n- **Current status.** No operation is deprecated today.\n\n## Rate limits\n\n- **429 always carries `Retry-After`** (seconds). Wait at least that long before retrying the same request. The JSON error envelope comes with `error.retryable: true`; most rate-limited responses use `error.code: \"RATE_LIMITED\"`, and some return a more specific code (for example `TOO_MANY_REQUESTS` or `SEAT_BUDGET_EXHAUSTED`).\n- **RateLimit headers are sent where listed below.** Those endpoints answer every response, success or error, with the IETF RateLimit headers (draft-ietf-httpapi-ratelimit-headers): `RateLimit-Policy: \"<policy>\";q=<quota>;w=<window seconds>` and `RateLimit: \"<policy>\";r=<remaining>;t=<seconds until reset>`. Other endpoints may answer 429 without them.\n- Counters are fixed windows kept per server instance: treat the numbers as pacing hints, not as a global account quota.\n\nEndpoints that send RateLimit headers today: `POST /auth/signup` (per client IP), `POST /customer/auth/request` and `POST /customer/auth/verify` (per client IP), and the buyer-session endpoints `GET /customer/orders/{id}`, `POST /customer/orders/{id}/payment`, `/payment/card`, `/payment/pse`, `/release`, `POST /customer/purchase-sessions` and `POST /customer/purchase-sessions/{id}/release`."
 	},
 	"servers": [
@@ -11499,6 +11499,129 @@
 						}
 					}
 				}
+			},
+			"post": {
+				"operationId": "postContentLives",
+				"tags": ["content"],
+				"summary": "Create a live stream",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"New live stream\" in the dashboard: creates the stream in Mux and returns the RTMPS server and stream key to configure OBS or any encoder.\n\nSECURITY: `streamKey` is a secret that grants broadcasting rights on this stream in the organization's name. It is returned ONLY here and by `POST /content/lives/{id}/reset-key`, never by `GET /content/lives`, `GET /content/lives/{id}` or `PATCH`. Store it like a password; if it leaks, rotate it with reset-key.\n\n`memberOnly` is forced to false when the workspace has no active membership plan (nobody to restrict it to). With `eventDateId` and no `scheduledAt`, the stream inherits the show date's start time.\n\nErrors (`error.code`):\n- 400 `BAD_REQUEST`: `title` empty or longer than 120 characters, or `scheduledAt` not in \"YYYY-MM-DDTHH:mm\" format.\n- 400 `INVALID_SCHEDULE`: `scheduledAt` is in the past or more than 2 years ahead.\n- 403 `FEATURE_LOCKED`: the workspace plan does not include streaming.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: `eventDateId` does not exist or is not an event of this workspace (as owner or linked artist).\n- 409 `EVENT_DATE_HAS_LIVE`: that show date already has a live stream.\n- 502 `MUX_ERROR`: Mux rejected the request or is not configured; nothing was created.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentLiveCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentLiveCreated"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "The external provider failed to complete the operation.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
 			}
 		},
 		"/content/lives/{id}": {
@@ -11544,6 +11667,219 @@
 									"properties": {
 										"data": {
 											"$ref": "#/components/schemas/ContentLive"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchContentLivesId",
+				"tags": ["content"],
+				"summary": "Update a live stream's schedule or audience",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same actions as the dashboard's scheduled-time picker and members-only switch. Send `scheduledAt` and/or `memberOnly`; absent fields keep their value. Never returns the stream key.\n\nErrors (`error.code`):\n- 400 `BAD_REQUEST`: `scheduledAt` not in \"YYYY-MM-DDTHH:mm\" format.\n- 400 `INVALID_SCHEDULE`: `scheduledAt` is in the past or more than 2 years ahead.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the stream does not exist, was deleted or belongs to another workspace.\n- 409 `LIVE_NOT_IDLE`: `scheduledAt` sent for a stream that is on air or already ended.\n- 409 `MEMBERSHIP_PREREQ`: the workspace has no active membership plan yet; create one first (members-only content needs something to pay for). Only checked for `memberOnly: true`.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentLiveUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentLiveSettings"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteContentLivesId",
+				"tags": ["content"],
+				"summary": "Delete a live stream",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as deleting a live stream in the dashboard.\n\nDESTRUCTIVE and irreversible: deletes the stream in Mux (its stream key stops working, an encoder on air is cut off) and soft-deletes it locally, so it disappears from the dashboard and the API listings. Cannot be restored through the API.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the stream does not exist, was already deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentMediaDeleted"
 										}
 									},
 									"required": ["data"]
@@ -16605,6 +16941,2863 @@
 							"application/json": {
 								"schema": {
 									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/videos/{id}": {
+			"patch": {
+				"operationId": "patchContentVideosId",
+				"tags": ["content"],
+				"summary": "Update an on-demand video",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as editing a video in the dashboard's Content screen. Partial: only the fields sent are validated and written (at least one); absent fields keep their stored value; `null` or `\"\"` clears `description`. Works on drafts and published videos. Uploading a video is not available through the API (the Mux direct upload needs a browser); course lesson videos are managed from their course and answer 404 here.\n\nErrors (`error.code`):\n- 400 `BAD_REQUEST`: `title` empty or longer than 120 characters, or `description` longer than 2000.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the video does not exist, was deleted, is a course video or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentVideoUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentVideoSummary"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteContentVideosId",
+				"tags": ["content"],
+				"summary": "Delete an on-demand video",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as deleting a video in the dashboard.\n\nDESTRUCTIVE and irreversible: soft-deletes the video and deletes its asset in Mux (the encoded file is gone; it cannot be restored through the API or the dashboard). Members lose access immediately.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the video does not exist, was already deleted, is a course video or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentMediaDeleted"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/videos/{id}/published": {
+			"put": {
+				"operationId": "putContentVideosIdPublished",
+				"tags": ["content"],
+				"summary": "Publish or unpublish an on-demand video",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as the publish switch in the dashboard. Publishing puts the video in the community feed as a VIDEO post (republishing revives the same post and members are notified once); unpublishing removes it from the feed.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the video does not exist, was deleted, is a course video or belongs to another workspace.\n- 409 `VIDEO_NOT_READY`: publishing a video Mux has not finished processing.\n- 409 `MEMBERSHIP_PREREQ`: the workspace has no active membership plan yet; create one first (members-only content needs something to pay for). Only checked when publishing.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentVideoPublish"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentVideoPublished"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/videos/{id}/series": {
+			"put": {
+				"operationId": "putContentVideosIdSeries",
+				"tags": ["content"],
+				"summary": "Move a video into a series or out of it",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as choosing a series for a video in the dashboard. `seriesId: null` leaves the video loose. Does not change whether the video is published.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the video, or the `seriesId` (see `error.message`), does not exist, was deleted or belongs to another workspace; course videos also answer 404.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentVideoSeriesAssign"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentVideoSeriesResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/series": {
+			"get": {
+				"operationId": "getContentSeries",
+				"tags": ["content"],
+				"summary": "List the video series",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Series of the dashboard's Content screen, published and drafts, newest first, with their video count.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"description": "1-100, default 20",
+						"schema": {
+							"type": "integer",
+							"default": 20
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/ContentSeries"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postContentSeries",
+				"tags": ["content"],
+				"summary": "Create a video series",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"New series\" in the dashboard. The series is born unpublished and empty; add videos with `PUT /content/videos/{id}/series` and publish it with `PUT /content/series/{id}/published`.\n\nErrors (`error.code`):\n- 400 `BAD_REQUEST`: `title` empty or longer than 120 characters, `description` longer than 2000, or `coverImageUrl` not an absolute URL.\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 409 `MEMBERSHIP_PREREQ`: the workspace has no active membership plan yet; create one first (members-only content needs something to pay for).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSeriesCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentSeries"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/series/{id}": {
+			"patch": {
+				"operationId": "patchContentSeriesId",
+				"tags": ["content"],
+				"summary": "Update a video series",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as editing a series in the dashboard. Partial: only the fields sent are validated and written (at least one); absent fields keep their stored value; `null` clears `description` / `coverImageUrl`.\n\nErrors (`error.code`):\n- 400 `BAD_REQUEST`: `title` empty or longer than 120 characters, `description` longer than 2000, or `coverImageUrl` not an absolute URL.\n- 403 `FEATURE_LOCKED`: the workspace plan does not include Content.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the series does not exist, was deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSeriesUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentSeries"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteContentSeriesId",
+				"tags": ["content"],
+				"summary": "Delete a video series",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as deleting a series in the dashboard.\n\nDESTRUCTIVE: soft-deletes the series; it cannot be restored through the API. Its videos are NOT deleted or unpublished: they are left loose (no series, position reset), so the original grouping and order are lost.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the series does not exist, was already deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentMediaDeleted"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/series/{id}/published": {
+			"put": {
+				"operationId": "putContentSeriesIdPublished",
+				"tags": ["content"],
+				"summary": "Publish or unpublish a video series",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as the publish switch of a series in the dashboard. Only the series changes: its videos keep their own published state. Publishing again refreshes `publishedAt`.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the series does not exist, was deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ContentSeriesPublish"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentSeries"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/lives/{id}/reset-key": {
+			"post": {
+				"operationId": "postContentLivesIdResetKey",
+				"tags": ["content"],
+				"summary": "Rotate a live stream's stream key",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Reset key\" in the dashboard: Mux issues a new stream key and returns it with the RTMPS server.\n\nDESTRUCTIVE: the current key stops working immediately; any encoder (OBS) configured with it can no longer connect and must be updated with the new one. Use it when the key may have leaked.\n\nSECURITY: `streamKey` is a secret that grants broadcasting rights on this stream in the organization's name. It is returned only here and by `POST /content/lives`; store it like a password.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the stream does not exist, was deleted or belongs to another workspace.\n- 502 `MUX_ERROR`: Mux rejected the request or is not configured; the old key keeps working.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentLiveStreamKey"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "The external provider failed to complete the operation.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/content/lives/{id}/chat": {
+			"get": {
+				"operationId": "getContentLivesIdChat",
+				"tags": ["content"],
+				"summary": "Chat history of a live stream",
+				"description": "Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header. Same history as \"View chat\" in the dashboard, for a stream on air or already ended: oldest to newest, capped (`truncated: true` when the oldest messages were cut). Contains buyers' display names and messages: treat it as personal data.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the stream does not exist, was deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ContentLiveChat"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/website": {
+			"get": {
+				"operationId": "getWebsite",
+				"tags": ["website"],
+				"summary": "Get the workspace website configuration",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same data as the dashboard's Website screen: landing texts, social links, accent color, template, section visibility/order, and the public listing state (`published`, `canPublish`, `profileListable`). `customLandingEnabled` says whether the plan allows `PUT /website`.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (workspace configuration is out of its scope).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Website"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"put": {
+				"operationId": "putWebsite",
+				"tags": ["website"],
+				"summary": "Save the workspace website configuration",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Save\" in the dashboard's Website editor. FULL replacement: every field is required; `null` clears an optional text. Read `GET /website` first and send everything back. Shared columns: `name`, `bio`, `instagramUrl`, `tiktokUrl` and `youtubeUrl` are the same workspace columns that `PATCH /organization/profile` edits (`artist.name`, `artist.bio`, `social.*`) — a PUT with `null` here wipes them there too. An empty `name` is not accepted, and unlike the profile it is NOT mirrored to the brand. The profile photo and cover are NOT edited here (see `PATCH /organization`). Returns the saved configuration.\n\nErrors (`error.code`):\n- 403 `FEATURE_LOCKED`: the workspace plan does not include the custom landing.\n- 400 `INVALID_SECTIONS`: `webSections` is malformed.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/WebsiteUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Website"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/website/published": {
+			"put": {
+				"operationId": "putWebsitePublished",
+				"tags": ["website"],
+				"summary": "Publish or unpublish the public profile",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same switch as \"Appear in Artists\" in the dashboard: sets whether the organization's public page is listed. Available on every plan. Idempotent: send the desired state.\n\nErrors (`error.code`):\n- 409 `NO_ORGANIZATION`: the workspace has no umbrella organization.\n- 409 `NOT_PRIMARY_WORKSPACE`: only the organization's primary workspace can publish.\n- 409 `PROFILE_INCOMPLETE`: publishing needs the brand name and profile photo (unpublishing is always allowed).\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/WebsitePublished"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/WebsitePublished"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/organization": {
+			"patch": {
+				"operationId": "patchOrganization",
+				"tags": ["organization"],
+				"summary": "Update the organization's public identity",
+				"description": "Minimum role: `ADMIN`, and the user must be OWNER/ADMIN of the umbrella organization of the active workspace (`X-Workspace-Id`). Same action as the identity card in the dashboard's organization settings: public name, profile photo and cover. Partial: absent fields keep their value; `null` clears an image. The name is mirrored to the primary workspace. The slug (public URL) cannot be changed here. Returns the organization.\n\nErrors (`error.code`):\n- 403 `ORG_ADMIN_REQUIRED`: the user is not OWNER/ADMIN of the organization.\n- 409 `NO_ORGANIZATION`: the workspace has no umbrella organization.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/OrganizationUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Organization"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/organization/analytics": {
+			"patch": {
+				"operationId": "patchOrganizationAnalytics",
+				"tags": ["organization"],
+				"summary": "Set the organization's GA4 property",
+				"description": "Minimum role: `ADMIN`, and the user must be OWNER/ADMIN of the umbrella organization of the active workspace (`X-Workspace-Id`). Same action as the analytics card in the dashboard's organization settings: the brand's own GA4 Measurement ID, added to the checkout of its events next to FreeTicket's. `null` (or an empty string) disconnects it.\n\nErrors (`error.code`):\n- 400 `BAD_REQUEST`: not a GA4 Measurement ID (G-XXXXXXXXXX).\n- 403 `ORG_ADMIN_REQUIRED`: the user is not OWNER/ADMIN of the organization.\n- 409 `NO_ORGANIZATION`: the workspace has no umbrella organization.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/OrganizationAnalyticsUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/OrganizationAnalytics"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/organization/profile": {
+			"get": {
+				"operationId": "getOrganizationProfile",
+				"tags": ["organization"],
+				"summary": "Get the workspace profile",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same data as the dashboard's Profile screen: artist/venue/organizer data, brand photo and cover (from the umbrella organization), contact and social links. Billing/plan data is not included.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/OrganizationProfile"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchOrganizationProfile",
+				"tags": ["organization"],
+				"summary": "Update the workspace profile",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same actions as the four cards of the dashboard's Profile screen, as optional sections: `artist` (name, slug, bio, type, country, timezone), `visual` (brand photo/cover, stored on the umbrella organization), `contact` and `social`. Partial: only the fields sent are written; absent fields keep their value and `null` clears an optional one. Sections are applied in order artist → visual → contact → social; if one fails, the earlier ones stay saved. Changing `artist.slug` changes the workspace's URLs. `visual` and `artist.name` write organization-level columns (the brand photo/cover and the brand name mirror), so they additionally require the user to be OWNER/ADMIN of the umbrella organization — checked before ANY section is written (stricter than the dashboard, same rule as `PATCH /organization`). Returns the updated profile.\n\nErrors (`error.code`):\n- 403 `ORG_ADMIN_REQUIRED`: `visual` or `artist.name` sent by a user who is not OWNER/ADMIN of the organization (nothing is written).\n- 409 `SLUG_TAKEN`: `artist.slug` is used by another workspace, including deleted ones (nothing is written).\n- 409 `ORG_NOT_INITIALIZED`: `visual` sent but the workspace has no umbrella organization (nothing is written).\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/OrganizationProfileUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/OrganizationProfile"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/ticket-templates": {
+			"get": {
+				"operationId": "getTicketTemplates",
+				"tags": ["ticket-templates"],
+				"summary": "List the ticket templates",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same list as the dashboard's Ticket templates screen: reusable ticket-type definitions (price, capacity, member discount/gate, buyer form fields), ordered for display. Deleted templates are omitted.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (templates are workspace configuration).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/TicketTemplate"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postTicketTemplates",
+				"tags": ["ticket-templates"],
+				"summary": "Create a ticket template",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"New template\" in the dashboard. A SELECT field needs at least 2 options (422 otherwise).\n\nErrors (`error.code`):\n- 400 `INVALID_CURRENCY`: the currency is not one the checkout charges.\n- 400 `DISCOUNT_PLAN_INVALID`: `discount.planId` is not an active membership plan of this workspace.\n- 400 `MEMBERS_ONLY_PLAN_INVALID`: `membersOnlyPlanId` cannot gate this workspace's tickets.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/TicketTemplateCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/TicketTemplate"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/ticket-templates/{id}": {
+			"patch": {
+				"operationId": "patchTicketTemplatesId",
+				"tags": ["ticket-templates"],
+				"summary": "Update a ticket template",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as editing a template in the dashboard. Partial: only the fields sent are written; `null` clears an optional one (`discount: null` removes the member discount, `membersOnlyPlanId: null` opens it to everyone). `fields` replaces the whole buyer-form list when sent and is left intact when absent. Ticket types already created from the template are copies and do not change. A legacy currency outside the checkout list is accepted only if unchanged.\n\nErrors (`error.code`):\n- 400 `INVALID_CURRENCY`: the currency is not one the checkout charges.\n- 400 `DISCOUNT_PLAN_INVALID`: `discount.planId` is not an active membership plan of this workspace.\n- 400 `MEMBERS_ONLY_PLAN_INVALID`: `membersOnlyPlanId` cannot gate this workspace's tickets.\n- 404 `NOT_FOUND`: the template does not exist, is deleted or belongs to another workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/TicketTemplateUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/TicketTemplate"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteTicketTemplatesId",
+				"tags": ["ticket-templates"],
+				"summary": "Delete a ticket template",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as deleting a template in the dashboard.\n\nDESTRUCTIVE: the template is removed from the workspace (soft delete, there is no restore via API). Ticket types already created from it keep working.\n\nErrors (`error.code`):\n- 404 `NOT_FOUND`: the template does not exist, is already deleted or belongs to another workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/WorkspaceConfigDeleted"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/ticket-templates/{id}/instantiate": {
+			"post": {
+				"operationId": "postTicketTemplatesIdInstantiate",
+				"tags": ["ticket-templates"],
+				"summary": "Create a ticket type from a template",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Use template\" in the dashboard: creates a ticket type on `eventDateId` copying the template (price, capacity, discount, members-only gate, buyer form). `name`, `price` and `capacity` override the template's. A discount or gate whose plan is no longer valid is dropped instead of failing. Keys restricted to events may use it only on dates of their events.\n\nErrors (`error.code`):\n- 404 `NOT_FOUND`: the template does not exist, is deleted or belongs to another workspace.\n- 404 `EVENT_DATE_NOT_FOUND`: the event date does not exist or belongs to another workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to events and the date's event is not one of them.\n- 400 `CAPACITY_REQUIRED`: the template has no capacity and `capacity` was not sent.\n- 400 `INVALID_CURRENCY`: the template's legacy currency is not one the checkout charges.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/TicketTemplateInstantiate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/TicketTemplateInstance"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/master-qrs": {
+			"get": {
+				"operationId": "getMasterQrs",
+				"tags": ["master-qrs"],
+				"summary": "List the master box-office QR codes",
+				"description": "Minimum role: `ADMIN` (also for reading, like the dashboard). Active workspace via the `X-Workspace-Id` header. Same list as the dashboard's Box-office QR screen: live (not deleted) QR codes, newest first, with scan counters. `code` and `url` are SECRET: they are what the printed QR encodes and open the public sale flow; they cannot be rotated. Do not log or share them.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events (org-wide QR codes span every show).",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/MasterQr"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postMasterQrs",
+				"tags": ["master-qrs"],
+				"summary": "Create a master box-office QR code",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"New QR\" in the dashboard. `eventId` absent/null = org-wide QR (all shows); `ticketTypeId` pins a ticket type of that event (not allowed on an org-wide QR → 422). Returns the QR with its code. `code` and `url` are SECRET: they are what the printed QR encodes and open the public sale flow; they cannot be rotated. Do not log or share them.\n\nErrors (`error.code`):\n- 400 `INVALID_TARGET`: the event is not of this workspace, or the ticket type is not a visible ticket type of a sellable date of that event.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MasterQrCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MasterQr"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/master-qrs/{id}": {
+			"patch": {
+				"operationId": "patchMasterQrsId",
+				"tags": ["master-qrs"],
+				"summary": "Update a master box-office QR code",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as editing a QR in the dashboard. Partial: `label` and `mode` can be sent alone; the target (`eventId` + `ticketTypeId`, `null` for none / org-wide) must be sent as a pair (422 otherwise). The code does not change, so the printed QR keeps working and now points to the new target.\n\nErrors (`error.code`):\n- 400 `INVALID_TARGET`: the event is not of this workspace, or the ticket type does not belong to it.\n- 404 `NOT_FOUND`: the QR does not exist, is deleted or belongs to another workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MasterQrUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MasterQr"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteMasterQrsId",
+				"tags": ["master-qrs"],
+				"summary": "Delete a master box-office QR code",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as deleting a QR in the dashboard.\n\nDESTRUCTIVE: the QR is deactivated and deleted (soft delete, the scan history is kept); the printed code stops working and cannot be restored via API. To pause it instead, use `PUT /master-qrs/{id}/active`.\n\nErrors (`error.code`):\n- 404 `NOT_FOUND`: the QR does not exist, is already deleted or belongs to another workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/WorkspaceConfigDeleted"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/master-qrs/{id}/active": {
+			"put": {
+				"operationId": "putMasterQrsIdActive",
+				"tags": ["master-qrs"],
+				"summary": "Activate or deactivate a master box-office QR code",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same switch as in the dashboard's QR table. While inactive, scanning the QR answers 404. Idempotent: send the desired state.\n\nErrors (`error.code`):\n- 404 `NOT_FOUND`: the QR does not exist, is deleted or belongs to another workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/MasterQrActive"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/MasterQrActive"
+										}
+									},
+									"required": ["data"]
 								}
 							}
 						}
@@ -22848,6 +26041,360 @@
 				"required": ["type", "locked"],
 				"additionalProperties": false
 			},
+			"ContentMediaDeleted": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"deleted": {
+						"type": "boolean",
+						"const": true
+					}
+				},
+				"required": ["id", "deleted"],
+				"additionalProperties": false
+			},
+			"ContentVideoUpdate": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"description": "`null` or empty clears the description.",
+						"type": ["string", "null"]
+					},
+					"memberOnly": {
+						"description": "true = only current members can play it.",
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": false
+			},
+			"ContentVideoSummary": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": ["string", "null"]
+					},
+					"memberOnly": {
+						"type": "boolean"
+					}
+				},
+				"required": ["id", "title", "description", "memberOnly"],
+				"additionalProperties": false
+			},
+			"ContentVideoPublish": {
+				"type": "object",
+				"properties": {
+					"published": {
+						"type": "boolean"
+					}
+				},
+				"required": ["published"],
+				"additionalProperties": false
+			},
+			"ContentVideoPublished": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"published": {
+						"type": "boolean"
+					}
+				},
+				"required": ["id", "published"],
+				"additionalProperties": false
+			},
+			"ContentVideoSeriesAssign": {
+				"type": "object",
+				"properties": {
+					"seriesId": {
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Series to put the video in; `null` removes it from its series."
+					}
+				},
+				"required": ["seriesId"],
+				"additionalProperties": false
+			},
+			"ContentVideoSeriesResult": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"seriesId": {
+						"type": ["string", "null"]
+					}
+				},
+				"required": ["id", "seriesId"],
+				"additionalProperties": false
+			},
+			"ContentSeries": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": ["string", "null"]
+					},
+					"coverImageUrl": {
+						"type": ["string", "null"]
+					},
+					"memberOnly": {
+						"type": "boolean"
+					},
+					"published": {
+						"type": "boolean"
+					},
+					"publishedAt": {
+						"type": ["string", "null"]
+					},
+					"videoCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991,
+						"description": "Videos in the series (published or not, course videos excluded)."
+					},
+					"createdAt": {
+						"type": "string"
+					}
+				},
+				"required": [
+					"id",
+					"title",
+					"description",
+					"coverImageUrl",
+					"memberOnly",
+					"published",
+					"publishedAt",
+					"videoCount",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"ContentSeriesCreate": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"description": "1–120 characters."
+					},
+					"description": {
+						"description": "Up to 2000 characters.",
+						"type": ["string", "null"]
+					},
+					"coverImageUrl": {
+						"description": "Absolute URL of the cover.",
+						"type": ["string", "null"]
+					},
+					"memberOnly": {
+						"description": "Default true.",
+						"type": "boolean"
+					}
+				},
+				"required": ["title"],
+				"additionalProperties": false
+			},
+			"ContentSeriesUpdate": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"description": "`null` clears it.",
+						"type": ["string", "null"]
+					},
+					"coverImageUrl": {
+						"description": "`null` clears it.",
+						"type": ["string", "null"]
+					},
+					"memberOnly": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": false
+			},
+			"ContentSeriesPublish": {
+				"type": "object",
+				"properties": {
+					"published": {
+						"type": "boolean"
+					}
+				},
+				"required": ["published"],
+				"additionalProperties": false
+			},
+			"ContentLiveCreate": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"description": "1–120 characters."
+					},
+					"eventDateId": {
+						"description": "Show date to tie the stream to (owned by the workspace or with the workspace as a linked artist). One stream per date.",
+						"type": ["string", "null"]
+					},
+					"memberOnly": {
+						"description": "Default true. Ignored (stream is public) when the workspace has no active membership plan.",
+						"type": "boolean"
+					},
+					"scheduledAt": {
+						"description": "Wall-clock time \"YYYY-MM-DDTHH:mm\" in the WORKSPACE time zone (not UTC, no offset). Must be in the future and at most 2 years ahead. Absent: inherits the show date's start time when `eventDateId` is set.",
+						"type": ["string", "null"]
+					}
+				},
+				"required": ["title"],
+				"additionalProperties": false
+			},
+			"ContentLiveCreated": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"memberOnly": {
+						"type": "boolean"
+					},
+					"scheduledAt": {
+						"description": "UTC ISO 8601.",
+						"type": ["string", "null"]
+					},
+					"eventDateId": {
+						"type": ["string", "null"]
+					},
+					"rtmpUrl": {
+						"type": "string",
+						"description": "RTMPS ingest server for OBS / the encoder."
+					},
+					"streamKey": {
+						"type": "string",
+						"description": "SECRET. RTMP stream key: whoever has it can broadcast on this stream in the organization's name. Store it like a password; it is never returned by any read endpoint. Rotate it with `POST /content/lives/{id}/reset-key`."
+					}
+				},
+				"required": [
+					"id",
+					"title",
+					"memberOnly",
+					"scheduledAt",
+					"eventDateId",
+					"rtmpUrl",
+					"streamKey"
+				],
+				"additionalProperties": false
+			},
+			"ContentLiveStreamKey": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"rtmpUrl": {
+						"type": "string"
+					},
+					"streamKey": {
+						"type": "string",
+						"description": "SECRET. RTMP stream key: whoever has it can broadcast on this stream in the organization's name. Store it like a password; it is never returned by any read endpoint. Rotate it with `POST /content/lives/{id}/reset-key`."
+					}
+				},
+				"required": ["id", "rtmpUrl", "streamKey"],
+				"additionalProperties": false
+			},
+			"ContentLiveUpdate": {
+				"type": "object",
+				"properties": {
+					"scheduledAt": {
+						"description": "Wall-clock time \"YYYY-MM-DDTHH:mm\" in the WORKSPACE time zone (not UTC, no offset). Must be in the future and at most 2 years ahead. `null` removes the scheduled time. Only while the stream is IDLE.",
+						"type": ["string", "null"]
+					},
+					"memberOnly": {
+						"type": "boolean"
+					}
+				},
+				"additionalProperties": false
+			},
+			"ContentLiveSettings": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"memberOnly": {
+						"type": "boolean"
+					},
+					"scheduledAt": {
+						"description": "UTC ISO 8601.",
+						"type": ["string", "null"]
+					}
+				},
+				"required": ["id", "memberOnly", "scheduledAt"],
+				"additionalProperties": false
+			},
+			"ContentLiveChat": {
+				"type": "object",
+				"properties": {
+					"messages": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"authorId": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								},
+								"text": {
+									"type": "string"
+								},
+								"sentAt": {
+									"type": "string"
+								},
+								"host": {
+									"description": "Present (true) on messages sent by the organization.",
+									"type": "boolean"
+								}
+							},
+							"required": ["id", "authorId", "name", "text", "sentAt"],
+							"additionalProperties": false
+						}
+					},
+					"truncated": {
+						"type": "boolean",
+						"description": "true if the history cap was reached and the oldest messages are missing."
+					}
+				},
+				"required": ["messages", "truncated"],
+				"additionalProperties": false
+			},
 			"ContentLive": {
 				"type": "object",
 				"properties": {
@@ -24114,6 +27661,1290 @@
 					"courseMeta",
 					"unlockMode"
 				],
+				"additionalProperties": false
+			},
+			"Website": {
+				"type": "object",
+				"properties": {
+					"slug": {
+						"type": "string",
+						"description": "Public slug (organization subdomain)."
+					},
+					"name": {
+						"type": "string"
+					},
+					"tagline": {
+						"type": ["string", "null"]
+					},
+					"bio": {
+						"type": ["string", "null"]
+					},
+					"accentColor": {
+						"type": ["string", "null"]
+					},
+					"webTemplate": {
+						"type": ["string", "null"]
+					},
+					"webSections": {
+						"anyOf": [
+							{
+								"type": "object",
+								"propertyNames": {
+									"type": "string"
+								},
+								"additionalProperties": {
+									"anyOf": [
+										{
+											"type": "boolean"
+										},
+										{
+											"type": "array",
+											"items": {
+												"type": "string"
+											}
+										}
+									]
+								}
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Per-section visibility booleans plus the reserved `order` key (array of section ids)."
+					},
+					"instagramUrl": {
+						"type": ["string", "null"]
+					},
+					"tiktokUrl": {
+						"type": ["string", "null"]
+					},
+					"youtubeUrl": {
+						"type": ["string", "null"]
+					},
+					"customLandingEnabled": {
+						"type": "boolean",
+						"description": "The plan includes the custom landing (`PUT /website` answers 403 FEATURE_LOCKED otherwise)."
+					},
+					"published": {
+						"type": "boolean",
+						"description": "Listed publicly (/artistas)."
+					},
+					"canPublish": {
+						"type": "boolean",
+						"description": "Only the organization's primary workspace can publish/unpublish."
+					},
+					"profileListable": {
+						"type": "boolean",
+						"description": "The brand has the name and photo required to publish."
+					}
+				},
+				"required": [
+					"slug",
+					"name",
+					"tagline",
+					"bio",
+					"accentColor",
+					"webTemplate",
+					"webSections",
+					"instagramUrl",
+					"tiktokUrl",
+					"youtubeUrl",
+					"customLandingEnabled",
+					"published",
+					"canPublish",
+					"profileListable"
+				],
+				"additionalProperties": false
+			},
+			"WebsiteUpdate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 100
+					},
+					"tagline": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 200
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"bio": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 5000
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"instagramUrl": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 500
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"tiktokUrl": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 500
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"youtubeUrl": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 500
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"accentColor": {
+						"type": "string",
+						"pattern": "^#[0-9a-fA-F]{6}$",
+						"description": "#RRGGBB."
+					},
+					"webTemplate": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 32
+					},
+					"webSections": {
+						"type": "object",
+						"propertyNames": {
+							"type": "string"
+						},
+						"additionalProperties": {
+							"anyOf": [
+								{
+									"type": "boolean"
+								},
+								{
+									"type": "array",
+									"items": {
+										"type": "string"
+									}
+								}
+							]
+						},
+						"description": "Visibility booleans for the known sections (shows, productos, posts, membresias, contenido, bio, redes) and `order` (array of section ids). Unknown keys are dropped."
+					}
+				},
+				"required": [
+					"name",
+					"tagline",
+					"bio",
+					"instagramUrl",
+					"tiktokUrl",
+					"youtubeUrl",
+					"accentColor",
+					"webTemplate",
+					"webSections"
+				],
+				"additionalProperties": false
+			},
+			"WebsitePublished": {
+				"type": "object",
+				"properties": {
+					"published": {
+						"type": "boolean"
+					}
+				},
+				"required": ["published"],
+				"additionalProperties": false
+			},
+			"OrganizationProfile": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "Workspace id."
+					},
+					"name": {
+						"type": "string",
+						"description": "Workspace name."
+					},
+					"brandName": {
+						"type": "string",
+						"description": "Public brand name (from the umbrella organization)."
+					},
+					"slug": {
+						"type": "string"
+					},
+					"bio": {
+						"type": ["string", "null"]
+					},
+					"type": {
+						"type": "string",
+						"enum": ["ARTIST", "VENUE", "ORGANIZER"]
+					},
+					"country": {
+						"type": "string"
+					},
+					"timezone": {
+						"type": "string"
+					},
+					"logoUrl": {
+						"type": ["string", "null"]
+					},
+					"coverUrl": {
+						"type": ["string", "null"]
+					},
+					"email": {
+						"type": ["string", "null"]
+					},
+					"phone": {
+						"type": ["string", "null"]
+					},
+					"website": {
+						"type": ["string", "null"]
+					},
+					"instagramUrl": {
+						"type": ["string", "null"]
+					},
+					"facebookUrl": {
+						"type": ["string", "null"]
+					},
+					"twitterUrl": {
+						"type": ["string", "null"]
+					},
+					"spotifyUrl": {
+						"type": ["string", "null"]
+					},
+					"youtubeUrl": {
+						"type": ["string", "null"]
+					},
+					"tiktokUrl": {
+						"type": ["string", "null"]
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"brandName",
+					"slug",
+					"bio",
+					"type",
+					"country",
+					"timezone",
+					"logoUrl",
+					"coverUrl",
+					"email",
+					"phone",
+					"website",
+					"instagramUrl",
+					"facebookUrl",
+					"twitterUrl",
+					"spotifyUrl",
+					"youtubeUrl",
+					"tiktokUrl"
+				],
+				"additionalProperties": false
+			},
+			"OrganizationProfileUpdate": {
+				"type": "object",
+				"properties": {
+					"artist": {
+						"description": "Same fields as the dashboard's Artist card.",
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 100
+							},
+							"slug": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 50,
+								"pattern": "^[a-z0-9-]+$"
+							},
+							"bio": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 5000
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"type": {
+								"type": "string",
+								"enum": ["ARTIST", "VENUE", "ORGANIZER"]
+							},
+							"country": {
+								"description": "ISO 3166-1 alpha-2.",
+								"type": "string",
+								"minLength": 2,
+								"maxLength": 2
+							},
+							"timezone": {
+								"description": "IANA time zone.",
+								"type": "string",
+								"minLength": 1
+							}
+						},
+						"additionalProperties": false
+					},
+					"visual": {
+						"description": "Brand profile photo and cover (stored on the umbrella organization).",
+						"type": "object",
+						"properties": {
+							"logoUrl": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 500,
+										"format": "uri"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"coverUrl": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 500,
+										"format": "uri"
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
+						},
+						"additionalProperties": false
+					},
+					"contact": {
+						"type": "object",
+						"properties": {
+							"email": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 200,
+										"format": "email",
+										"pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"phone": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 40
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"website": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 500,
+										"format": "uri"
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
+						},
+						"additionalProperties": false
+					},
+					"social": {
+						"type": "object",
+						"properties": {
+							"instagramUrl": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 500,
+										"format": "uri"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"facebookUrl": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 500,
+										"format": "uri"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"twitterUrl": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 500,
+										"format": "uri"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"spotifyUrl": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 500,
+										"format": "uri"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"youtubeUrl": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 500,
+										"format": "uri"
+									},
+									{
+										"type": "null"
+									}
+								]
+							},
+							"tiktokUrl": {
+								"anyOf": [
+									{
+										"type": "string",
+										"maxLength": 500,
+										"format": "uri"
+									},
+									{
+										"type": "null"
+									}
+								]
+							}
+						},
+						"additionalProperties": false
+					}
+				},
+				"additionalProperties": false
+			},
+			"Organization": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"description": "Umbrella organization id."
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"logoUrl": {
+						"type": ["string", "null"]
+					},
+					"coverUrl": {
+						"type": ["string", "null"]
+					},
+					"ga4MeasurementId": {
+						"type": ["string", "null"]
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"slug",
+					"logoUrl",
+					"coverUrl",
+					"ga4MeasurementId"
+				],
+				"additionalProperties": false
+			},
+			"OrganizationUpdate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 2,
+						"maxLength": 80
+					},
+					"logoUrl": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 500,
+								"format": "uri"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"coverUrl": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 500,
+								"format": "uri"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": false
+			},
+			"OrganizationAnalyticsUpdate": {
+				"type": "object",
+				"properties": {
+					"ga4MeasurementId": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 32
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "GA4 Measurement ID (G-XXXXXXXXXX); null disconnects it."
+					}
+				},
+				"required": ["ga4MeasurementId"],
+				"additionalProperties": false
+			},
+			"OrganizationAnalytics": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"ga4MeasurementId": {
+						"type": ["string", "null"]
+					}
+				},
+				"required": ["id", "ga4MeasurementId"],
+				"additionalProperties": false
+			},
+			"TicketTemplateCreate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 100
+					},
+					"description": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 500
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"price": {
+						"type": "number",
+						"minimum": 0
+					},
+					"currency": {
+						"default": "COP",
+						"type": "string",
+						"minLength": 3,
+						"maxLength": 3
+					},
+					"capacity": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"maxPerOrder": {
+						"default": 10,
+						"type": "integer",
+						"exclusiveMinimum": 0,
+						"maximum": 9007199254740991
+					},
+					"accentColor": {
+						"type": ["string", "null"]
+					},
+					"includes": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 500
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"instructions": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 2000
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"organizerAbsorbsFee": {
+						"default": false,
+						"type": "boolean"
+					},
+					"discount": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"planId": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 50,
+										"description": "Active membership plan of this workspace."
+									},
+									"percent": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 100
+									}
+								},
+								"required": ["planId", "percent"],
+								"additionalProperties": false
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Member discount; null = none."
+					},
+					"membersOnlyPlanId": {
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 50
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Members-only gate plan; null = open to everyone."
+					},
+					"isActive": {
+						"default": true,
+						"type": "boolean"
+					},
+					"sortOrder": {
+						"default": 0,
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"fields": {
+						"default": [],
+						"maxItems": 15,
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"label": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 100
+								},
+								"fieldType": {
+									"type": "string",
+									"enum": ["TEXT", "NUMBER", "SELECT", "EMAIL", "PHONE"]
+								},
+								"options": {
+									"maxItems": 20,
+									"type": "array",
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									}
+								},
+								"isRequired": {
+									"default": false,
+									"type": "boolean"
+								}
+							},
+							"required": ["label", "fieldType", "isRequired"],
+							"additionalProperties": false
+						},
+						"description": "Buyer form fields; the list is replaced as a whole."
+					}
+				},
+				"required": [
+					"name",
+					"price",
+					"currency",
+					"maxPerOrder",
+					"organizerAbsorbsFee",
+					"isActive",
+					"sortOrder",
+					"fields"
+				],
+				"additionalProperties": false
+			},
+			"TicketTemplateUpdate": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 100
+					},
+					"description": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 500
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"price": {
+						"type": "number",
+						"minimum": 0
+					},
+					"currency": {
+						"type": "string",
+						"minLength": 3,
+						"maxLength": 3
+					},
+					"capacity": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"exclusiveMinimum": 0,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"maxPerOrder": {
+						"type": "integer",
+						"exclusiveMinimum": 0,
+						"maximum": 9007199254740991
+					},
+					"accentColor": {
+						"type": ["string", "null"]
+					},
+					"includes": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 500
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"instructions": {
+						"anyOf": [
+							{
+								"type": "string",
+								"maxLength": 2000
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"organizerAbsorbsFee": {
+						"type": "boolean"
+					},
+					"discount": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"planId": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 50,
+										"description": "Active membership plan of this workspace."
+									},
+									"percent": {
+										"type": "integer",
+										"minimum": 1,
+										"maximum": 100
+									}
+								},
+								"required": ["planId", "percent"],
+								"additionalProperties": false
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Member discount; null = none."
+					},
+					"membersOnlyPlanId": {
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 50
+							},
+							{
+								"type": "null"
+							}
+						],
+						"description": "Members-only gate plan; null = open to everyone."
+					},
+					"isActive": {
+						"type": "boolean"
+					},
+					"sortOrder": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"fields": {
+						"maxItems": 15,
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"label": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 100
+								},
+								"fieldType": {
+									"type": "string",
+									"enum": ["TEXT", "NUMBER", "SELECT", "EMAIL", "PHONE"]
+								},
+								"options": {
+									"maxItems": 20,
+									"type": "array",
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									}
+								},
+								"isRequired": {
+									"default": false,
+									"type": "boolean"
+								}
+							},
+							"required": ["label", "fieldType", "isRequired"],
+							"additionalProperties": false
+						},
+						"description": "Buyer form fields; the list is replaced as a whole."
+					}
+				},
+				"additionalProperties": false
+			},
+			"TicketTemplate": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": ["string", "null"]
+					},
+					"price": {
+						"type": "number"
+					},
+					"currency": {
+						"type": "string"
+					},
+					"capacity": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"maxPerOrder": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"accentColor": {
+						"type": ["string", "null"]
+					},
+					"includes": {
+						"type": ["string", "null"]
+					},
+					"instructions": {
+						"type": ["string", "null"]
+					},
+					"organizerAbsorbsFee": {
+						"type": "boolean"
+					},
+					"discount": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"planId": {
+										"type": "string"
+									},
+									"percent": {
+										"anyOf": [
+											{
+												"type": "integer",
+												"minimum": -9007199254740991,
+												"maximum": 9007199254740991
+											},
+											{
+												"type": "null"
+											}
+										]
+									}
+								},
+								"required": ["planId", "percent"],
+								"additionalProperties": false
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"membersOnlyPlanId": {
+						"type": ["string", "null"]
+					},
+					"isActive": {
+						"type": "boolean"
+					},
+					"fields": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"label": {
+									"type": "string"
+								},
+								"fieldType": {
+									"type": "string",
+									"enum": ["TEXT", "NUMBER", "SELECT", "EMAIL", "PHONE"]
+								},
+								"options": {
+									"anyOf": [
+										{
+											"type": "array",
+											"items": {
+												"type": "string"
+											}
+										},
+										{
+											"type": "null"
+										}
+									]
+								},
+								"isRequired": {
+									"type": "boolean"
+								},
+								"sortOrder": {
+									"type": "integer",
+									"minimum": -9007199254740991,
+									"maximum": 9007199254740991
+								}
+							},
+							"required": [
+								"id",
+								"label",
+								"fieldType",
+								"options",
+								"isRequired",
+								"sortOrder"
+							],
+							"additionalProperties": false
+						}
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"description",
+					"price",
+					"currency",
+					"capacity",
+					"maxPerOrder",
+					"accentColor",
+					"includes",
+					"instructions",
+					"organizerAbsorbsFee",
+					"discount",
+					"membersOnlyPlanId",
+					"isActive",
+					"fields"
+				],
+				"additionalProperties": false
+			},
+			"TicketTemplateInstantiate": {
+				"type": "object",
+				"properties": {
+					"eventDateId": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Event date of this workspace."
+					},
+					"name": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 100
+					},
+					"price": {
+						"type": "number",
+						"minimum": 0
+					},
+					"capacity": {
+						"description": "Required when the template has no capacity.",
+						"type": "integer",
+						"exclusiveMinimum": 0,
+						"maximum": 9007199254740991
+					}
+				},
+				"required": ["eventDateId"],
+				"additionalProperties": false
+			},
+			"TicketTemplateInstance": {
+				"type": "object",
+				"properties": {
+					"ticketTypeId": {
+						"type": "string"
+					},
+					"eventId": {
+						"type": "string"
+					},
+					"eventDateId": {
+						"type": "string"
+					}
+				},
+				"required": ["ticketTypeId", "eventId", "eventDateId"],
+				"additionalProperties": false
+			},
+			"MasterQr": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"label": {
+						"type": "string"
+					},
+					"mode": {
+						"type": "string",
+						"enum": ["EVENT", "TODAY"],
+						"description": "EVENT: opens the event page (or the tenant listings when org-wide). TODAY: jumps to today's show."
+					},
+					"eventId": {
+						"description": "null = org-wide QR (all shows of the workspace).",
+						"type": ["string", "null"]
+					},
+					"ticketTypeId": {
+						"type": ["string", "null"]
+					},
+					"active": {
+						"type": "boolean"
+					},
+					"scans": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"lastScanAt": {
+						"type": ["string", "null"]
+					},
+					"createdAt": {
+						"type": "string"
+					},
+					"code": {
+						"type": "string",
+						"description": "SECRET: public code printed in the QR; whoever has it reaches the sale flow. It cannot be rotated."
+					},
+					"url": {
+						"description": "SECRET: the URL encoded in the QR (null if the workspace has no public organization yet).",
+						"type": ["string", "null"]
+					}
+				},
+				"required": [
+					"id",
+					"label",
+					"mode",
+					"eventId",
+					"ticketTypeId",
+					"active",
+					"scans",
+					"lastScanAt",
+					"createdAt",
+					"code",
+					"url"
+				],
+				"additionalProperties": false
+			},
+			"MasterQrCreate": {
+				"type": "object",
+				"properties": {
+					"label": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 80
+					},
+					"mode": {
+						"type": "string",
+						"enum": ["EVENT", "TODAY"]
+					},
+					"eventId": {
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 60
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"ticketTypeId": {
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 60
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": ["label", "mode"],
+				"additionalProperties": false
+			},
+			"MasterQrUpdate": {
+				"type": "object",
+				"properties": {
+					"label": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 80
+					},
+					"mode": {
+						"type": "string",
+						"enum": ["EVENT", "TODAY"]
+					},
+					"eventId": {
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 60
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"ticketTypeId": {
+						"anyOf": [
+							{
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 60
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": false
+			},
+			"MasterQrActive": {
+				"type": "object",
+				"properties": {
+					"active": {
+						"type": "boolean"
+					}
+				},
+				"required": ["active"],
+				"additionalProperties": false
+			},
+			"WorkspaceConfigDeleted": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"deleted": {
+						"type": "boolean",
+						"const": true
+					}
+				},
+				"required": ["id", "deleted"],
 				"additionalProperties": false
 			}
 		},

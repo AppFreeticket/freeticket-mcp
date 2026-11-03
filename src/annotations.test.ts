@@ -46,9 +46,14 @@ describe("tool annotations", () => {
 			.map((t) => t.name)
 			.sort();
 		expect(open).toEqual([
+			"content_lives_create",
+			"content_lives_delete",
+			"content_lives_reset_key",
 			"content_meetups_cancel",
 			"content_meetups_publish",
 			"content_meetups_rsvp_review",
+			"content_videos_delete",
+			"content_videos_set_published",
 			"event_artist_invitations_resend",
 			"event_dates_access_close_sign",
 			"events_artists_set",

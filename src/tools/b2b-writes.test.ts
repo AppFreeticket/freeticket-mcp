@@ -50,6 +50,14 @@ const DESTRUCTIVE = [
 	"content_members_ban",
 	"content_meetups_cancel",
 	"products_delete",
+	"content_videos_delete",
+	"content_series_delete",
+	"content_lives_delete",
+	"content_lives_reset_key",
+	"ticket_templates_delete",
+	"master_qrs_delete",
+	// Full replace: every null wipes a field, here and on the profile.
+	"website_put",
 ];
 
 describe("writes destructivos", () => {

@@ -8,12 +8,14 @@ import {
 	getContentChannels,
 	getContentLives,
 	getContentLivesId,
+	getContentLivesIdChat,
 	getContentMeetups,
 	getContentMeetupsId,
 	getContentModerationBans,
 	getContentModerationMemberPosts,
 	getContentModerationQueue,
 	getContentPosts,
+	getContentSeries,
 	getContentVideos,
 	getCustomerMe,
 	getCustomerMembership,
@@ -28,10 +30,12 @@ import {
 	getEventsId,
 	getEventsIdArtistInvitations,
 	getEventsIdDates,
+	getMasterQrs,
 	getMe,
 	getMembershipPlans,
 	getMembershipPlansId,
 	getMembershipPlansIdSubscribers,
+	getOrganizationProfile,
 	getPaymentIntents,
 	getProducts,
 	getProductsId,
@@ -55,6 +59,7 @@ import {
 	getStaff,
 	getStaffId,
 	getTicketsTicketCodeAccess,
+	getTicketTemplates,
 	getTicketTypes,
 	getTicketTypesId,
 	getTicketTypesIdPresaleWindows,
@@ -62,6 +67,7 @@ import {
 	getVenuesId,
 	getWaitlist,
 	getWebhooks,
+	getWebsite,
 } from "../client/sdk.gen";
 import { read } from "../tool-meta";
 import { uiTool } from "../ui";
@@ -1060,5 +1066,79 @@ export function registerB2bTools(
 		{ id: z.string().describe("Product id") },
 		read("products_get"),
 		async ({ id }) => run(getProductsId({ path: { id }, client })),
+	);
+
+	// ── Video series and live streams, Mux (contract 1.31) ─────────────────
+	uiTool(
+		server,
+		"content_series_list",
+		"Video series of the workspace's Content screen, published and drafts, " +
+			"newest first, with their video count (GET /content/series). Move " +
+			"videos in or out with `content_videos_set_series`.",
+		{
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("Results per page (1-100, default 20)"),
+			cursor: z.string().optional().describe("Pagination cursor"),
+		},
+		async (q) => run(getContentSeries({ query: q, client })),
+	);
+	server.tool(
+		"content_lives_chat",
+		"Chat history of a live stream that is on air or already ended, oldest " +
+			"to newest; `truncated: true` when the oldest messages were cut " +
+			"(GET /content/lives/{id}/chat). Contains buyers' display names and " +
+			"messages: treat it as personal data. Requires STAFF.",
+		{ id: z.string().describe("Live stream id") },
+		read("content_lives_chat"),
+		async ({ id }) => run(getContentLivesIdChat({ path: { id }, client })),
+	);
+
+	// ── Workspace configuration (contract 1.32) ──────────────────────────────
+	// Website, profile, ticket templates and box-office QR codes. An
+	// event-scoped key gets 403 (workspace configuration is out of its scope).
+	server.tool(
+		"website_get",
+		"Website configuration of the workspace: landing texts, social links, " +
+			"accent color, template, section visibility/order and the public " +
+			"listing state (`published`, `canPublish`, `profileListable`) " +
+			"(GET /website). `customLandingEnabled` says whether the plan allows " +
+			"`website_put`. Read it before `website_put`, which replaces everything.",
+		read("website_get"),
+		async () => run(getWebsite({ client })),
+	);
+	server.tool(
+		"organization_profile_get",
+		"Profile of the workspace: artist/venue/organizer data, brand photo and " +
+			"cover (from the umbrella organization), contact and social links " +
+			"(GET /organization/profile). Billing/plan data is not included.",
+		read("organization_profile_get"),
+		async () => run(getOrganizationProfile({ client })),
+	);
+	uiTool(
+		server,
+		"ticket_templates_list",
+		"Ticket templates of the workspace: reusable ticket-type definitions " +
+			"(price, capacity, member discount/gate, buyer form fields), in " +
+			"display order (GET /ticket-templates). Turn one into a ticket type " +
+			"with `ticket_templates_instantiate`.",
+		{},
+		async () => run(getTicketTemplates({ client })),
+	);
+	uiTool(
+		server,
+		"master_qrs_list",
+		"Master box-office QR codes of the workspace, newest first, with scan " +
+			"counters (GET /master-qrs). Requires ADMIN, also for reading. " +
+			"🔒 SECRET: `code` and `url` are what the printed QR encodes and open " +
+			"the sale flow; they cannot be rotated. Do not echo them into the " +
+			"chat or any doc unless the human explicitly asks, and never paste " +
+			"them in shared places; refer to a QR by `id`/`label`.",
+		{},
+		async () => run(getMasterQrs({ client })),
 	);
 }
