@@ -5,6 +5,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-03
+
+Brings the B2B contract to **1.30.0** (superadmin 1.8.0 and public 0.10.1
+unchanged). The spec comes from free-admin commit `e97f2e5` on branch
+`claude/funny-albattani-iz4k0r` (PR AppFreeticket/free-admin#1169), **not yet
+merged to `main` nor deployed**: these tools answer 404 against production
+until that PR ships. Additions only. **177 tools** (B2B 141 · superadmin 30 ·
+public 6), 45 with a view.
+
+### Added
+- Digital products and courses: `products_list` (view), `products_get`,
+  `products_create`, `products_update`, `products_set_status` (idempotent)
+  and `products_delete` (destructive, soft delete with no restore). The
+  POST/PATCH input models the contract's nested course tree as is
+  (modules → lessons → resources / quiz). `products_update` with `modules`
+  **replaces the whole tree** (whatever the list leaves out is deleted with
+  buyers' progress), so it carries `destructiveHint`, and `openWorldHint`
+  because new lessons on a published course notify buyers. Files and lesson
+  videos cannot be uploaded through the API: they must be uploaded in the
+  dashboard first and referenced by path/id.
+- Skill `course-builder`.
+
 ## [0.17.0] - 2026-11-03
 
 Brings the B2B contract to **1.29.0** (superadmin 1.8.0 and public 0.10.1

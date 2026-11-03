@@ -49,6 +49,7 @@ const DESTRUCTIVE = [
 	"content_member_posts_remove",
 	"content_members_ban",
 	"content_meetups_cancel",
+	"products_delete",
 ];
 
 describe("writes destructivos", () => {

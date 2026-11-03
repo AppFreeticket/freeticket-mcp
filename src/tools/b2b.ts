@@ -33,6 +33,8 @@ import {
 	getMembershipPlansId,
 	getMembershipPlansIdSubscribers,
 	getPaymentIntents,
+	getProducts,
+	getProductsId,
 	getReportsByEvent,
 	getReportsExportsAttendees,
 	getReportsExportsBuyers,
@@ -1034,5 +1036,29 @@ export function registerB2bTools(
 		{ id: z.string().describe("Meetup id") },
 		read("content_meetups_get"),
 		async ({ id }) => run(getContentMeetupsId({ path: { id }, client })),
+	);
+
+	// ── Digital products and courses (contract 1.30) ─────────────────────────
+	// Downloadables and courses of the dashboard's Products screen (not the
+	// merch store). An event-scoped key gets 403.
+	uiTool(
+		server,
+		"products_list",
+		"Digital products and courses of the workspace (downloadables and " +
+			"courses, not the merch store), newest first, with CONFIRMED sales " +
+			"count and revenue (GET /products). Open one with `products_get`.",
+		{},
+		async () => run(getProducts({ client })),
+	);
+	server.tool(
+		"products_get",
+		"Detail of a digital product or course: product data, CONFIRMED sales " +
+			"totals and, for courses, modules and lessons in order with their " +
+			"ids (GET /products/{id}). Lesson quizzes (with the correct answers) " +
+			"only come with ADMIN keys. Read it before `products_update` with " +
+			"`modules`: that call replaces the whole tree and needs these ids.",
+		{ id: z.string().describe("Product id") },
+		read("products_get"),
+		async ({ id }) => run(getProductsId({ path: { id }, client })),
 	);
 }

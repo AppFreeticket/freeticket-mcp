@@ -14,6 +14,7 @@ import {
 	deleteEventsIdSchedule,
 	deleteMembershipPlansId,
 	deletePresaleWindowsId,
+	deleteProductsId,
 	deleteStaffId,
 	deleteTicketTypesId,
 	deleteVenuesId,
@@ -28,6 +29,7 @@ import {
 	patchEventsIdDatesDateId,
 	patchMembershipPlansId,
 	patchPresaleWindowsId,
+	patchProductsId,
 	patchStaffIdRole,
 	patchTicketsTicketCode,
 	patchTicketTypesId,
@@ -61,6 +63,8 @@ import {
 	postEventsIdPublish,
 	postEventsIdSchedule,
 	postMembershipPlans,
+	postProducts,
+	postProductsIdStatus,
 	postSales,
 	postSalesIdAbandon,
 	postSalesIdCancel,
@@ -1589,5 +1593,251 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		}),
 		async ({ id, ...body }) =>
 			run(putContentMeetupsIdAttendance({ path: { id }, body, client })),
+	);
+
+	// ── Digital products and courses (contract 1.30) ─────────────────────────
+	// Same rules as the dashboard's product wizard; writes need ADMIN and an
+	// event-scoped key gets 403. Files and lesson videos cannot be uploaded
+	// through the API: the body only references assets already uploaded in the
+	// dashboard. The course tree is modelled as the contract defines it
+	// (ProductModuleInput → ProductLessonInput → resources / quiz).
+	const productResource = z.object({
+		id: z
+			.string()
+			.nullish()
+			.describe("Id of a saved resource; absent/null creates a new one"),
+		kind: z.enum(["FILE", "LINK"]),
+		label: z.string(),
+		url: z.string().nullish().describe("LINK only: http(s) URL"),
+		filePath: z
+			.string()
+			.nullish()
+			.describe(
+				"FILE only: path of a file already uploaded in the dashboard " +
+					"(private product files bucket, under this workspace)",
+			),
+		fileName: z.string().nullish(),
+		fileSize: z.number().int().nullish().describe("Bytes"),
+	});
+	const productQuiz = z.object({
+		questions: z.array(
+			z.object({
+				id: z.string(),
+				prompt: z.string(),
+				options: z.array(z.object({ id: z.string(), text: z.string() })),
+				correctOptionId: z
+					.string()
+					.describe("`id` of the correct option of this question"),
+			}),
+		),
+		passScore: z.number().int().describe("Minimum score to pass, 0–100"),
+		showAnswers: z.boolean(),
+	});
+	const productLesson = z.object({
+		id: z
+			.string()
+			.nullish()
+			.describe(
+				"Id of a saved lesson; absent/null creates a new one. Keep ids on " +
+					"edit so buyers keep their progress",
+			),
+		title: z.string(),
+		description: z.string().nullish(),
+		isLive: z.boolean(),
+		content: z.enum(["VIDEO", "FILE", "TEXT", "QUIZ"]),
+		body: z.string().nullish().describe("Markdown; TEXT lessons only"),
+		thumbnailUrl: z.string().nullish(),
+		videoId: z
+			.string()
+			.nullish()
+			.describe(
+				"VIDEO lessons only: id of a course video already uploaded in the " +
+					"dashboard (videos cannot be uploaded through the API)",
+			),
+		fileName: z.string().nullish(),
+		filePath: z
+			.string()
+			.nullish()
+			.describe(
+				"FILE lessons: path of a file already uploaded in the dashboard",
+			),
+		resources: z
+			.array(productResource)
+			.optional()
+			.describe("Absent keeps the saved resources; [] removes them all"),
+		isPreview: z
+			.boolean()
+			.optional()
+			.describe(
+				"Free preview on the public page (VIDEO/TEXT only, max one per " +
+					"module). Absent keeps the saved value",
+			),
+		quiz: productQuiz.nullish().describe("QUIZ lessons only"),
+	});
+	const productModule = z.object({
+		id: z
+			.string()
+			.nullish()
+			.describe("Id of a saved module; absent/null creates a new one"),
+		title: z.string(),
+		description: z.string().nullish(),
+		unlockAfterDays: z
+			.number()
+			.int()
+			.nullish()
+			.describe("Drip by days after purchase (unlockMode DAYS)"),
+		unlockAt: z
+			.string()
+			.nullish()
+			.describe("Drip by date, ISO 8601 with offset (unlockMode DATE)"),
+		lessons: z.array(productLesson),
+	});
+	const productFields = {
+		coverImageUrl: z.string().nullable(),
+		price: z.number().describe("COP: integer. USD: up to 2 decimals"),
+		currency: z.enum(["COP", "USD"]),
+		access: z.enum(["PUBLIC", "SUBSCRIBERS"]),
+		includedInMembership: z
+			.boolean()
+			.describe("Members of the workspace get it at no cost"),
+		fileName: z.string().nullable(),
+		filePath: z
+			.string()
+			.nullable()
+			.describe(
+				"DOWNLOADABLE only (required there): path of a file already " +
+					"uploaded in the dashboard (private product files bucket, under " +
+					"this workspace)",
+			),
+		sampleName: z.string().nullable(),
+		samplePath: z
+			.string()
+			.nullable()
+			.describe(
+				"Free sample: path of a file already uploaded in the dashboard",
+			),
+		courseMeta: z
+			.object({
+				learn: z
+					.array(z.string())
+					.optional()
+					.describe('"What you will learn": empty, or 3 to 8 items'),
+				audience: z.string().nullish(),
+				requirements: z.string().nullish(),
+				level: z.enum(["BEGINNER", "INTERMEDIATE", "ADVANCED"]).nullish(),
+			})
+			.nullish()
+			.describe("COURSE only. Absent keeps the saved one; null clears it"),
+		unlockMode: z
+			.enum(["OPEN", "SEQUENTIAL", "DAYS", "DATE"])
+			.optional()
+			.describe(
+				"COURSE drip rule. Absent keeps the saved one (OPEN on create)",
+			),
+	};
+	const UPLOADS =
+		" Files and lesson videos cannot be uploaded through the API: upload " +
+		"them in the dashboard first and reference them here (`filePath`, " +
+		"`samplePath`, lesson `videoId`/`filePath`, FILE resources).";
+	const PRODUCT_ERRORS =
+		" Errors: 400 `BAD_REQUEST` (a dashboard rule failed; `error.message` " +
+		"says which), 400 `INVALID_FILE` (a path outside this workspace's " +
+		"product files folder).";
+	server.tool(
+		"products_create",
+		"Creates a digital product or course, as DRAFT unless `publish: true` " +
+			"(POST /products). A DOWNLOADABLE needs `fileName`/`filePath`; a " +
+			"COURSE needs `modules` with at least one module holding one lesson " +
+			"(modules → lessons → resources / quiz). Requires ADMIN. Returns the " +
+			`full product.${UPLOADS}${PRODUCT_ERRORS}`,
+		{
+			type: z.enum(["DOWNLOADABLE", "COURSE"]),
+			name: z.string(),
+			description: z.string().default(""),
+			...productFields,
+			coverImageUrl: productFields.coverImageUrl.default(null),
+			currency: productFields.currency.default("COP"),
+			access: productFields.access.default("PUBLIC"),
+			includedInMembership: productFields.includedInMembership.default(false),
+			fileName: productFields.fileName.default(null),
+			filePath: productFields.filePath.default(null),
+			sampleName: productFields.sampleName.default(null),
+			samplePath: productFields.samplePath.default(null),
+			modules: z
+				.array(productModule)
+				.default([])
+				.describe("COURSE only: at least one module with one lesson"),
+			publish: z
+				.boolean()
+				.default(false)
+				.describe("true creates it PUBLISHED; default DRAFT"),
+		},
+		write("products_create", { destructive: false }),
+		async (body) => run(postProducts({ body, client })),
+	);
+	server.tool(
+		"products_update",
+		"Updates a digital product or course; absent fields keep their saved " +
+			"value (PATCH /products/{id}). ⚠️ `modules`, when sent, REPLACES THE " +
+			"WHOLE COURSE TREE: modules, lessons and resources are matched by " +
+			"`id` and every one missing from the list is deleted, with the " +
+			"buyers' progress on it. Read the course with `products_get` first " +
+			"and send the full tree back with its ids; omit `modules` to edit " +
+			"only product fields. New lessons on a published course with buyers " +
+			"notify them, like the dashboard. Requires ADMIN. Returns the full " +
+			`product.${UPLOADS}${PRODUCT_ERRORS} 409 \`COURSE_CHANGED\` (the ` +
+			"course changed concurrently: read it again and retry).",
+		{
+			id: z.string().describe("Product id"),
+			type: z.enum(["DOWNLOADABLE", "COURSE"]).optional(),
+			name: z.string().optional(),
+			description: z.string().optional(),
+			coverImageUrl: productFields.coverImageUrl.optional(),
+			price: productFields.price.optional(),
+			currency: productFields.currency.optional(),
+			access: productFields.access.optional(),
+			includedInMembership: productFields.includedInMembership.optional(),
+			fileName: productFields.fileName.optional(),
+			filePath: productFields.filePath.optional(),
+			sampleName: productFields.sampleName.optional(),
+			samplePath: productFields.samplePath.optional(),
+			modules: z
+				.array(productModule)
+				.optional()
+				.describe(
+					"FULL course tree; replaces the saved one (missing ids are " +
+						"deleted). Absent keeps the saved tree",
+				),
+			courseMeta: productFields.courseMeta,
+			unlockMode: productFields.unlockMode,
+		},
+		// destructive: sending `modules` deletes whatever the list leaves out.
+		// openWorld: new lessons on a published course queue a buyer notification.
+		write("products_update", { destructive: true, openWorld: true }),
+		async ({ id, ...body }) =>
+			run(patchProductsId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"products_set_status",
+		"Publishes (PUBLISHED) or unpublishes (DRAFT) a digital product or " +
+			"course; sending the current status is a no-op " +
+			"(POST /products/{id}/status). Publishing re-checks the plan for " +
+			"live lessons (403 `LIVE_LESSONS_PLAN_REQUIRED`). Requires ADMIN.",
+		{
+			id: z.string().describe("Product id"),
+			status: z.enum(["DRAFT", "PUBLISHED"]),
+		},
+		write("products_set_status", { destructive: false, idempotent: true }),
+		async ({ id, status }) =>
+			run(postProductsIdStatus({ path: { id }, body: { status }, client })),
+	);
+	server.tool(
+		"products_delete",
+		"Deletes a digital product or course: it disappears from the dashboard, " +
+			"the API and the public pages (soft delete, no restore endpoint) " +
+			`(DELETE /products/{id}). Requires ADMIN.${CONFIRM}`,
+		{ id: z.string().describe("Product id") },
+		write("products_delete", { destructive: true }),
+		async ({ id }) => run(deleteProductsId({ path: { id }, client })),
 	);
 }

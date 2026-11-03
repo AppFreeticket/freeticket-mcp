@@ -52,6 +52,7 @@ describe("tool annotations", () => {
 			"event_artist_invitations_resend",
 			"event_dates_access_close_sign",
 			"events_artists_set",
+			"products_update",
 			"public_orders_create",
 			"public_tickets_resend",
 			"sales_refund",

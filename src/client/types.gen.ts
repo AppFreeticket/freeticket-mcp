@@ -2115,6 +2115,273 @@ export type PaymentIntentsPage = {
 	nextCursor: string | null;
 };
 
+export type ProductLessonResourceInput = {
+	/**
+	 * Id of a saved resource; absent/null creates a new one.
+	 */
+	id?: string | null;
+	kind: "FILE" | "LINK";
+	label: string;
+	/**
+	 * LINK only: http(s) URL.
+	 */
+	url?: string | null;
+	/**
+	 * FILE only: path in the private product files bucket, under this workspace.
+	 */
+	filePath?: string | null;
+	fileName?: string | null;
+	fileSize?: number | null;
+};
+
+export type ProductLessonQuiz = {
+	questions: Array<{
+		id: string;
+		prompt: string;
+		options: Array<{
+			id: string;
+			text: string;
+		}>;
+		correctOptionId: string;
+	}>;
+	/**
+	 * Minimum score to pass, 0–100.
+	 */
+	passScore: number;
+	showAnswers: boolean;
+};
+
+export type ProductLessonInput = {
+	/**
+	 * Id of a saved lesson; absent/null creates a new one. Keep ids on edit so buyers keep their progress.
+	 */
+	id?: string | null;
+	title: string;
+	description?: string | null;
+	isLive: boolean;
+	content: "VIDEO" | "FILE" | "TEXT" | "QUIZ";
+	/**
+	 * Markdown; TEXT lessons only.
+	 */
+	body?: string | null;
+	thumbnailUrl?: string | null;
+	/**
+	 * Course video id; VIDEO lessons only. Uploading a video is not available through the API.
+	 */
+	videoId?: string | null;
+	fileName?: string | null;
+	filePath?: string | null;
+	/**
+	 * Absent keeps the saved resources; [] removes them all.
+	 */
+	resources?: Array<ProductLessonResourceInput>;
+	/**
+	 * Free preview on the public page (VIDEO/TEXT only, max one per module). Absent keeps the saved value.
+	 */
+	isPreview?: boolean;
+	/**
+	 * QUIZ lessons only.
+	 */
+	quiz?: ProductLessonQuiz | null;
+};
+
+export type ProductModuleInput = {
+	/**
+	 * Id of a saved module; absent/null creates a new one.
+	 */
+	id?: string | null;
+	title: string;
+	description?: string | null;
+	/**
+	 * Drip by days after purchase (unlockMode DAYS).
+	 */
+	unlockAfterDays?: number | null;
+	/**
+	 * Drip by date, ISO 8601 with offset (unlockMode DATE).
+	 */
+	unlockAt?: string | null;
+	lessons: Array<ProductLessonInput>;
+};
+
+export type ProductCourseMeta = {
+	/**
+	 * "What you will learn": empty, or 3 to 8 items.
+	 */
+	learn?: Array<string>;
+	audience?: string | null;
+	requirements?: string | null;
+	level?: ("BEGINNER" | "INTERMEDIATE" | "ADVANCED") | null;
+};
+
+export type ProductCreate = {
+	type: "DOWNLOADABLE" | "COURSE";
+	name: string;
+	description: string;
+	coverImageUrl: string | null;
+	/**
+	 * COP: integer. USD: up to 2 decimals.
+	 */
+	price: number;
+	currency: "COP" | "USD";
+	access: "PUBLIC" | "SUBSCRIBERS";
+	/**
+	 * Members of the workspace get it at no cost.
+	 */
+	includedInMembership: boolean;
+	fileName: string | null;
+	/**
+	 * DOWNLOADABLE only (required there): path in the private product files bucket, under this workspace. Uploading files is not available through the API.
+	 */
+	filePath: string | null;
+	sampleName: string | null;
+	samplePath: string | null;
+	/**
+	 * COURSE only (at least one module with one lesson).
+	 */
+	modules: Array<ProductModuleInput>;
+	/**
+	 * COURSE only. Absent keeps the saved one; null clears it.
+	 */
+	courseMeta?: ProductCourseMeta | null;
+	/**
+	 * COURSE drip rule. Absent keeps the saved one (OPEN on create).
+	 */
+	unlockMode?: "OPEN" | "SEQUENTIAL" | "DAYS" | "DATE";
+	/**
+	 * true creates it PUBLISHED; default DRAFT.
+	 */
+	publish: boolean;
+};
+
+export type ProductUpdate = {
+	type?: "DOWNLOADABLE" | "COURSE";
+	name?: string;
+	description?: string;
+	coverImageUrl?: string | null;
+	/**
+	 * COP: integer. USD: up to 2 decimals.
+	 */
+	price?: number;
+	currency?: "COP" | "USD";
+	access?: "PUBLIC" | "SUBSCRIBERS";
+	/**
+	 * Members of the workspace get it at no cost.
+	 */
+	includedInMembership?: boolean;
+	fileName?: string | null;
+	/**
+	 * DOWNLOADABLE only (required there): path in the private product files bucket, under this workspace. Uploading files is not available through the API.
+	 */
+	filePath?: string | null;
+	sampleName?: string | null;
+	samplePath?: string | null;
+	/**
+	 * Full course tree (replaces it: modules/lessons/resources missing from the list are deleted). Absent keeps the saved tree.
+	 */
+	modules?: Array<ProductModuleInput>;
+	/**
+	 * COURSE only. Absent keeps the saved one; null clears it.
+	 */
+	courseMeta?: ProductCourseMeta | null;
+	/**
+	 * COURSE drip rule. Absent keeps the saved one (OPEN on create).
+	 */
+	unlockMode?: "OPEN" | "SEQUENTIAL" | "DAYS" | "DATE";
+};
+
+export type ProductStatusUpdate = {
+	status: "DRAFT" | "PUBLISHED";
+};
+
+export type Product = {
+	id: string;
+	name: string;
+	type: "DOWNLOADABLE" | "COURSE";
+	status: "DRAFT" | "PUBLISHED";
+	price: number;
+	currency: "COP" | "USD";
+	coverImageUrl: string | null;
+	/**
+	 * CONFIRMED purchases.
+	 */
+	salesCount: number;
+	/**
+	 * Sum of CONFIRMED purchase amounts.
+	 */
+	revenue: number;
+	includedInMembership: boolean;
+};
+
+export type ProductLesson = {
+	id: string;
+	title: string;
+	description?: string | null;
+	isLive: boolean;
+	content: "VIDEO" | "FILE" | "TEXT" | "QUIZ";
+	/**
+	 * Markdown; TEXT lessons only.
+	 */
+	body?: string | null;
+	thumbnailUrl?: string | null;
+	/**
+	 * Course video id; VIDEO lessons only. Uploading a video is not available through the API.
+	 */
+	videoId?: string | null;
+	fileName?: string | null;
+	filePath?: string | null;
+	resources: Array<ProductLessonResourceInput>;
+	isPreview: boolean;
+	/**
+	 * Only for ADMIN keys (it includes the correct answers).
+	 */
+	quiz?: ProductLessonQuiz | null;
+	videoStatus: ("DRAFT" | "PROCESSING" | "READY" | "ERROR") | null;
+	durationSeconds: number | null;
+};
+
+export type ProductModule = {
+	id: string;
+	title: string;
+	description?: string | null;
+	/**
+	 * Drip by days after purchase (unlockMode DAYS).
+	 */
+	unlockAfterDays?: number | null;
+	/**
+	 * Drip by date, ISO 8601 with offset (unlockMode DATE).
+	 */
+	unlockAt?: string | null;
+	lessons: Array<ProductLesson>;
+};
+
+export type ProductDetail = {
+	id: string;
+	name: string;
+	type: "DOWNLOADABLE" | "COURSE";
+	status: "DRAFT" | "PUBLISHED";
+	price: number;
+	currency: "COP" | "USD";
+	coverImageUrl: string | null;
+	/**
+	 * CONFIRMED purchases.
+	 */
+	salesCount: number;
+	/**
+	 * Sum of CONFIRMED purchase amounts.
+	 */
+	revenue: number;
+	includedInMembership: boolean;
+	description: string;
+	access: "PUBLIC" | "SUBSCRIBERS";
+	fileName: string | null;
+	filePath: string | null;
+	sampleName: string | null;
+	samplePath: string | null;
+	modules: Array<ProductModule>;
+	courseMeta: ProductCourseMeta | null;
+	unlockMode: "OPEN" | "SEQUENTIAL" | "DAYS" | "DATE";
+};
+
 export type PostAuthDeviceCodeData = {
 	body?: never;
 	path?: never;
@@ -10052,6 +10319,305 @@ export type PutContentMeetupsIdAttendanceResponses = {
 
 export type PutContentMeetupsIdAttendanceResponse =
 	PutContentMeetupsIdAttendanceResponses[keyof PutContentMeetupsIdAttendanceResponses];
+
+export type GetProductsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/products";
+};
+
+export type GetProductsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetProductsError = GetProductsErrors[keyof GetProductsErrors];
+
+export type GetProductsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<Product>;
+	};
+};
+
+export type GetProductsResponse =
+	GetProductsResponses[keyof GetProductsResponses];
+
+export type PostProductsData = {
+	body: ProductCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/products";
+};
+
+export type PostProductsErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostProductsError = PostProductsErrors[keyof PostProductsErrors];
+
+export type PostProductsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: ProductDetail;
+	};
+};
+
+export type PostProductsResponse =
+	PostProductsResponses[keyof PostProductsResponses];
+
+export type DeleteProductsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/products/{id}";
+};
+
+export type DeleteProductsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type DeleteProductsIdError =
+	DeleteProductsIdErrors[keyof DeleteProductsIdErrors];
+
+export type DeleteProductsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		[key: string]: unknown;
+	};
+};
+
+export type DeleteProductsIdResponse =
+	DeleteProductsIdResponses[keyof DeleteProductsIdResponses];
+
+export type GetProductsIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/products/{id}";
+};
+
+export type GetProductsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetProductsIdError = GetProductsIdErrors[keyof GetProductsIdErrors];
+
+export type GetProductsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ProductDetail;
+	};
+};
+
+export type GetProductsIdResponse =
+	GetProductsIdResponses[keyof GetProductsIdResponses];
+
+export type PatchProductsIdData = {
+	body: ProductUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/products/{id}";
+};
+
+export type PatchProductsIdErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchProductsIdError =
+	PatchProductsIdErrors[keyof PatchProductsIdErrors];
+
+export type PatchProductsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ProductDetail;
+	};
+};
+
+export type PatchProductsIdResponse =
+	PatchProductsIdResponses[keyof PatchProductsIdResponses];
+
+export type PostProductsIdStatusData = {
+	body: ProductStatusUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/products/{id}/status";
+};
+
+export type PostProductsIdStatusErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostProductsIdStatusError =
+	PostProductsIdStatusErrors[keyof PostProductsIdStatusErrors];
+
+export type PostProductsIdStatusResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		[key: string]: unknown;
+	};
+};
+
+export type PostProductsIdStatusResponse =
+	PostProductsIdStatusResponses[keyof PostProductsIdStatusResponses];
 
 export type ClientOptions = {
 	baseUrl:

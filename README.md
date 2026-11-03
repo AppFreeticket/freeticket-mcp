@@ -12,7 +12,7 @@ MCP is already authenticated with nothing to configure (it reads
 
 The repo is a Claude Code plugin **and** its own marketplace. The plugin wires
 the remote server (`https://mcp.appfreeticket.com/mcp`, declared in
-[`.mcp.json`](.mcp.json)) and ships three skills.
+[`.mcp.json`](.mcp.json)) and ships four skills.
 
 ```text
 /plugin marketplace add AppFreeticket/freeticket-mcp
@@ -33,6 +33,7 @@ API key or header goes in the plugin.
 | `/freeticket:publish-event` | Venue → event → dates → ticket types → optional member presale and lineup → publish now or schedule. |
 | `/freeticket:show-day-close` | Live attendance, access-close record, capacity vs. sold, revenue, stuck payments, attendee export and settlement status for one date. |
 | `/freeticket:community-moderation` | Reported comments, member posts awaiting review, bans and meetup RSVP requests, one approved action at a time. |
+| `/freeticket:course-builder` | Create or edit a course or downloadable product (modules, lessons, quizzes, drip) keeping lesson ids, then publish. |
 
 Files: [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) (version kept
 equal to `package.json` by `src/plugin.test.ts`),
@@ -192,6 +193,7 @@ and ask for confirmation.
 | Community channels | `content_channels_list` | `content_channels_create` · `content_channels_update` · `content_channels_reorder` · `content_channels_archive` |
 | Community moderation | `content_moderation_queue` · `content_moderation_bans` · `content_member_posts_list` | `content_comments_hide` · `content_comments_unhide` · `content_comments_ignore_reports` · `content_member_posts_approve` · `content_member_posts_reject` · `content_member_posts_remove` · `content_members_ban` · `content_members_unban` |
 | Community meetups | `content_meetups_list` · `content_meetups_get` | `content_meetups_create` · `content_meetups_update` · `content_meetups_publish` · `content_meetups_cancel` · `content_meetups_rsvp_review` · `content_meetups_attendance` |
+| Digital products and courses | `products_list` · `products_get` | `products_create` · `products_update` (with `modules` replaces the whole course tree) · `products_set_status` · `products_delete` |
 
 Minting and revoking credentials (`ft api-keys`, `ft admin tokens`) is left out
 of the MCP on purpose: an agent lists credentials to audit them, it does not
@@ -264,7 +266,7 @@ draws them.
 - Hosts without the extension (or terminal clients) ignore `_meta` and see the
   same text as always: nothing breaks.
 
-**44 tools with a view** (v0.17.0) — every list and every report. Details
+**45 tools with a view** (v0.18.0) — every list and every report. Details
 (`*_get`) and writes deliberately have none: a lone object or a `delete`
 acknowledgement gains nothing from a table, and drawing one suggests there is
 data where there is not. `src/ui.test.ts` mounts the real view in jsdom and
@@ -280,7 +282,7 @@ pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contracts this build targets: B2B **1.29.0**, superadmin **1.8.0**, public
+Contracts this build targets: B2B **1.30.0**, superadmin **1.8.0**, public
 **0.10.1**. All three are served by `free-admin` and are the only source of
 truth, on separate semver lineages. To propagate a backend change, use the
 `contract-sync` agent from the

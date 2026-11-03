@@ -152,8 +152,9 @@ describe("tool registration", () => {
 		// content_posts_create, workspaces_create) + the 10 from 1.21–1.27
 		// (events_schedule/unschedule, the lineup and its invitations, presale
 		// windows, waitlist_join) + the 24 from 1.28/1.29 (access-close sign,
-		// sales_abandon and the community: posts, channels, moderation, meetups).
-		expect(t.length).toBe(76);
+		// sales_abandon and the community: posts, channels, moderation, meetups)
+		// + the 4 from 1.30 (products create/update/set_status/delete).
+		expect(t.length).toBe(80);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -170,6 +171,7 @@ describe("tool registration", () => {
 			"presale_windows_create",
 			"event_dates_access_close_sign",
 			"content_meetups_create",
+			"products_update",
 		]) {
 			expect(t).toContain(n);
 		}

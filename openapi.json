@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket B2B API",
-		"version": "1.29.0",
+		"version": "1.30.0",
 		"description": "FreeTicket B2B REST API for integrations, the `ft` CLI and the FreeTicket MCP server. Authentication is by API key (`Authorization: Bearer <key>` header or `x-api-key`); the active workspace is selected with the `X-Workspace-Id` header.\n\nScopes: each key is either `read` (GET/HEAD only) or `write` (additionally creates, edits, deletes, cancels, refunds and checks in). Self-service keys are issued as `read`. A `read` key calling a mutating method gets a 403. The machine-readable declaration lives at `/.well-known/oauth-protected-resource` (RFC 9728).\n\nGetting a key (self-serve, no sales contact): `ft login` runs the Device Authorization Grant (RFC 8628, `POST /auth/device/code` + `POST /auth/device/token`); the user approves the code at https://admin.appfreeticket.com/device and the CLI receives a key. New organizers can bootstrap headless with `POST /auth/signup` (verify-first, then `ft login`). With a key, `POST /api-keys` mints more (born `read` unless `write` is requested). There is no sandbox environment: test against a dedicated workspace with `read` keys.\n\n## Versioning and deprecation\n\n- **Path version.** The B2B API is versioned in the path (`/api/v1`). A breaking change ships under a new path (`/api/v2`); the previous version keeps running in parallel until its sunset date.\n- **Contract version.** `info.version` is the semantic version of this document. MINOR = additive (new endpoints, new optional fields, new enum values, new error codes; clients must ignore unknown fields). PATCH = documentation or fixes that do not change shapes. The public API (`/api/public`) is pre-1.0 and not versioned in the path: there, a MINOR bump may include a breaking change and PATCH never does.\n- **Deprecation signals.** A deprecated operation is marked `deprecated: true` in this document and its responses carry `Deprecation` (RFC 9745, e.g. `Deprecation: @1767225600`), `Sunset` (RFC 8594, an HTTP-date after which the operation may stop working) and `Link: <https://appfreeticket.com/desarrolladores>; rel=\"deprecation\"`.\n- **Timeline.** At least 6 months between the first `Deprecation` header and the `Sunset` date for `/api/v1`, and at least 90 days for `/api/public`. A path version is only retired after all its operations have sunset.\n- **Current status.** No operation is deprecated today.\n\n## Rate limits\n\n- **429 always carries `Retry-After`** (seconds). Wait at least that long before retrying the same request. The JSON error envelope comes with `error.retryable: true`; most rate-limited responses use `error.code: \"RATE_LIMITED\"`, and some return a more specific code (for example `TOO_MANY_REQUESTS` or `SEAT_BUDGET_EXHAUSTED`).\n- **RateLimit headers are sent where listed below.** Those endpoints answer every response, success or error, with the IETF RateLimit headers (draft-ietf-httpapi-ratelimit-headers): `RateLimit-Policy: \"<policy>\";q=<quota>;w=<window seconds>` and `RateLimit: \"<policy>\";r=<remaining>;t=<seconds until reset>`. Other endpoints may answer 429 without them.\n- Counters are fixed windows kept per server instance: treat the numbers as pacing hints, not as a global account quota.\n\nEndpoints that send RateLimit headers today: `POST /auth/signup` (per client IP), `POST /customer/auth/request` and `POST /customer/auth/verify` (per client IP), and the buyer-session endpoints `GET /customer/orders/{id}`, `POST /customer/orders/{id}/payment`, `/payment/card`, `/payment/pse`, `/release`, `POST /customer/purchase-sessions` and `POST /customer/purchase-sessions/{id}/release`."
 	},
 	"servers": [
@@ -16063,6 +16063,594 @@
 					}
 				}
 			}
+		},
+		"/products": {
+			"get": {
+				"operationId": "getProducts",
+				"tags": ["products"],
+				"summary": "List digital products and courses",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same list as the dashboard's Products screen (downloadable products and courses, not the merch store): non-deleted products, newest first, with CONFIRMED sales count and revenue.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/Product"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postProducts",
+				"tags": ["products"],
+				"summary": "Create a digital product or course",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as the dashboard's product wizard. A DOWNLOADABLE needs `fileName`/`filePath` of a file already in the workspace's product files folder; a COURSE needs at least one module with one lesson. Files and lesson videos cannot be uploaded through the API: reference ones uploaded from the dashboard. Created as DRAFT unless `publish: true`. Returns the full product.\n\nErrors (`error.code`):\n- 400 `BAD_REQUEST`: a dashboard validation rule failed (e.g. a DOWNLOADABLE without a file, a COURSE without modules or a module without lessons, decimals in a COP price, more than one free preview lesson per module, a QUIZ lesson without questions). `error.message` says which.\n- 400 `INVALID_FILE`: a `filePath`/`samplePath`/lesson file/resource path is not under this workspace's product files folder.\n- 400 `INVALID_LESSON_THUMBNAIL`: a lesson `thumbnailUrl` is not an image of this workspace's media library.\n- 400 `INVALID_LESSON_VIDEO`: a lesson `videoId` is not a course video of this workspace, or is linked to another product.\n- 400 `DUPLICATE_LESSON_VIDEO`: the same `videoId` is used in two lessons.\n- 403 `LIVE_LESSONS_PLAN_REQUIRED`: a lesson has `isLive: true` and the workspace plan does not include streaming (Icon).\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ProductCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ProductDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/products/{id}": {
+			"get": {
+				"operationId": "getProductsId",
+				"tags": ["products"],
+				"summary": "Get a digital product or course",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Same detail the dashboard's product wizard opens: product data, CONFIRMED sales totals and, for courses, modules and lessons in order. Lesson quizzes (with the correct answers) are only included for `ADMIN` keys.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the product does not exist, was deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ProductDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"patch": {
+				"operationId": "patchProductsId",
+				"tags": ["products"],
+				"summary": "Update a digital product or course",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as saving the dashboard's product wizard. Partial: absent fields keep their saved value. `modules`, when sent, is the FULL course tree: modules, lessons and resources are matched by `id` (keep them so buyers keep their progress) and the ones missing from the list are deleted. New lessons on a published course with buyers notify them, like the dashboard. Returns the full product.\n\nErrors (`error.code`):\n- 400 `BAD_REQUEST`: a dashboard validation rule failed (e.g. a DOWNLOADABLE without a file, a COURSE without modules or a module without lessons, decimals in a COP price, more than one free preview lesson per module, a QUIZ lesson without questions). `error.message` says which.\n- 400 `INVALID_FILE`: a `filePath`/`samplePath`/lesson file/resource path is not under this workspace's product files folder.\n- 400 `INVALID_LESSON_THUMBNAIL`: a lesson `thumbnailUrl` is not an image of this workspace's media library.\n- 400 `INVALID_LESSON_VIDEO`: a lesson `videoId` is not a course video of this workspace, or is linked to another product.\n- 400 `DUPLICATE_LESSON_VIDEO`: the same `videoId` is used in two lessons.\n- 403 `LIVE_LESSONS_PLAN_REQUIRED`: a lesson has `isLive: true` and the workspace plan does not include streaming (Icon).\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the product does not exist, was deleted or belongs to another workspace.\n- 409 `COURSE_CHANGED`: the course changed concurrently (e.g. a lesson id no longer exists); read it again and retry.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ProductUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/ProductDetail"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"400": {
+						"description": "Bad request: malformed parameters.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteProductsId",
+				"tags": ["products"],
+				"summary": "Delete a digital product or course",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Delete\" in the dashboard.\n\nDESTRUCTIVE: the product disappears from the dashboard, the API and the public pages (soft delete). There is no restore endpoint.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 404 `NOT_FOUND`: the product does not exist, was already deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"x-ft-destructive": true,
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/products/{id}/status": {
+			"post": {
+				"operationId": "postProductsIdStatus",
+				"tags": ["products"],
+				"summary": "Publish or unpublish a digital product or course",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as the publish toggle in the dashboard's product list, with the target status explicit: sending the current status is a no-op. Publishing re-checks the plan for live lessons; unpublishing never does.\n\nErrors (`error.code`):\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.\n- 403 `LIVE_LESSONS_PLAN_REQUIRED`: the course has live lessons and the workspace plan does not include streaming (Icon).\n- 404 `NOT_FOUND`: the product does not exist, was deleted or belongs to another workspace.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/ProductStatusUpdate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object"
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	},
 	"components": {
@@ -22836,6 +23424,695 @@
 					"funnel",
 					"rows",
 					"nextCursor"
+				],
+				"additionalProperties": false
+			},
+			"ProductLessonResourceInput": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"description": "Id of a saved resource; absent/null creates a new one.",
+						"type": ["string", "null"]
+					},
+					"kind": {
+						"type": "string",
+						"enum": ["FILE", "LINK"]
+					},
+					"label": {
+						"type": "string"
+					},
+					"url": {
+						"description": "LINK only: http(s) URL.",
+						"type": ["string", "null"]
+					},
+					"filePath": {
+						"description": "FILE only: path in the private product files bucket, under this workspace.",
+						"type": ["string", "null"]
+					},
+					"fileName": {
+						"type": ["string", "null"]
+					},
+					"fileSize": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": ["kind", "label"],
+				"additionalProperties": false
+			},
+			"ProductLessonQuiz": {
+				"type": "object",
+				"properties": {
+					"questions": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "string"
+								},
+								"prompt": {
+									"type": "string"
+								},
+								"options": {
+									"type": "array",
+									"items": {
+										"type": "object",
+										"properties": {
+											"id": {
+												"type": "string"
+											},
+											"text": {
+												"type": "string"
+											}
+										},
+										"required": ["id", "text"],
+										"additionalProperties": false
+									}
+								},
+								"correctOptionId": {
+									"type": "string"
+								}
+							},
+							"required": ["id", "prompt", "options", "correctOptionId"],
+							"additionalProperties": false
+						}
+					},
+					"passScore": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991,
+						"description": "Minimum score to pass, 0–100."
+					},
+					"showAnswers": {
+						"type": "boolean"
+					}
+				},
+				"required": ["questions", "passScore", "showAnswers"],
+				"additionalProperties": false
+			},
+			"ProductLessonInput": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"description": "Id of a saved lesson; absent/null creates a new one. Keep ids on edit so buyers keep their progress.",
+						"type": ["string", "null"]
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": ["string", "null"]
+					},
+					"isLive": {
+						"type": "boolean"
+					},
+					"content": {
+						"type": "string",
+						"enum": ["VIDEO", "FILE", "TEXT", "QUIZ"]
+					},
+					"body": {
+						"description": "Markdown; TEXT lessons only.",
+						"type": ["string", "null"]
+					},
+					"thumbnailUrl": {
+						"type": ["string", "null"]
+					},
+					"videoId": {
+						"description": "Course video id; VIDEO lessons only. Uploading a video is not available through the API.",
+						"type": ["string", "null"]
+					},
+					"fileName": {
+						"type": ["string", "null"]
+					},
+					"filePath": {
+						"type": ["string", "null"]
+					},
+					"resources": {
+						"description": "Absent keeps the saved resources; [] removes them all.",
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ProductLessonResourceInput"
+						}
+					},
+					"isPreview": {
+						"description": "Free preview on the public page (VIDEO/TEXT only, max one per module). Absent keeps the saved value.",
+						"type": "boolean"
+					},
+					"quiz": {
+						"description": "QUIZ lessons only.",
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/ProductLessonQuiz"
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": ["title", "isLive", "content"],
+				"additionalProperties": false
+			},
+			"ProductModuleInput": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"description": "Id of a saved module; absent/null creates a new one.",
+						"type": ["string", "null"]
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": ["string", "null"]
+					},
+					"unlockAfterDays": {
+						"description": "Drip by days after purchase (unlockMode DAYS).",
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"unlockAt": {
+						"description": "Drip by date, ISO 8601 with offset (unlockMode DATE).",
+						"type": ["string", "null"]
+					},
+					"lessons": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ProductLessonInput"
+						}
+					}
+				},
+				"required": ["title", "lessons"],
+				"additionalProperties": false
+			},
+			"ProductCourseMeta": {
+				"type": "object",
+				"properties": {
+					"learn": {
+						"description": "\"What you will learn\": empty, or 3 to 8 items.",
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"audience": {
+						"type": ["string", "null"]
+					},
+					"requirements": {
+						"type": ["string", "null"]
+					},
+					"level": {
+						"anyOf": [
+							{
+								"type": "string",
+								"enum": ["BEGINNER", "INTERMEDIATE", "ADVANCED"]
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"additionalProperties": false
+			},
+			"ProductCreate": {
+				"type": "object",
+				"properties": {
+					"type": {
+						"type": "string",
+						"enum": ["DOWNLOADABLE", "COURSE"]
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"default": "",
+						"type": "string"
+					},
+					"coverImageUrl": {
+						"default": null,
+						"type": ["string", "null"]
+					},
+					"price": {
+						"type": "number",
+						"description": "COP: integer. USD: up to 2 decimals."
+					},
+					"currency": {
+						"default": "COP",
+						"type": "string",
+						"enum": ["COP", "USD"]
+					},
+					"access": {
+						"default": "PUBLIC",
+						"type": "string",
+						"enum": ["PUBLIC", "SUBSCRIBERS"]
+					},
+					"includedInMembership": {
+						"default": false,
+						"type": "boolean",
+						"description": "Members of the workspace get it at no cost."
+					},
+					"fileName": {
+						"default": null,
+						"type": ["string", "null"]
+					},
+					"filePath": {
+						"default": null,
+						"description": "DOWNLOADABLE only (required there): path in the private product files bucket, under this workspace. Uploading files is not available through the API.",
+						"type": ["string", "null"]
+					},
+					"sampleName": {
+						"default": null,
+						"type": ["string", "null"]
+					},
+					"samplePath": {
+						"default": null,
+						"type": ["string", "null"]
+					},
+					"modules": {
+						"default": [],
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ProductModuleInput"
+						},
+						"description": "COURSE only (at least one module with one lesson)."
+					},
+					"courseMeta": {
+						"description": "COURSE only. Absent keeps the saved one; null clears it.",
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/ProductCourseMeta"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"unlockMode": {
+						"description": "COURSE drip rule. Absent keeps the saved one (OPEN on create).",
+						"type": "string",
+						"enum": ["OPEN", "SEQUENTIAL", "DAYS", "DATE"]
+					},
+					"publish": {
+						"default": false,
+						"description": "true creates it PUBLISHED; default DRAFT.",
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"type",
+					"name",
+					"description",
+					"coverImageUrl",
+					"price",
+					"currency",
+					"access",
+					"includedInMembership",
+					"fileName",
+					"filePath",
+					"sampleName",
+					"samplePath",
+					"modules",
+					"publish"
+				],
+				"additionalProperties": false
+			},
+			"ProductUpdate": {
+				"type": "object",
+				"properties": {
+					"type": {
+						"type": "string",
+						"enum": ["DOWNLOADABLE", "COURSE"]
+					},
+					"name": {
+						"type": "string"
+					},
+					"description": {
+						"type": "string"
+					},
+					"coverImageUrl": {
+						"type": ["string", "null"]
+					},
+					"price": {
+						"type": "number",
+						"description": "COP: integer. USD: up to 2 decimals."
+					},
+					"currency": {
+						"type": "string",
+						"enum": ["COP", "USD"]
+					},
+					"access": {
+						"type": "string",
+						"enum": ["PUBLIC", "SUBSCRIBERS"]
+					},
+					"includedInMembership": {
+						"type": "boolean",
+						"description": "Members of the workspace get it at no cost."
+					},
+					"fileName": {
+						"type": ["string", "null"]
+					},
+					"filePath": {
+						"description": "DOWNLOADABLE only (required there): path in the private product files bucket, under this workspace. Uploading files is not available through the API.",
+						"type": ["string", "null"]
+					},
+					"sampleName": {
+						"type": ["string", "null"]
+					},
+					"samplePath": {
+						"type": ["string", "null"]
+					},
+					"modules": {
+						"description": "Full course tree (replaces it: modules/lessons/resources missing from the list are deleted). Absent keeps the saved tree.",
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ProductModuleInput"
+						}
+					},
+					"courseMeta": {
+						"description": "COURSE only. Absent keeps the saved one; null clears it.",
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/ProductCourseMeta"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"unlockMode": {
+						"description": "COURSE drip rule. Absent keeps the saved one (OPEN on create).",
+						"type": "string",
+						"enum": ["OPEN", "SEQUENTIAL", "DAYS", "DATE"]
+					}
+				},
+				"additionalProperties": false
+			},
+			"ProductStatusUpdate": {
+				"type": "object",
+				"properties": {
+					"status": {
+						"type": "string",
+						"enum": ["DRAFT", "PUBLISHED"]
+					}
+				},
+				"required": ["status"],
+				"additionalProperties": false
+			},
+			"Product": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string",
+						"enum": ["DOWNLOADABLE", "COURSE"]
+					},
+					"status": {
+						"type": "string",
+						"enum": ["DRAFT", "PUBLISHED"]
+					},
+					"price": {
+						"type": "number"
+					},
+					"currency": {
+						"type": "string",
+						"enum": ["COP", "USD"]
+					},
+					"coverImageUrl": {
+						"type": ["string", "null"]
+					},
+					"salesCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991,
+						"description": "CONFIRMED purchases."
+					},
+					"revenue": {
+						"type": "number",
+						"description": "Sum of CONFIRMED purchase amounts."
+					},
+					"includedInMembership": {
+						"type": "boolean"
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"type",
+					"status",
+					"price",
+					"currency",
+					"coverImageUrl",
+					"salesCount",
+					"revenue",
+					"includedInMembership"
+				],
+				"additionalProperties": false
+			},
+			"ProductLesson": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": ["string", "null"]
+					},
+					"isLive": {
+						"type": "boolean"
+					},
+					"content": {
+						"type": "string",
+						"enum": ["VIDEO", "FILE", "TEXT", "QUIZ"]
+					},
+					"body": {
+						"description": "Markdown; TEXT lessons only.",
+						"type": ["string", "null"]
+					},
+					"thumbnailUrl": {
+						"type": ["string", "null"]
+					},
+					"videoId": {
+						"description": "Course video id; VIDEO lessons only. Uploading a video is not available through the API.",
+						"type": ["string", "null"]
+					},
+					"fileName": {
+						"type": ["string", "null"]
+					},
+					"filePath": {
+						"type": ["string", "null"]
+					},
+					"resources": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ProductLessonResourceInput"
+						}
+					},
+					"isPreview": {
+						"type": "boolean"
+					},
+					"quiz": {
+						"description": "Only for ADMIN keys (it includes the correct answers).",
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/ProductLessonQuiz"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"videoStatus": {
+						"anyOf": [
+							{
+								"type": "string",
+								"enum": ["DRAFT", "PROCESSING", "READY", "ERROR"]
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"durationSeconds": {
+						"type": ["number", "null"]
+					}
+				},
+				"required": [
+					"id",
+					"title",
+					"isLive",
+					"content",
+					"resources",
+					"isPreview",
+					"videoStatus",
+					"durationSeconds"
+				],
+				"additionalProperties": false
+			},
+			"ProductModule": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"title": {
+						"type": "string"
+					},
+					"description": {
+						"type": ["string", "null"]
+					},
+					"unlockAfterDays": {
+						"description": "Drip by days after purchase (unlockMode DAYS).",
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"unlockAt": {
+						"description": "Drip by date, ISO 8601 with offset (unlockMode DATE).",
+						"type": ["string", "null"]
+					},
+					"lessons": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ProductLesson"
+						}
+					}
+				},
+				"required": ["id", "title", "lessons"],
+				"additionalProperties": false
+			},
+			"ProductDetail": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"type": {
+						"type": "string",
+						"enum": ["DOWNLOADABLE", "COURSE"]
+					},
+					"status": {
+						"type": "string",
+						"enum": ["DRAFT", "PUBLISHED"]
+					},
+					"price": {
+						"type": "number"
+					},
+					"currency": {
+						"type": "string",
+						"enum": ["COP", "USD"]
+					},
+					"coverImageUrl": {
+						"type": ["string", "null"]
+					},
+					"salesCount": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991,
+						"description": "CONFIRMED purchases."
+					},
+					"revenue": {
+						"type": "number",
+						"description": "Sum of CONFIRMED purchase amounts."
+					},
+					"includedInMembership": {
+						"type": "boolean"
+					},
+					"description": {
+						"type": "string"
+					},
+					"access": {
+						"type": "string",
+						"enum": ["PUBLIC", "SUBSCRIBERS"]
+					},
+					"fileName": {
+						"type": ["string", "null"]
+					},
+					"filePath": {
+						"type": ["string", "null"]
+					},
+					"sampleName": {
+						"type": ["string", "null"]
+					},
+					"samplePath": {
+						"type": ["string", "null"]
+					},
+					"modules": {
+						"type": "array",
+						"items": {
+							"$ref": "#/components/schemas/ProductModule"
+						}
+					},
+					"courseMeta": {
+						"anyOf": [
+							{
+								"$ref": "#/components/schemas/ProductCourseMeta"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"unlockMode": {
+						"type": "string",
+						"enum": ["OPEN", "SEQUENTIAL", "DAYS", "DATE"]
+					}
+				},
+				"required": [
+					"id",
+					"name",
+					"type",
+					"status",
+					"price",
+					"currency",
+					"coverImageUrl",
+					"salesCount",
+					"revenue",
+					"includedInMembership",
+					"description",
+					"access",
+					"fileName",
+					"filePath",
+					"sampleName",
+					"samplePath",
+					"modules",
+					"courseMeta",
+					"unlockMode"
 				],
 				"additionalProperties": false
 			}
