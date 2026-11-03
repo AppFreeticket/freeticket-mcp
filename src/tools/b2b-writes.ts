@@ -5,8 +5,12 @@ import { run } from "../api";
 import {
 	deleteDiscountsId,
 	deleteEventsId,
+	deleteEventsIdArtistInvitationsInvitationId,
+	deleteEventsIdArtistsOrganizationId,
 	deleteEventsIdDatesDateId,
+	deleteEventsIdSchedule,
 	deleteMembershipPlansId,
+	deletePresaleWindowsId,
 	deleteStaffId,
 	deleteTicketTypesId,
 	deleteVenuesId,
@@ -16,6 +20,7 @@ import {
 	patchEventsId,
 	patchEventsIdDatesDateId,
 	patchMembershipPlansId,
+	patchPresaleWindowsId,
 	patchStaffIdRole,
 	patchTicketsTicketCode,
 	patchTicketTypesId,
@@ -30,9 +35,11 @@ import {
 	postCustomerTicketsIdCancel,
 	postDiscounts,
 	postEvents,
+	postEventsIdArtistInvitationsInvitationIdResend,
 	postEventsIdCancel,
 	postEventsIdDates,
 	postEventsIdPublish,
+	postEventsIdSchedule,
 	postMembershipPlans,
 	postSales,
 	postSalesIdCancel,
@@ -42,9 +49,12 @@ import {
 	postTicketsTicketCodeCheckin,
 	postTicketsTicketCodeResend,
 	postTicketTypes,
+	postTicketTypesIdPresaleWindows,
 	postVenues,
+	postWaitlist,
 	postWebhooks,
 	postWorkspaces,
+	putEventsIdArtists,
 } from "../client/sdk.gen";
 import { write } from "../tool-meta";
 
@@ -83,13 +93,88 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"events_update",
-		"Actualiza campos de un evento (PATCH /events/{id}).",
+		"Updates fields of an event; absent fields are left untouched " +
+			"(PATCH /events/{id}). Publication, scheduling and the artist lineup " +
+			"have their own tools (`events_publish`, `events_schedule`, " +
+			"`events_artists_set`). Errors: 409 `SLUG_TAKEN`, 422 `PULEP_REQUIRED`, " +
+			"422 `CLASSIFICATION_CONFLICT` (e.g. `familiar` with an 18+ audience).",
 		{
 			id: z.string().describe("Event id"),
-			name: z.string().optional(),
+			name: z.string().min(1).optional(),
+			slug: z
+				.string()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("Public URL slug, unique across live events"),
 			description: z.string().nullish(),
 			venueId: z.string().nullish(),
-			coverImageUrl: z.string().nullish(),
+			coverImageUrl: z.string().url().nullish().describe("Cover image URL"),
+			squareImageUrl: z
+				.string()
+				.url()
+				.nullish()
+				.describe("Square (1:1) image URL"),
+			storyImageUrl: z
+				.string()
+				.url()
+				.nullish()
+				.describe("Story (9:16) image URL"),
+			pulepCode: z
+				.string()
+				.max(50)
+				.nullish()
+				.describe(
+					"PULEP code — required for performing arts above 400 capacity per date",
+				),
+			listedOnPortal: z
+				.boolean()
+				.optional()
+				.describe("Show the event on the public FreeTicket portal"),
+			genre: z
+				.enum([
+					"comedia",
+					"musica",
+					"teatro",
+					"danza",
+					"cultura",
+					"familiar",
+					"fiesta",
+					"deporte",
+					"conferencia",
+					"otro",
+				])
+				.optional()
+				.describe("Event type from the taxonomy"),
+			subgenre: z
+				.enum([
+					"stand_up",
+					"impro",
+					"sketch",
+					"satira",
+					"rock",
+					"indie",
+					"pop",
+					"urbano",
+					"salsa",
+					"vallenato",
+					"electronica",
+					"tributo",
+					"opera",
+					"musical",
+				])
+				.nullish()
+				.describe("Subtype; must belong to `genre`, sent in the same call"),
+			genreOther: z
+				.string()
+				.min(1)
+				.max(60)
+				.optional()
+				.describe('Free-text type — required when `genre` is "otro"'),
+			audience: z
+				.enum(["todo_publico", "mayores_14", "mayores_18", "infantil"])
+				.nullish()
+				.describe("Minimum age classification; null = unspecified"),
 		},
 		write("events_update", { destructive: false }),
 		async ({ id, ...body }) =>
@@ -135,6 +220,17 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 				.nullish()
 				.describe("Apertura de puertas (ISO 8601)"),
 			venueId: z.string().nullish().describe("Venue de esta función"),
+			streamType: z
+				.enum(["PRESENCIAL", "ONLINE", "HIBRIDO"])
+				.optional()
+				.describe("In person, online or hybrid (default PRESENCIAL)"),
+			maxPerCustomer: z
+				.number()
+				.int()
+				.positive()
+				.max(10000)
+				.nullish()
+				.describe("Ticket cap per buyer for this date; null = no cap"),
 		},
 		write("event_dates_create", { destructive: false }),
 		async ({ eventId, ...body }) =>
@@ -155,6 +251,18 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			timezone: z.string().optional(),
 			label: z.string().max(200).nullish(),
 			venueId: z.string().nullish(),
+			streamType: z.enum(["PRESENCIAL", "ONLINE", "HIBRIDO"]).optional(),
+			status: z
+				.enum(["DRAFT", "PUBLISHED", "SOLD_OUT", "CANCELLED", "COMPLETED"])
+				.optional()
+				.describe("Date status"),
+			maxPerCustomer: z
+				.number()
+				.int()
+				.positive()
+				.max(10000)
+				.nullish()
+				.describe("Ticket cap per buyer for this date; null = no cap"),
 		},
 		write("event_dates_update", { destructive: false }),
 		async ({ eventId, dateId, ...body }) =>
@@ -194,6 +302,19 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			organizerAbsorbsFee: z
 				.boolean()
 				.describe("The organizer absorbs the fee"),
+			saleStartsAt: z
+				.string()
+				.nullish()
+				.describe("Sales open at (ISO 8601); null = open now"),
+			saleEndsAt: z
+				.string()
+				.nullish()
+				.describe("Sales close at (ISO 8601); null = until the date"),
+			seatsioCategoryKey: z
+				.string()
+				.min(1)
+				.nullish()
+				.describe("seats.io category key (numbered events)"),
 		},
 		write("ticket_types_create", { destructive: false }),
 		async (body) => run(postTicketTypes({ body, client })),
@@ -211,6 +332,19 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			maxPerOrder: z.number().int().positive().optional(),
 			isVisible: z.boolean().optional(),
 			organizerAbsorbsFee: z.boolean().optional(),
+			saleStartsAt: z
+				.string()
+				.nullish()
+				.describe("Sales open at (ISO 8601); null = open now"),
+			saleEndsAt: z
+				.string()
+				.nullish()
+				.describe("Sales close at (ISO 8601); null = until the date"),
+			seatsioCategoryKey: z
+				.string()
+				.min(1)
+				.nullish()
+				.describe("seats.io category key (numbered events)"),
 		},
 		write("ticket_types_update", { destructive: false }),
 		async ({ id, ...body }) =>
@@ -440,7 +574,14 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"Changes a staff member role (PATCH /staff/{id}/role).",
 		{
 			id: z.string().describe("Member id"),
-			role: z.enum(["SUPER_ADMIN", "ADMIN", "STAFF", "VIEWER", "MINCULTURA"]),
+			role: z.enum([
+				"SUPER_ADMIN",
+				"ADMIN",
+				"STAFF",
+				"VIEWER",
+				"MINCULTURA",
+				"MERCH_MANAGER",
+			]),
 		},
 		write("staff_update_role", { destructive: false }),
 		async ({ id, role }) =>
@@ -721,5 +862,225 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		},
 		write("workspaces_create", { destructive: false }),
 		async (body) => run(postWorkspaces({ body, client })),
+	);
+
+	// ── Contract 1.21–1.27 ───────────────────────────────────────────────────
+	server.tool(
+		"events_schedule",
+		"Schedules a DRAFT event (POST /events/{id}/schedule). Send exactly one: " +
+			"`publishAt` publishes it by itself at that instant (checked every ~5 " +
+			"min); `saleStartsAt` publishes it NOW and opens sales at that instant " +
+			"on every ticket type of the upcoming dates. Errors: 409 " +
+			"`EVENT_NOT_DRAFT`, 422 `SCHEDULE_IN_PAST`, 422 " +
+			"`SCHEDULE_AFTER_EVENT_DATE`, 409 `NO_FUTURE_DATE`, 409 `NO_TICKET_TYPES`.",
+		{
+			id: z.string().describe("Event id"),
+			publishAt: z
+				.string()
+				.optional()
+				.describe("Auto-publish instant, ISO 8601 in UTC (…Z)"),
+			saleStartsAt: z
+				.string()
+				.optional()
+				.describe(
+					"Publish now and open sales at this instant, ISO 8601 UTC (…Z)",
+				),
+		},
+		write("events_schedule", { destructive: false }),
+		async ({ id, ...body }) =>
+			run(postEventsIdSchedule({ path: { id }, body, client })),
+	);
+	server.tool(
+		"events_unschedule",
+		"Clears the pending scheduled publication of an event (`publishAt` → null) " +
+			"and keeps its status (DELETE /events/{id}/schedule). It does not undo a " +
+			"`saleStartsAt` schedule: edit the ticket types' `saleStartsAt` with " +
+			"`ticket_types_update` instead.",
+		{ id: z.string().describe("Event id") },
+		write("events_unschedule", { destructive: false, idempotent: true }),
+		async ({ id }) => run(deleteEventsIdSchedule({ path: { id }, client })),
+	);
+
+	server.tool(
+		"events_artists_set",
+		"Replaces the event lineup with `artistIds`, in that order " +
+			"(PUT /events/{id}/artists). Artists not in the list are UNLINKED — send " +
+			"the full lineup, not a diff; `[]` clears it. Ids come from " +
+			"`artists_search`. Newly linked artists get a notification email; " +
+			"`inviteEmails` (additive) invites artists without an account. Unknown " +
+			"ids are skipped and reported in `warnings[]`. Up to 50 ids and 20 " +
+			`emails per call.${CONFIRM}`,
+		{
+			id: z.string().describe("Event id"),
+			artistIds: z
+				.array(z.string().min(1).max(64))
+				.max(50)
+				.describe("Full lineup, in order — artist workspace ids"),
+			inviteEmails: z
+				.array(z.string().email())
+				.max(20)
+				.optional()
+				.describe("Emails of artists without an account to invite"),
+		},
+		write("events_artists_set", {
+			destructive: true,
+			idempotent: true,
+			openWorld: true,
+		}),
+		async ({ id, ...body }) =>
+			run(putEventsIdArtists({ path: { id }, body, client })),
+	);
+	server.tool(
+		"events_artists_delete",
+		"Unlinks one artist from the event lineup " +
+			"(DELETE /events/{id}/artists/{organizationId}). Allowed for the " +
+			"workspace that owns the event, or for the artist removing itself. " +
+			`404 \`ARTIST_NOT_LINKED\` if it is not in the lineup.${CONFIRM}`,
+		{
+			eventId: z.string().describe("Event id"),
+			organizationId: z.string().describe("Artist workspace id"),
+		},
+		write("events_artists_delete", { destructive: true }),
+		async ({ eventId, organizationId }) =>
+			run(
+				deleteEventsIdArtistsOrganizationId({
+					path: { id: eventId, organizationId },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"event_artist_invitations_cancel",
+		"Cancels a pending or expired artist invitation; its link stops working " +
+			"(DELETE /events/{id}/artist-invitations/{invitationId}). 409 " +
+			"`INVITATION_ACCEPTED` if already accepted — unlink with " +
+			`\`events_artists_delete\` instead.${CONFIRM}`,
+		{
+			eventId: z.string().describe("Event id"),
+			invitationId: z.string().describe("Invitation id"),
+		},
+		write("event_artist_invitations_cancel", { destructive: true }),
+		async ({ eventId, invitationId }) =>
+			run(
+				deleteEventsIdArtistInvitationsInvitationId({
+					path: { id: eventId, invitationId },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"event_artist_invitations_resend",
+		"Resends an artist invitation email and renews its expiry to 14 days, " +
+			"same link (POST /events/{id}/artist-invitations/{invitationId}/resend). " +
+			"Works on expired ones. 3 resends per hour per invitation (429).",
+		{
+			eventId: z.string().describe("Event id"),
+			invitationId: z.string().describe("Invitation id"),
+		},
+		write("event_artist_invitations_resend", {
+			destructive: false,
+			openWorld: true,
+		}),
+		async ({ eventId, invitationId }) =>
+			run(
+				postEventsIdArtistInvitationsInvitationIdResend({
+					path: { id: eventId, invitationId },
+					client,
+				}),
+			),
+	);
+
+	// ── Presale windows (member presales) ────────────────────────────────────
+	const presaleCapacity = z
+		.number()
+		.int()
+		.positive()
+		.nullish()
+		.describe("Max tickets sold in the presale; null = no cap");
+	server.tool(
+		"presale_windows_create",
+		"Opens a member presale on a ticket type: active members of `planId` can " +
+			"buy it between `presaleStartsAt` and `presaleEndsAt` " +
+			"(POST /ticket-types/{id}/presale-windows). One window per plan and " +
+			"ticket type. Errors: 422 `PLAN_NOT_ELIGIBLE`, 422 " +
+			"`PRESALE_WINDOW_INVERTED`, 409 `DUPLICATE_PLAN`.",
+		{
+			ticketTypeId: z.string().describe("Ticket type id"),
+			planId: z.string().min(1).describe("Membership plan id"),
+			presaleStartsAt: z.string().describe("Start, ISO 8601 in UTC (…Z)"),
+			presaleEndsAt: z.string().describe("End, ISO 8601 in UTC (…Z)"),
+			presaleCapacity,
+			isActive: z.boolean().default(true),
+		},
+		write("presale_windows_create", { destructive: false }),
+		async ({ ticketTypeId, ...body }) =>
+			run(
+				postTicketTypesIdPresaleWindows({
+					path: { id: ticketTypeId },
+					body,
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"presale_windows_update",
+		"Updates a presale window; absent fields are left untouched " +
+			"(PATCH /presale-windows/{id}). Same errors as `presale_windows_create`.",
+		{
+			id: z.string().describe("Presale window id"),
+			planId: z.string().min(1).optional(),
+			presaleStartsAt: z.string().optional().describe("ISO 8601 in UTC (…Z)"),
+			presaleEndsAt: z.string().optional().describe("ISO 8601 in UTC (…Z)"),
+			presaleCapacity,
+			isActive: z.boolean().optional(),
+		},
+		write("presale_windows_update", { destructive: false, idempotent: true }),
+		async ({ id, ...body }) =>
+			run(patchPresaleWindowsId({ path: { id }, body, client })),
+	);
+	server.tool(
+		"presale_windows_delete",
+		"Permanently deletes a presale window; members lose that presale access " +
+			`immediately (DELETE /presale-windows/{id}).${CONFIRM}`,
+		{ id: z.string().describe("Presale window id") },
+		write("presale_windows_delete", { destructive: true }),
+		async ({ id }) => run(deletePresaleWindowsId({ path: { id }, client })),
+	);
+
+	// ── Landing waitlist (enterprise) ────────────────────────────────────────
+	server.tool(
+		"waitlist_join",
+		"Adds a person to the per-city waitlist of an enterprise landing " +
+			"(POST /waitlist). Requires an enterprise service API key. Idempotent " +
+			"per city and contact: `created: false` when it already existed.",
+		{
+			city: z.string().min(1).max(60),
+			name: z.string().min(1).max(80),
+			contact: z
+				.string()
+				.min(1)
+				.max(120)
+				.describe("Email or phone (7-15 digits; only +, spaces and dashes)"),
+			source: z
+				.string()
+				.max(40)
+				.optional()
+				.describe("Where the lead came from"),
+			customerSession: z
+				.string()
+				.optional()
+				.describe("Buyer session token — links the entry to that buyer"),
+		},
+		write("waitlist_join", { destructive: false, idempotent: true }),
+		async ({ customerSession, ...body }) =>
+			run(
+				postWaitlist({
+					body,
+					...(customerSession
+						? { headers: { "X-Customer-Session": customerSession } }
+						: {}),
+					client,
+				}),
+			),
 	);
 }

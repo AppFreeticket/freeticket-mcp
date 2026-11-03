@@ -4,6 +4,12 @@ import { z } from "zod";
 import {
 	deleteWorkspacesId,
 	getAuditLog,
+	getCrmCampaigns,
+	getCrmCampaignsId,
+	getCrmEventDates,
+	getCrmEvents,
+	getCrmOptions,
+	getCrmQuota,
 	getFeatureFlags,
 	getMe,
 	getPlatformPlans,
@@ -17,6 +23,7 @@ import {
 	patchPlatformPlansId,
 	patchUsersId,
 	patchWorkspacesId,
+	postCrmAudiencePreview,
 	postImpersonate,
 	postImpersonateStop,
 	postPlatformPlans,
@@ -333,5 +340,117 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		write("admin_feature_flags_set", { destructive: false }),
 		async ({ key, ...body }) =>
 			run(putFeatureFlagsKey({ path: { key }, body, client })),
+	);
+
+	// ── Master CRM (contract 1.6–1.8), reads only ────────────────────────────
+	// Launching, batching, stopping or cancelling a campaign sends (or stops)
+	// real messages to customers: the contract flags those writes with
+	// `x-ft-mcp: { expose: false }` and they stay in the CLI (`ft admin crm`).
+	// These tools let an agent look at campaigns and size an audience.
+	uiTool(
+		server,
+		"admin_crm_campaigns_list",
+		"Campaigns of the master CRM launched by the FreeTicket team " +
+			"(GET /api/admin/crm/campaigns). Launching one is not a tool: it sends " +
+			"real messages and belongs to the CLI (`ft admin crm`).",
+		{
+			channel: z.enum(["EMAIL", "WHATSAPP"]).optional(),
+			status: z
+				.enum([
+					"SENT",
+					"FAILED",
+					"DENIED",
+					"PROCESSING",
+					"APPROVED",
+					"SCHEDULED",
+					"CANCELLED",
+				])
+				.optional(),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("1-100, default 50"),
+		},
+		async (q) => run(getCrmCampaigns({ query: q, client })),
+	);
+	server.tool(
+		"admin_crm_campaigns_get",
+		"Detail of one master CRM campaign (GET /api/admin/crm/campaigns/{id}).",
+		{ id: z.string().describe("Campaign id") },
+		read("admin_crm_campaigns_get"),
+		async ({ id }) => run(getCrmCampaignsId({ path: { id }, client })),
+	);
+	const crmSender = z
+		.discriminatedUnion("kind", [
+			z.object({ kind: z.literal("freeticket") }),
+			z.object({
+				kind: z.literal("organization"),
+				workspaceId: z.string().min(1).max(64),
+			}),
+		])
+		.describe(
+			"Who signs. `freeticket` is mandatory when the scope spans the platform, " +
+				"several organizations or events of more than one owner (422 otherwise).",
+		);
+	server.tool(
+		"admin_crm_audience_preview",
+		"Sizes the audience of a CRM filter without creating anything " +
+			"(POST /api/admin/crm/audience/preview): counters, a sample of up to 10 " +
+			"people masked by the server, who may sign, and the days the WhatsApp " +
+			"quota would take. Invalid filters answer 422 with `error.details[].path`.",
+		{
+			filter: z
+				.object({ version: z.literal(2) })
+				.passthrough()
+				.describe(
+					"Audience filter v2 `{ version: 2, scope, include, except }`, validated " +
+						"server-side. Use `admin_crm_options`, `admin_crm_events` and " +
+						"`admin_crm_event_dates` to find valid values.",
+				),
+			sender: crmSender.optional(),
+		},
+		read("admin_crm_audience_preview"),
+		async (body) => run(postCrmAudiencePreview({ body, client })),
+	);
+	uiTool(
+		server,
+		"admin_crm_quota",
+		"WhatsApp quota and the batches already committed (GET /api/admin/crm/quota).",
+		{},
+		async () => run(getCrmQuota({ client })),
+	);
+	server.tool(
+		"admin_crm_options",
+		"Options to build a campaign: cities, facets, plans and approved WhatsApp " +
+			"templates (GET /api/admin/crm/options).",
+		read("admin_crm_options"),
+		async () => run(getCrmOptions({ client })),
+	);
+	uiTool(
+		server,
+		"admin_crm_events",
+		"Searches shows to use in a CRM campaign (GET /api/admin/crm/events). " +
+			"`promote` returns only published shows (and, with `senderWorkspaceId`, " +
+			"only that organization's).",
+		{
+			purpose: z
+				.enum(["scope", "promote", "except"])
+				.describe("What the show is for in the campaign"),
+			query: z.string().max(120).optional().describe("Text to search"),
+			senderWorkspaceId: z.string().optional(),
+		},
+		async (q) => run(getCrmEvents({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"admin_crm_event_dates",
+		"Dates of some shows, to narrow a CRM condition (GET /api/admin/crm/event-dates).",
+		{
+			eventIds: z.string().describe("Comma-separated show ids (1 to 50)"),
+		},
+		async (q) => run(getCrmEventDates({ query: q, client })),
 	);
 }

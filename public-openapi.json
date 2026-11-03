@@ -2,12 +2,12 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket Public API",
-		"version": "0.9.1",
-		"description": "FreeTicket public REST API for B2C buyers and their agents (CLI/MCP). Anonymous and strictly rate-limited: no endpoint requires an API key. The only exception is `POST /orders` with `items[].seats` (numbered seats), which requires a buyer session — the `ft-customer` cookie or the `X-Customer-Session` header. Isolated from the B2B /api/v1 and superadmin /api/admin contracts."
+		"version": "0.10.1",
+		"description": "FreeTicket public REST API for B2C buyers and their agents (CLI/MCP). Anonymous: no endpoint requires an API key. The only exception is `POST /orders` with `items[].seats` (numbered seats), which requires a buyer session — the `ft-customer` cookie or the `X-Customer-Session` header. Payment is always completed by a person on FreeTicket's checkout. Isolated from the B2B /api/v1 and superadmin /api/admin contracts.\n\n## Versioning and deprecation\n\n- **Path version.** The B2B API is versioned in the path (`/api/v1`). A breaking change ships under a new path (`/api/v2`); the previous version keeps running in parallel until its sunset date.\n- **Contract version.** `info.version` is the semantic version of this document. MINOR = additive (new endpoints, new optional fields, new enum values, new error codes; clients must ignore unknown fields). PATCH = documentation or fixes that do not change shapes. The public API (`/api/public`) is pre-1.0 and not versioned in the path: there, a MINOR bump may include a breaking change and PATCH never does.\n- **Deprecation signals.** A deprecated operation is marked `deprecated: true` in this document and its responses carry `Deprecation` (RFC 9745, e.g. `Deprecation: @1767225600`), `Sunset` (RFC 8594, an HTTP-date after which the operation may stop working) and `Link: <https://appfreeticket.com/desarrolladores>; rel=\"deprecation\"`.\n- **Timeline.** At least 6 months between the first `Deprecation` header and the `Sunset` date for `/api/v1`, and at least 90 days for `/api/public`. A path version is only retired after all its operations have sunset.\n- **Current status.** No operation is deprecated today.\n\n## Rate limits\n\n- **429 always carries `Retry-After`** (seconds). Wait at least that long before retrying the same request. The JSON error envelope comes with `error.retryable: true`; most rate-limited responses use `error.code: \"RATE_LIMITED\"`, and some return a more specific code (for example `TOO_MANY_REQUESTS` or `SEAT_BUDGET_EXHAUSTED`).\n- **RateLimit headers are sent where listed below.** Those endpoints answer every response, success or error, with the IETF RateLimit headers (draft-ietf-httpapi-ratelimit-headers): `RateLimit-Policy: \"<policy>\";q=<quota>;w=<window seconds>` and `RateLimit: \"<policy>\";r=<remaining>;t=<seconds until reset>`. Other endpoints may answer 429 without them.\n- Counters are fixed windows kept per server instance: treat the numbers as pacing hints, not as a global account quota.\n\nEndpoints that send RateLimit headers today: `POST /orders` (per client IP) and `POST /tickets/{code}/resend` (1 per minute per ticket code). Other endpoints may also answer 429."
 	},
 	"servers": [
 		{
-			"url": "https://admin.appfreeticket.com/api/public"
+			"url": "https://appfreeticket.com/api/public"
 		}
 	],
 	"security": [
@@ -16,89 +16,12 @@
 		}
 	],
 	"paths": {
-		"/events/{slug}": {
-			"get": {
-				"operationId": "getEventsSlug",
-				"tags": ["catalog"],
-				"summary": "Get a public event by slug",
-				"description": "Public (no auth). Detail of a PUBLISHED event: description, dates (with venue and city) and the 'from' price in two flavors: `priceFrom` (base, no fees) and `buyerTotalFrom` (including service fee, VAT (IVA), seat surcharge and any products bundled with that ticket, e.g. a drink combo). For live stock per ticket type, use `/events/{slug}/availability`.",
-				"security": [],
-				"parameters": [
-					{
-						"name": "slug",
-						"in": "path",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": {
-										"data": {
-											"$ref": "#/components/schemas/PublicEventDetail"
-										}
-									},
-									"required": ["data"]
-								}
-							}
-						}
-					},
-					"401": {
-						"description": "Missing or invalid credential.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"403": {
-						"description": "Insufficient role or resource not accessible.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "Resource does not exist or is out of scope.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "Request body/parameter validation failed.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					}
-				}
-			}
-		},
 		"/tickets/{code}/resend": {
 			"post": {
 				"operationId": "postTicketsCodeResend",
 				"tags": ["tickets"],
 				"summary": "Resend the ticket/QR email to the buyer (anonymous)",
-				"description": "Public (no auth). Resends the QR email to the address registered on the purchase. Optional body `{ email }`, which must match the buyer's email. Returns the masked email address, never the full one. Rate-limited per code (1/min).",
+				"description": "Public (no auth). Resends the QR email to the address registered on the purchase. Optional body `{ email }`, which must match the buyer's email. If the ticket was transferred, only this ticket is resent to its current holder (and `email`, if sent, must match the holder's). Returns the masked email address, never the full one. Rate-limited per code (1/min).",
 				"security": [],
 				"parameters": [
 					{
@@ -179,6 +102,27 @@
 					},
 					"429": {
 						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						},
+						"headers": {
+							"Retry-After": {
+								"$ref": "#/components/headers/RetryAfter"
+							},
+							"RateLimit": {
+								"$ref": "#/components/headers/RateLimit"
+							},
+							"RateLimit-Policy": {
+								"$ref": "#/components/headers/RateLimitPolicy"
+							}
+						}
+					},
+					"502": {
+						"description": "The external provider failed to complete the operation.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -278,6 +222,83 @@
 											"items": {
 												"$ref": "#/components/schemas/PublicEventSummary"
 											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/events/{slug}": {
+			"get": {
+				"operationId": "getEventsSlug",
+				"tags": ["catalog"],
+				"summary": "Get a public event by slug",
+				"description": "Public (no auth). Detail of a PUBLISHED event: description, dates (with venue and city) and the 'from' price in two flavors: `priceFrom` (base, no fees) and `buyerTotalFrom` (including service fee, VAT (IVA), seat surcharge and any products bundled with that ticket, e.g. a drink combo). For live stock per ticket type, use `/events/{slug}/availability`.",
+				"security": [],
+				"parameters": [
+					{
+						"name": "slug",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/PublicEventDetail"
 										}
 									},
 									"required": ["data"]
@@ -502,6 +523,17 @@
 									"$ref": "#/components/schemas/Error"
 								}
 							}
+						},
+						"headers": {
+							"Retry-After": {
+								"$ref": "#/components/headers/RetryAfter"
+							},
+							"RateLimit": {
+								"$ref": "#/components/headers/RateLimit"
+							},
+							"RateLimit-Policy": {
+								"$ref": "#/components/headers/RateLimitPolicy"
+							}
 						}
 					},
 					"502": {
@@ -627,7 +659,7 @@
 					"email": {
 						"type": "string",
 						"format": "email",
-						"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+						"pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
 					}
 				},
 				"additionalProperties": false
@@ -656,66 +688,24 @@
 						"type": "string"
 					},
 					"description": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"coverImageUrl": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"city": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"nextDate": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"priceFrom": {
-						"anyOf": [
-							{
-								"type": "number"
-							},
-							{
-								"type": "null"
-							}
-						],
-						"description": "Cheapest BASE price, excluding service fee, VAT (IVA) and the numbered-seat surcharge. To quote what the buyer actually pays, use buyerTotalFrom."
+						"description": "Cheapest BASE price, excluding service fee, VAT (IVA) and the numbered-seat surcharge. To quote what the buyer actually pays, use buyerTotalFrom.",
+						"type": ["number", "null"]
 					},
 					"buyerTotalFrom": {
-						"anyOf": [
-							{
-								"type": "number"
-							},
-							{
-								"type": "null"
-							}
-						],
-						"description": "Final per-unit price of the ticket type with the cheapest base price (includes service fee, VAT (IVA) and the numbered-seat surcharge). The authoritative order total is computed by POST /orders."
+						"description": "Final per-unit price of the ticket type with the cheapest base price (includes service fee, VAT (IVA) and the numbered-seat surcharge). The authoritative order total is computed by POST /orders.",
+						"type": ["number", "null"]
 					},
 					"currency": {
 						"type": "string"
@@ -742,24 +732,10 @@
 						"description": "EXACT seat label in seats.io."
 					},
 					"categoryKey": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"categoryLabel": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"status": {
 						"type": "string",
@@ -779,14 +755,7 @@
 						"type": "string"
 					},
 					"description": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"price": {
 						"type": "number"
@@ -808,14 +777,7 @@
 						"description": "Final price PER UNIT: price + buyerServiceFee + iva. This is what checkout charges; the order total is confirmed by POST /orders."
 					},
 					"seatsioCategoryKey": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"availableSeats": {
 						"type": "array",
@@ -864,50 +826,22 @@
 						"type": "string"
 					},
 					"label": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"startsAt": {
 						"type": "string"
 					},
 					"endsAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"timezone": {
 						"type": "string"
 					},
 					"venueName": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"city": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					}
 				},
 				"required": [
@@ -931,66 +865,24 @@
 						"type": "string"
 					},
 					"description": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"coverImageUrl": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"city": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"nextDate": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"priceFrom": {
-						"anyOf": [
-							{
-								"type": "number"
-							},
-							{
-								"type": "null"
-							}
-						],
-						"description": "Cheapest BASE price, excluding service fee, VAT (IVA) and the numbered-seat surcharge. To quote what the buyer actually pays, use buyerTotalFrom."
+						"description": "Cheapest BASE price, excluding service fee, VAT (IVA) and the numbered-seat surcharge. To quote what the buyer actually pays, use buyerTotalFrom.",
+						"type": ["number", "null"]
 					},
 					"buyerTotalFrom": {
-						"anyOf": [
-							{
-								"type": "number"
-							},
-							{
-								"type": "null"
-							}
-						],
-						"description": "Final per-unit price of the ticket type with the cheapest base price (includes service fee, VAT (IVA) and the numbered-seat surcharge). The authoritative order total is computed by POST /orders."
+						"description": "Final per-unit price of the ticket type with the cheapest base price (includes service fee, VAT (IVA) and the numbered-seat surcharge). The authoritative order total is computed by POST /orders.",
+						"type": ["number", "null"]
 					},
 					"currency": {
 						"type": "string"
@@ -1031,50 +923,22 @@
 									"type": "string"
 								},
 								"label": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								},
 								"startsAt": {
 									"type": "string"
 								},
 								"endsAt": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								},
 								"timezone": {
 									"type": "string"
 								},
 								"venueName": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								},
 								"city": {
-									"anyOf": [
-										{
-											"type": "string"
-										},
-										{
-											"type": "null"
-										}
-									]
+									"type": ["string", "null"]
 								},
 								"ticketTypes": {
 									"type": "array",
@@ -1106,7 +970,7 @@
 					"buyerEmail": {
 						"type": "string",
 						"format": "email",
-						"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+						"pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
 					},
 					"buyerName": {
 						"type": "string",
@@ -1215,14 +1079,7 @@
 						"type": "string"
 					},
 					"expiresAt": {
-						"anyOf": [
-							{
-								"type": "string"
-							},
-							{
-								"type": "null"
-							}
-						]
+						"type": ["string", "null"]
 					},
 					"tickets": {
 						"type": "array",
@@ -1241,6 +1098,27 @@
 					"tickets"
 				],
 				"additionalProperties": false
+			}
+		},
+		"headers": {
+			"RateLimitPolicy": {
+				"description": "Quota policies applied to this request (draft-ietf-httpapi-ratelimit-headers), one list member per limiter: `\"<policy>\";q=<quota>;w=<window seconds>`. Example: `\"public-orders\";q=8;w=300`.",
+				"schema": {
+					"type": "string"
+				}
+			},
+			"RateLimit": {
+				"description": "Remaining quota per policy (draft-ietf-httpapi-ratelimit-headers): `\"<policy>\";r=<remaining>;t=<seconds until the window resets>`. Example: `\"public-orders\";r=7;t=280`.",
+				"schema": {
+					"type": "string"
+				}
+			},
+			"RetryAfter": {
+				"description": "Seconds to wait before retrying (RFC 9110 §10.2.3). Always sent with a 429.",
+				"schema": {
+					"type": "integer",
+					"minimum": 1
+				}
 			}
 		},
 		"securitySchemes": {

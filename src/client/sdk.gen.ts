@@ -13,15 +13,27 @@ import type {
 	DeleteDiscountsIdData,
 	DeleteDiscountsIdError,
 	DeleteDiscountsIdResponse,
+	DeleteEventsIdArtistInvitationsInvitationIdData,
+	DeleteEventsIdArtistInvitationsInvitationIdError,
+	DeleteEventsIdArtistInvitationsInvitationIdResponse,
+	DeleteEventsIdArtistsOrganizationIdData,
+	DeleteEventsIdArtistsOrganizationIdError,
+	DeleteEventsIdArtistsOrganizationIdResponse,
 	DeleteEventsIdData,
 	DeleteEventsIdDatesDateIdData,
 	DeleteEventsIdDatesDateIdError,
 	DeleteEventsIdDatesDateIdResponse,
 	DeleteEventsIdError,
 	DeleteEventsIdResponse,
+	DeleteEventsIdScheduleData,
+	DeleteEventsIdScheduleError,
+	DeleteEventsIdScheduleResponse,
 	DeleteMembershipPlansIdData,
 	DeleteMembershipPlansIdError,
 	DeleteMembershipPlansIdResponse,
+	DeletePresaleWindowsIdData,
+	DeletePresaleWindowsIdError,
+	DeletePresaleWindowsIdResponse,
 	DeleteStaffIdData,
 	DeleteStaffIdError,
 	DeleteStaffIdResponse,
@@ -37,6 +49,9 @@ import type {
 	GetApiKeysData,
 	GetApiKeysError,
 	GetApiKeysResponse,
+	GetArtistsData,
+	GetArtistsError,
+	GetArtistsResponse,
 	GetContentLivesData,
 	GetContentLivesError,
 	GetContentLivesIdData,
@@ -78,6 +93,9 @@ import type {
 	GetDiscountsResponse,
 	GetEventsData,
 	GetEventsError,
+	GetEventsIdArtistInvitationsData,
+	GetEventsIdArtistInvitationsError,
+	GetEventsIdArtistInvitationsResponse,
 	GetEventsIdData,
 	GetEventsIdDatesData,
 	GetEventsIdDatesError,
@@ -162,6 +180,9 @@ import type {
 	GetTicketTypesError,
 	GetTicketTypesIdData,
 	GetTicketTypesIdError,
+	GetTicketTypesIdPresaleWindowsData,
+	GetTicketTypesIdPresaleWindowsError,
+	GetTicketTypesIdPresaleWindowsResponse,
 	GetTicketTypesIdResponse,
 	GetTicketTypesResponse,
 	GetVenuesData,
@@ -170,6 +191,9 @@ import type {
 	GetVenuesIdError,
 	GetVenuesIdResponse,
 	GetVenuesResponse,
+	GetWaitlistData,
+	GetWaitlistError,
+	GetWaitlistResponse,
 	GetWebhooksData,
 	GetWebhooksError,
 	GetWebhooksResponse,
@@ -188,6 +212,9 @@ import type {
 	PatchMembershipPlansIdData,
 	PatchMembershipPlansIdError,
 	PatchMembershipPlansIdResponse,
+	PatchPresaleWindowsIdData,
+	PatchPresaleWindowsIdError,
+	PatchPresaleWindowsIdResponse,
 	PatchStaffIdRoleData,
 	PatchStaffIdRoleError,
 	PatchStaffIdRoleResponse,
@@ -267,6 +294,9 @@ import type {
 	PostDiscountsResponse,
 	PostEventsData,
 	PostEventsError,
+	PostEventsIdArtistInvitationsInvitationIdResendData,
+	PostEventsIdArtistInvitationsInvitationIdResendError,
+	PostEventsIdArtistInvitationsInvitationIdResendResponse,
 	PostEventsIdCancelData,
 	PostEventsIdCancelError,
 	PostEventsIdCancelResponse,
@@ -276,6 +306,9 @@ import type {
 	PostEventsIdPublishData,
 	PostEventsIdPublishError,
 	PostEventsIdPublishResponse,
+	PostEventsIdScheduleData,
+	PostEventsIdScheduleError,
+	PostEventsIdScheduleResponse,
 	PostEventsResponse,
 	PostMembershipPlansData,
 	PostMembershipPlansError,
@@ -303,16 +336,25 @@ import type {
 	PostTicketsTicketCodeResendResponse,
 	PostTicketTypesData,
 	PostTicketTypesError,
+	PostTicketTypesIdPresaleWindowsData,
+	PostTicketTypesIdPresaleWindowsError,
+	PostTicketTypesIdPresaleWindowsResponse,
 	PostTicketTypesResponse,
 	PostVenuesData,
 	PostVenuesError,
 	PostVenuesResponse,
+	PostWaitlistData,
+	PostWaitlistError,
+	PostWaitlistResponse,
 	PostWebhooksData,
 	PostWebhooksError,
 	PostWebhooksResponse,
 	PostWorkspacesData,
 	PostWorkspacesError,
 	PostWorkspacesResponse,
+	PutEventsIdArtistsData,
+	PutEventsIdArtistsError,
+	PutEventsIdArtistsResponse,
 } from "./types.gen";
 
 export type Options<
@@ -330,149 +372,6 @@ export type Options<
 	 * used to access values that aren't defined as part of the SDK function.
 	 */
 	meta?: Record<string, unknown>;
-};
-
-/**
- * List an event's dates
- * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
- */
-export const getEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<GetEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetEventsIdDatesResponse,
-		GetEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-	});
-};
-
-/**
- * Add a date to an event
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
- */
-export const postEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<PostEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostEventsIdDatesResponse,
-		PostEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * List the organization's published videos
- * Only published videos that have finished processing (READY) in the active workspace. Does not include the playback id: to play one, request a token from `POST /content/playback-token`.
- */
-export const getContentVideos = <ThrowOnError extends boolean = false>(
-	options?: Options<GetContentVideosData, ThrowOnError>,
-) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetContentVideosResponse,
-		GetContentVideosError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/content/videos",
-		...options,
-	});
-};
-
-/**
- * List workspace events
- * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Each event embeds `nextDate` (its next upcoming date, or null) and `artists` (the linked lineup, in the organizer's order), so rendering a catalog doesn't require `/events/{id}/dates` or one request per artist.
- */
-export const getEvents = <ThrowOnError extends boolean = false>(
-	options?: Options<GetEventsData, ThrowOnError>,
-) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetEventsResponse,
-		GetEventsError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events",
-		...options,
-	});
-};
-
-/**
- * Create an event
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
- */
-export const postEvents = <ThrowOnError extends boolean = false>(
-	options: Options<PostEventsData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostEventsResponse,
-		PostEventsError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
 };
 
 /**
@@ -593,8 +492,68 @@ export const getMe = <ThrowOnError extends boolean = false>(
 };
 
 /**
+ * List workspace events
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Each event embeds `nextDate` (its next upcoming date, or null) and `artists` (the linked lineup, in the organizer's order), so rendering a catalog doesn't require `/events/{id}/dates` or one request per artist.
+ */
+export const getEvents = <ThrowOnError extends boolean = false>(
+	options?: Options<GetEventsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetEventsResponse,
+		GetEventsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events",
+		...options,
+	});
+};
+
+/**
+ * Create an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const postEvents = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsResponse,
+		PostEventsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
  * Delete an event (soft delete)
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Returns 409 `EVENT_HAS_SALES` when the event has CONFIRMED or REFUNDED sales; cancel it with `POST /events/{id}/cancel` instead.
  */
 export const deleteEventsId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteEventsIdData, ThrowOnError>,
@@ -649,6 +608,8 @@ export const getEventsId = <ThrowOnError extends boolean = false>(
 /**
  * Update an event
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Absent fields are left untouched. Errors (`error.code`): 409 `SLUG_TAKEN`; 422 `PULEP_REQUIRED` (only evaluated when the request changes `genre` or `pulepCode`); 422 `GENRE_OTHER_WITHOUT_OTRO` (`genreOther` sent without `genre` while the stored genre is not "otro"); 422 `CLASSIFICATION_CONFLICT` (the resulting genre + audience, merged with the stored values, are incompatible, e.g. "familiar" with an 18+ audience). `genre`/`subgenre`/`audience` are validated against the stored classification (422 `CLASSIFICATION_CONFLICT`) and then saved as manual classification facets on a best-effort basis. Publication status, the external ticketing URL and the artist lineup have their own endpoints.
  */
 export const patchEventsId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchEventsIdData, ThrowOnError>,
@@ -744,6 +705,64 @@ export const postEventsIdCancel = <ThrowOnError extends boolean = false>(
 };
 
 /**
+ * List an event's dates
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const getEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsIdDatesResponse,
+		GetEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+	});
+};
+
+/**
+ * Add a date to an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const postEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdDatesResponse,
+		PostEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
  * Delete an event date
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  */
@@ -798,6 +817,204 @@ export const patchEventsIdDatesDateId = <ThrowOnError extends boolean = false>(
 			"Content-Type": "application/json",
 			...options?.headers,
 		},
+	});
+};
+
+/**
+ * Replace the event lineup
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Replaces the artists linked to the event with `artistIds`, in that order (the lineup order). Artists not in the list are unlinked (send the full lineup, not a diff); `[]` clears it. Ids come from `GET /artists?q=` (workspace ids of registered artists). Newly linked artists get a notification email.
+ *
+ * `inviteEmails` invites artists without an account: each email gets an invitation (only once per email and event) and is linked when it signs up. `inviteEmails` is additive: omitting it does not cancel existing invitations (use `DELETE /events/{id}/artist-invitations/{invitationId}`).
+ *
+ * Ids that are not a registered artist (or the event's own workspace) are skipped and reported in `warnings[]` with code `ARTIST_IDS_IGNORED` (`ids`).
+ *
+ * Limits: up to 50 `artistIds` and 20 `inviteEmails` per request; 20 lineup changes per hour per API key and event (429 `RATE_LIMITED` with `Retry-After`).
+ */
+export const putEventsIdArtists = <ThrowOnError extends boolean = false>(
+	options: Options<PutEventsIdArtistsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).put<
+		PutEventsIdArtistsResponse,
+		PutEventsIdArtistsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/artists",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Unlink an artist from an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Removes one artist from the event lineup. Allowed for the workspace that owns the event, or for the artist itself (`organizationId` equal to the active workspace) to remove itself from an event it was linked to. 404 `EVENT_NOT_FOUND` when the event is not owned by the workspace; 404 `ARTIST_NOT_LINKED` when the artist is not in its lineup (when unlinking itself, the artist always gets `ARTIST_NOT_LINKED`).
+ */
+export const deleteEventsIdArtistsOrganizationId = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<DeleteEventsIdArtistsOrganizationIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteEventsIdArtistsOrganizationIdResponse,
+		DeleteEventsIdArtistsOrganizationIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/artists/{organizationId}",
+		...options,
+	});
+};
+
+/**
+ * List artist invitations of an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Pending and expired invitations sent to artists without an account (via `inviteEmails` in `PUT /events/{id}/artists`), newest first. Accepted invitations are not listed: they are already linked artists. Invitations expire 14 days after being sent.
+ */
+export const getEventsIdArtistInvitations = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetEventsIdArtistInvitationsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsIdArtistInvitationsResponse,
+		GetEventsIdArtistInvitationsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/artist-invitations",
+		...options,
+	});
+};
+
+/**
+ * Cancel an artist invitation
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Cancels a pending or expired invitation; its link stops working. 409 `INVITATION_ACCEPTED` when the artist already accepted it (unlink the artist with `DELETE /events/{id}/artists/{organizationId}` instead).
+ */
+export const deleteEventsIdArtistInvitationsInvitationId = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<
+		DeleteEventsIdArtistInvitationsInvitationIdData,
+		ThrowOnError
+	>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteEventsIdArtistInvitationsInvitationIdResponse,
+		DeleteEventsIdArtistInvitationsInvitationIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/artist-invitations/{invitationId}",
+		...options,
+	});
+};
+
+/**
+ * Resend an artist invitation
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Resends the invitation email and renews its expiry to 14 days from now (status back to `PENDING`, same link). Works on expired invitations too. 409 `INVITATION_ACCEPTED` when already accepted. 502 `EMAIL_NOT_SENT` when the email provider failed (the expiry was renewed; retry). Rate limited: 3 resends per hour per API key and invitation (429 `RATE_LIMITED` with `Retry-After`).
+ */
+export const postEventsIdArtistInvitationsInvitationIdResend = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<
+		PostEventsIdArtistInvitationsInvitationIdResendData,
+		ThrowOnError
+	>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdArtistInvitationsInvitationIdResendResponse,
+		PostEventsIdArtistInvitationsInvitationIdResendError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/artist-invitations/{invitationId}/resend",
+		...options,
+	});
+};
+
+/**
+ * Search registered artists
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Searches artist workspaces registered on FreeTicket by name (case-insensitive, `q` of 2+ characters). Returns public brand data only. Use the `id` in `PUT /events/{id}/artists`; for artists without an account use `inviteEmails` there.
+ */
+export const getArtists = <ThrowOnError extends boolean = false>(
+	options: Options<GetArtistsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetArtistsResponse,
+		GetArtistsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/artists",
+		...options,
 	});
 };
 
@@ -2302,6 +2519,35 @@ export const patchTicketsTicketCode = <ThrowOnError extends boolean = false>(
 };
 
 /**
+ * Resend the confirmation email with the ticket
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const postTicketsTicketCodeResend = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostTicketsTicketCodeResendData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostTicketsTicketCodeResendResponse,
+		PostTicketsTicketCodeResendError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/tickets/{ticketCode}/resend",
+		...options,
+	});
+};
+
+/**
  * Check in a ticket at the door
  * Minimum role: `STAFF`. Active workspace via the `X-Workspace-Id` header.
  */
@@ -2810,269 +3056,6 @@ export const patchCustomerProfile = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Open the purchase session (only one live per buyer)
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, the event date must belong to the workspace pinned to it; otherwise 404). Opens THE buyer purchase session: there is ONLY one live per buyer across any tab or device, and the latest wins — the previous one becomes `superseded` (it can no longer create an order or start a new payment) and its seats.io hold is released, unless it backs a live sale. On seated event dates the server ISSUES the `holdToken` (mount the chart with `session: "manual"`) and sets `seatsDeadline`: each session gets up to 3 minutes and the budget is 3 attempts (9 CUMULATIVE minutes) per buyer and event date, summing all of their sessions within a 30-minute window, and it only runs while no order has been created. Once exhausted, it responds 429 with `error.code` `SEAT_BUDGET_EXHAUSTED`, `error.details.reason` `seat_budget_exhausted` and `error.details.retryAfterSeconds` (10-minute cooldown; also in the `Retry-After` header). If the SAME browser (`deviceKey`) reopens the SAME event date with its session alive, it gets that same session with 200 instead of 201. Only event dates on sale: published event and current event date (otherwise 404). Limits: 10 creations per minute per buyer, 30 per minute per IP when called without an API key, and a global ceiling per event date (429 `RATE_LIMITED`). Once the session is created, `POST /customer/orders` and the payment POSTs carry the `X-Purchase-Session: <id>` header; when the clock runs out, call `POST /customer/purchase-sessions/{id}/release`.
- */
-export const postCustomerPurchaseSessions = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostCustomerPurchaseSessionsData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerPurchaseSessionsResponse,
-		PostCustomerPurchaseSessionsError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/purchase-sessions",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Purchase session status
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. Returns the status of one of THE buyer's purchase sessions: `live` (this tab can create the order), `superseded` (another tab or device replaced it: stop offering the map and the payment), `expired` (the map clock ran out or it was released) or `converted` (it already created its order: `orderId`). A session whose `seatsDeadline` has passed is reported as `expired` immediately. Designed to be polled every ~10 s. Another buyer's session is 404.
- */
-export const getCustomerPurchaseSessionsId = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<GetCustomerPurchaseSessionsIdData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetCustomerPurchaseSessionsIdResponse,
-		GetCustomerPurchaseSessionsIdError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/purchase-sessions/{id}",
-		...options,
-	});
-};
-
-/**
- * Release the seats of a purchase session
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. Marks the session `expired` and releases in seats.io the seats held with its `holdToken`. Idempotent: repeating it changes nothing. It NEVER releases a token that backs a live sale (pending payment or confirmed) nor that of a `converted` session: those seats belong to the order. Call it when the map clock runs out. Another buyer's session is 404.
- */
-export const postCustomerPurchaseSessionsIdRelease = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostCustomerPurchaseSessionsIdReleaseData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerPurchaseSessionsIdReleaseResponse,
-		PostCustomerPurchaseSessionsIdReleaseError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/purchase-sessions/{id}/release",
-		...options,
-	});
-};
-
-/**
- * List the organization's community feed
- * Posts from the active workspace, newest first, excluding deleted posts and posts scheduled for the future. A post with `locked: true` arrives redacted (`content`, `imageUrl`, `videoId`, `eventId` and `link` set to null, `commentsCount` set to 0): it is members-only content and the key does not represent a buyer with a current membership. Does not include `likes_count` (only visible to the workspace owner) or the post's internal author.
- */
-export const getContentPosts = <ThrowOnError extends boolean = false>(
-	options?: Options<GetContentPostsData, ThrowOnError>,
-) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetContentPostsResponse,
-		GetContentPostsError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/content/posts",
-		...options,
-	});
-};
-
-/**
- * Publish community content (including articles)
- * Creates a community post. `type=ARTICLE` requires `title` and `body` (Markdown) and builds a slug unique per organization (manual via `slug`, or derived from `title` if omitted); `type=TEXT`/`IMAGE` require `content` or `imageUrl`, same as the dashboard composer. Unlike the dashboard, this path does NOT resolve the link's Open Graph snapshot (`link` is always null in the response). Minimum role ADMIN, like every other `POST` in `/api/v1`. If the workspace has the `community_v2` flag enabled, publishing enqueues a notification to members in the same transaction; with a future `publishedAt`, the notification goes out when the post is published. The response does not change.
- */
-export const postContentPosts = <ThrowOnError extends boolean = false>(
-	options: Options<PostContentPostsData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostContentPostsResponse,
-		PostContentPostsError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/content/posts",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * List the organization's live streams
- * Live streams from the active workspace, newest first. `status: ACTIVE` is the one on air. Does not include the RTMP key or the playback ids.
- */
-export const getContentLives = <ThrowOnError extends boolean = false>(
-	options?: Options<GetContentLivesData, ThrowOnError>,
-) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetContentLivesResponse,
-		GetContentLivesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/content/lives",
-		...options,
-	});
-};
-
-/**
- * Live stream status
- * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
- */
-export const getContentLivesId = <ThrowOnError extends boolean = false>(
-	options: Options<GetContentLivesIdData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetContentLivesIdResponse,
-		GetContentLivesIdError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/content/lives/{id}",
-		...options,
-	});
-};
-
-/**
- * Signed token to play a video or a live stream
- * Requires an enterprise service API key. `memberOnly` content additionally requires the `X-Customer-Session` header of a buyer with a current membership in the key's organization (otherwise 403 `MEMBERSHIP_REQUIRED`). Content from another organization responds 404. Short-lived tokens: 30 minutes for live streams, 1 hour for videos.
- */
-export const postContentPlaybackToken = <ThrowOnError extends boolean = false>(
-	options: Options<PostContentPlaybackTokenData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostContentPlaybackTokenResponse,
-		PostContentPlaybackTokenError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/content/playback-token",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Resend the confirmation email with the ticket
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
- */
-export const postTicketsTicketCodeResend = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostTicketsTicketCodeResendData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostTicketsTicketCodeResendResponse,
-		PostTicketsTicketCodeResendError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/tickets/{ticketCode}/resend",
-		...options,
-	});
-};
-
-/**
  * The purchase the buyer left unfinished for this event date
  * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, results are additionally scoped to the workspace pinned to it; without a key, any of the buyer's own unfinished purchases is visible. Returns the PENDING sale whose inventory hold is STILL ALIVE that the buyer has for that event date —with its seats, its total and when it expires—, or `order: null` if there is none. This is what lets reloading the checkout, or coming back from signing in, RESUME the purchase instead of starting from scratch: the seats remain held in that person's name. If `paymentOpened` is true the payment is already open and `POST /customer/orders/{id}/payment` returns the SAME signed configuration; to discard it and pick other seats, use `POST /customer/orders/{id}/release`.
  */
@@ -3274,5 +3257,525 @@ export const getCustomerOrdersId = <ThrowOnError extends boolean = false>(
 		],
 		url: "/customer/orders/{id}",
 		...options,
+	});
+};
+
+/**
+ * Open the purchase session (only one live per buyer)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, the event date must belong to the workspace pinned to it; otherwise 404). Opens THE buyer purchase session: there is ONLY one live per buyer across any tab or device, and the latest wins — the previous one becomes `superseded` (it can no longer create an order or start a new payment) and its seats.io hold is released, unless it backs a live sale. On seated event dates the server ISSUES the `holdToken` (mount the chart with `session: "manual"`) and sets `seatsDeadline`: each session gets up to 3 minutes and the budget is 3 attempts (9 CUMULATIVE minutes) per buyer and event date, summing all of their sessions within a 30-minute window, and it only runs while no order has been created. Once exhausted, it responds 429 with `error.code` `SEAT_BUDGET_EXHAUSTED`, `error.details.reason` `seat_budget_exhausted` and `error.details.retryAfterSeconds` (10-minute cooldown; also in the `Retry-After` header). If the SAME browser (`deviceKey`) reopens the SAME event date with its session alive, it gets that same session with 200 instead of 201. Only event dates on sale: published event and current event date (otherwise 404). Limits: 10 creations per minute per buyer, 30 per minute per IP when called without an API key, and a global ceiling per event date (429 `RATE_LIMITED`). Once the session is created, `POST /customer/orders` and the payment POSTs carry the `X-Purchase-Session: <id>` header; when the clock runs out, call `POST /customer/purchase-sessions/{id}/release`.
+ */
+export const postCustomerPurchaseSessions = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerPurchaseSessionsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerPurchaseSessionsResponse,
+		PostCustomerPurchaseSessionsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/purchase-sessions",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Purchase session status
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. Returns the status of one of THE buyer's purchase sessions: `live` (this tab can create the order), `superseded` (another tab or device replaced it: stop offering the map and the payment), `expired` (the map clock ran out or it was released) or `converted` (it already created its order: `orderId`). A session whose `seatsDeadline` has passed is reported as `expired` immediately. Designed to be polled every ~10 s. Another buyer's session is 404.
+ */
+export const getCustomerPurchaseSessionsId = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetCustomerPurchaseSessionsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCustomerPurchaseSessionsIdResponse,
+		GetCustomerPurchaseSessionsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/purchase-sessions/{id}",
+		...options,
+	});
+};
+
+/**
+ * Release the seats of a purchase session
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. Marks the session `expired` and releases in seats.io the seats held with its `holdToken`. Idempotent: repeating it changes nothing. It NEVER releases a token that backs a live sale (pending payment or confirmed) nor that of a `converted` session: those seats belong to the order. Call it when the map clock runs out. Another buyer's session is 404.
+ */
+export const postCustomerPurchaseSessionsIdRelease = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerPurchaseSessionsIdReleaseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerPurchaseSessionsIdReleaseResponse,
+		PostCustomerPurchaseSessionsIdReleaseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/purchase-sessions/{id}/release",
+		...options,
+	});
+};
+
+/**
+ * List the organization's published videos
+ * Only published videos that have finished processing (READY) in the active workspace. Does not include the playback id: to play one, request a token from `POST /content/playback-token`.
+ */
+export const getContentVideos = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentVideosData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentVideosResponse,
+		GetContentVideosError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/videos",
+		...options,
+	});
+};
+
+/**
+ * List the organization's community feed
+ * Posts from the active workspace, newest first, excluding deleted posts and posts scheduled for the future. A post with `locked: true` arrives redacted (`content`, `imageUrl`, `videoId`, `eventId` and `link` set to null, `commentsCount` set to 0): it is members-only content and the key does not represent a buyer with a current membership. Does not include `likes_count` (only visible to the workspace owner) or the post's internal author.
+ */
+export const getContentPosts = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentPostsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentPostsResponse,
+		GetContentPostsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/posts",
+		...options,
+	});
+};
+
+/**
+ * Publish community content (including articles)
+ * Creates a community post. `type=ARTICLE` requires `title` and `body` (Markdown) and builds a slug unique per organization (manual via `slug`, or derived from `title` if omitted); `type=TEXT`/`IMAGE` require `content` or `imageUrl`, same as the dashboard composer. Unlike the dashboard, this path does NOT resolve the link's Open Graph snapshot (`link` is always null in the response). Minimum role ADMIN, like every other `POST` in `/api/v1`. If the workspace has the `community_v2` flag enabled, publishing enqueues a notification to members in the same transaction; with a future `publishedAt`, the notification goes out when the post is published. The response does not change.
+ */
+export const postContentPosts = <ThrowOnError extends boolean = false>(
+	options: Options<PostContentPostsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentPostsResponse,
+		PostContentPostsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/posts",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List the organization's live streams
+ * Live streams from the active workspace, newest first. `status: ACTIVE` is the one on air. Does not include the RTMP key or the playback ids.
+ */
+export const getContentLives = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentLivesData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentLivesResponse,
+		GetContentLivesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/lives",
+		...options,
+	});
+};
+
+/**
+ * Live stream status
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const getContentLivesId = <ThrowOnError extends boolean = false>(
+	options: Options<GetContentLivesIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetContentLivesIdResponse,
+		GetContentLivesIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/lives/{id}",
+		...options,
+	});
+};
+
+/**
+ * Signed token to play a video or a live stream
+ * Requires an enterprise service API key. `memberOnly` content additionally requires the `X-Customer-Session` header of a buyer with a current membership in the key's organization or, for a live stream tied to a show date, a CONFIRMED ticket for that date (otherwise 403 `MEMBERSHIP_REQUIRED`). Rate limited: 600 requests/min per key and 30/min per buyer (429 `RATE_LIMITED` with `Retry-After`). Content from another organization responds 404. Short-lived tokens: 30 minutes for live streams, 1 hour for videos.
+ */
+export const postContentPlaybackToken = <ThrowOnError extends boolean = false>(
+	options: Options<PostContentPlaybackTokenData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostContentPlaybackTokenResponse,
+		PostContentPlaybackTokenError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/playback-token",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List the waitlist entries of the workspace
+ * Export for staff (CLI/MCP). Contains personal data, so it requires ADMIN. Newest first, cursor pagination; `city` filters by the folded city (accents and case ignored).
+ */
+export const getWaitlist = <ThrowOnError extends boolean = false>(
+	options?: Options<GetWaitlistData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetWaitlistResponse,
+		GetWaitlistError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/waitlist",
+		...options,
+	});
+};
+
+/**
+ * Join the per-city waitlist of an enterprise landing
+ * Requires an enterprise service API key; the entry belongs to the key's organization. `X-Customer-Session` is optional: when present the entry is linked to that buyer. `contact` must be an email or a phone number (7-15 digits; only a leading `+`, spaces and dashes besides digits — parentheses, dots, letters or extensions respond 422). Phones are stored without spaces or dashes. Idempotent per (organization, city folded without accents/case, contact normalized — lowercased email, or the last 10 phone digits so `+57 300…` and `300…` are the same contact): 201 with `created: true` on the first call, 200 with `created: false` afterwards. Rate limited: 120 requests/min per key and 10/min per contact (429 `RATE_LIMITED` with `Retry-After`). Invalid JSON responds 400; an invalid body 422.
+ */
+export const postWaitlist = <ThrowOnError extends boolean = false>(
+	options: Options<PostWaitlistData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostWaitlistResponse,
+		PostWaitlistError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/waitlist",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Cancel a scheduled publication
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Clears the pending scheduled publication (`publishAt` becomes null). The event keeps its status. Does not undo a `saleStartsAt` schedule: edit the ticket types' `saleStartsAt` instead.
+ */
+export const deleteEventsIdSchedule = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteEventsIdScheduleData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteEventsIdScheduleResponse,
+		DeleteEventsIdScheduleError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/schedule",
+		...options,
+	});
+};
+
+/**
+ * Schedule a draft event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Send exactly one of:
+ * - `publishAt`: the DRAFT publishes itself at that instant (checked every ~5 minutes). Must be in the future and before at least one of the event's dates. The response's `publishAt` echoes it.
+ * - `saleStartsAt`: publishes the DRAFT now and opens sales at that instant, setting `saleStartsAt` on every ticket type of the upcoming dates in the same transaction. Must be in the future and before the first upcoming date.
+ *
+ * Errors (`error.code`):
+ * - 409 `EVENT_NOT_DRAFT`: only drafts can be scheduled (also when it got published concurrently).
+ * - 422 `SCHEDULE_IN_PAST`, 422 `SCHEDULE_AFTER_EVENT_DATE`.
+ * - 409 `NO_FUTURE_DATE`, 409 `NO_TICKET_TYPES`, 422 `TICKET_TYPE_SALE_CLOSES_BEFORE` (`saleStartsAt` only).
+ * - Seated (seats.io) events: 409 `SEATSIO_INVALID`, 409 `SEAT_MAP_CATEGORIES_UNCOVERED` (`error.details.zones[]`), 503 `SEAT_MAP_UNVERIFIABLE` (retryable) — same as `POST /events/{id}/publish`.
+ * - 409 `IDENTITY_VERIFICATION_REQUIRED` (`saleStartsAt` on a paid event of an unverified workspace). Unlike `POST /events/{id}/publish`, the event is NOT queued: retry after the verification is approved.
+ */
+export const postEventsIdSchedule = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdScheduleData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdScheduleResponse,
+		PostEventsIdScheduleError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/schedule",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List a ticket type's presale windows
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const getTicketTypesIdPresaleWindows = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetTicketTypesIdPresaleWindowsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetTicketTypesIdPresaleWindowsResponse,
+		GetTicketTypesIdPresaleWindowsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/ticket-types/{id}/presale-windows",
+		...options,
+	});
+};
+
+/**
+ * Create a presale window
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Active members of `planId` can buy this ticket type between `presaleStartsAt` and `presaleEndsAt` (instants in UTC), optionally capped by `presaleCapacity`. One window per plan and ticket type.
+ *
+ * Errors (`error.code`): 422 `PLAN_NOT_ELIGIBLE` (the plan is not an active plan of the workspace that owns the event), 422 `PRESALE_WINDOW_INVERTED` (end not after start), 409 `DUPLICATE_PLAN` (that plan already has a window on this ticket type), 403 `EVENT_SCOPE_FORBIDDEN` (key restricted to other events).
+ */
+export const postTicketTypesIdPresaleWindows = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostTicketTypesIdPresaleWindowsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostTicketTypesIdPresaleWindowsResponse,
+		PostTicketTypesIdPresaleWindowsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/ticket-types/{id}/presale-windows",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Delete a presale window
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * DESTRUCTIVE: permanently deletes the window; members lose that presale access immediately. Re-creating it yields a new id.
+ */
+export const deletePresaleWindowsId = <ThrowOnError extends boolean = false>(
+	options: Options<DeletePresaleWindowsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeletePresaleWindowsIdResponse,
+		DeletePresaleWindowsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/presale-windows/{id}",
+		...options,
+	});
+};
+
+/**
+ * Update a presale window
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Absent fields are left untouched; the start/end order is checked against the stored values.
+ *
+ * Errors (`error.code`): 422 `PLAN_NOT_ELIGIBLE` (the plan is not an active plan of the workspace that owns the event), 422 `PRESALE_WINDOW_INVERTED` (end not after start), 409 `DUPLICATE_PLAN` (that plan already has a window on this ticket type), 403 `EVENT_SCOPE_FORBIDDEN` (key restricted to other events).
+ */
+export const patchPresaleWindowsId = <ThrowOnError extends boolean = false>(
+	options: Options<PatchPresaleWindowsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchPresaleWindowsIdResponse,
+		PatchPresaleWindowsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/presale-windows/{id}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };

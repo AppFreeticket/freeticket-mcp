@@ -46,6 +46,8 @@ describe("tool annotations", () => {
 			.map((t) => t.name)
 			.sort();
 		expect(open).toEqual([
+			"event_artist_invitations_resend",
+			"events_artists_set",
 			"public_orders_create",
 			"public_tickets_resend",
 			"sales_refund",

@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"freeticket": {
+			"type": "http",
+			"url": "https://mcp.appfreeticket.com/mcp"
+		}
+	}
+}

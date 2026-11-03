@@ -5,6 +5,58 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-11-03
+
+Brings all three contracts in line with free-admin `main`: B2B 1.20.0 →
+**1.27.0**, superadmin 1.5.1 → **1.8.0**, public 0.9.1 → **0.10.1**. The specs
+were taken from free-admin's committed `openapi.json`, `admin-openapi.json`
+and `public-openapi.json` at `main` (cb33afb), not from production, which may
+lag. Additions only. **138 tools** (B2B 102 · superadmin 30 · public 6), 37
+with a view.
+
+### Added
+- Scheduling: `events_schedule` (`publishAt` auto-publishes a draft;
+  `saleStartsAt` publishes now and opens sales later) and `events_unschedule`.
+- Lineup: `artists_search`, `events_artists_set` (replaces the whole ordered
+  lineup and emails new artists; destructive, open-world),
+  `events_artists_delete`, `event_artist_invitations_list`,
+  `event_artist_invitations_resend` (open-world) and
+  `event_artist_invitations_cancel`.
+- Member presales: `presale_windows_list`, `presale_windows_create`,
+  `presale_windows_update`, `presale_windows_delete` (destructive, as the
+  contract's `x-ft-destructive` says).
+- Landing waitlist: `waitlist_join` (enterprise key, optional buyer session)
+  and `waitlist_list`.
+- Superadmin master CRM, reads only: `admin_crm_campaigns_list`,
+  `admin_crm_campaigns_get`, `admin_crm_audience_preview` (POST, but creates
+  nothing; the sample comes masked by the server), `admin_crm_quota`,
+  `admin_crm_options`, `admin_crm_events`, `admin_crm_event_dates`.
+- **Claude plugin and marketplace.** `.claude-plugin/plugin.json`,
+  `.claude-plugin/marketplace.json` (plugin at the repo root) and `.mcp.json`
+  pointing at the remote server over OAuth. Install with
+  `/plugin marketplace add AppFreeticket/freeticket-mcp` and
+  `/plugin install freeticket@freeticket`. Two skills: `publish-event` and
+  `show-day-close`. `src/plugin.test.ts` keeps the manifest version equal to
+  `package.json`, the names in step, and every tool a skill names registered.
+
+### Changed
+- `events_update` reaches every field of the contract's `EventUpdate`:
+  `slug`, `squareImageUrl`, `storyImageUrl`, `pulepCode`, `listedOnPortal`,
+  `genre`, `subgenre`, `genreOther`, `audience`.
+- `event_dates_create` / `event_dates_update` take `streamType` and
+  `maxPerCustomer`; the update also takes `status`.
+- `ticket_types_create` / `ticket_types_update` take `saleStartsAt`,
+  `saleEndsAt` and `seatsioCategoryKey`.
+- `staff_update_role` accepts the new `MERCH_MANAGER` role.
+- The coverage sweep honours the contract's `x-ft-mcp: { expose: false }`:
+  every flagged operation must be excluded and no tool may call it.
+
+### Not exposed (excluded with a reason in `src/coverage.test.ts`)
+- CRM writes `POST /crm/campaigns`, `/crm/campaigns/{id}/batches/next`,
+  `/crm/campaigns/{id}/batches/stop` and `/crm/campaigns/{id}/cancel`: they
+  send or stop real messages to customers, and the contract itself marks them
+  `x-ft-mcp: { expose: false }`. CLI only (`ft admin crm`).
+
 ## [0.15.2] - 2026-11-01
 
 ### Changed

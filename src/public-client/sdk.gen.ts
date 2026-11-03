@@ -45,25 +45,8 @@ export type Options<
 };
 
 /**
- * Get a public event by slug
- * Public (no auth). Detail of a PUBLISHED event: description, dates (with venue and city) and the 'from' price in two flavors: `priceFrom` (base, no fees) and `buyerTotalFrom` (including service fee, VAT (IVA), seat surcharge and any products bundled with that ticket, e.g. a drink combo). For live stock per ticket type, use `/events/{slug}/availability`.
- */
-export const getEventsSlug = <ThrowOnError extends boolean = false>(
-	options: Options<GetEventsSlugData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetEventsSlugResponse,
-		GetEventsSlugError,
-		ThrowOnError
-	>({
-		url: "/events/{slug}",
-		...options,
-	});
-};
-
-/**
  * Resend the ticket/QR email to the buyer (anonymous)
- * Public (no auth). Resends the QR email to the address registered on the purchase. Optional body `{ email }`, which must match the buyer's email. Returns the masked email address, never the full one. Rate-limited per code (1/min).
+ * Public (no auth). Resends the QR email to the address registered on the purchase. Optional body `{ email }`, which must match the buyer's email. If the ticket was transferred, only this ticket is resent to its current holder (and `email`, if sent, must match the holder's). Returns the masked email address, never the full one. Rate-limited per code (1/min).
  */
 export const postTicketsCodeResend = <ThrowOnError extends boolean = false>(
 	options: Options<PostTicketsCodeResendData, ThrowOnError>,
@@ -95,6 +78,23 @@ export const getEvents = <ThrowOnError extends boolean = false>(
 		ThrowOnError
 	>({
 		url: "/events",
+		...options,
+	});
+};
+
+/**
+ * Get a public event by slug
+ * Public (no auth). Detail of a PUBLISHED event: description, dates (with venue and city) and the 'from' price in two flavors: `priceFrom` (base, no fees) and `buyerTotalFrom` (including service fee, VAT (IVA), seat surcharge and any products bundled with that ticket, e.g. a drink combo). For live stock per ticket type, use `/events/{slug}/availability`.
+ */
+export const getEventsSlug = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsSlugData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsSlugResponse,
+		GetEventsSlugError,
+		ThrowOnError
+	>({
+		url: "/events/{slug}",
 		...options,
 	});
 };

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { type Creds, makeB2bClient, run } from "../api";
 import {
 	getApiKeys,
+	getArtists,
 	getContentLives,
 	getContentLivesId,
 	getContentPosts,
@@ -18,6 +19,7 @@ import {
 	getDiscounts,
 	getEvents,
 	getEventsId,
+	getEventsIdArtistInvitations,
 	getEventsIdDates,
 	getMe,
 	getMembershipPlans,
@@ -44,8 +46,10 @@ import {
 	getTicketsTicketCodeAccess,
 	getTicketTypes,
 	getTicketTypesId,
+	getTicketTypesIdPresaleWindows,
 	getVenues,
 	getVenuesId,
+	getWaitlist,
 	getWebhooks,
 } from "../client/sdk.gen";
 import { read } from "../tool-meta";
@@ -820,5 +824,71 @@ export function registerB2bTools(
 		{ id },
 		read("content_live_get"),
 		async ({ id }) => run(getContentLivesId({ path: { id }, client })),
+	);
+
+	// ── Contract 1.21–1.27 ───────────────────────────────────────────────────
+	uiTool(
+		server,
+		"artists_search",
+		"Searches artist workspaces registered on FreeTicket by name — public " +
+			"brand data only (GET /artists). Feed the `id` to `events_artists_set`; " +
+			"artists without an account are invited by email there.",
+		{
+			q: z.string().min(2).max(100).describe("Name to search (2-100 chars)"),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("Results per page (1-100, default 20)"),
+			cursor: z.string().optional().describe("Pagination cursor"),
+		},
+		async (q) => run(getArtists({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"event_artist_invitations_list",
+		"Pending and expired invitations sent to artists without an account for " +
+			"an event, newest first (GET /events/{id}/artist-invitations). Accepted " +
+			"ones are already in the lineup and are not listed. They expire 14 " +
+			"days after being sent.",
+		{ eventId: z.string().describe("Event id") },
+		async ({ eventId }) =>
+			run(getEventsIdArtistInvitations({ path: { id: eventId }, client })),
+	);
+	uiTool(
+		server,
+		"presale_windows_list",
+		"Presale windows of a ticket type — which membership plan can buy it " +
+			"early, between which instants and with what cap " +
+			"(GET /ticket-types/{id}/presale-windows).",
+		{ ticketTypeId: z.string().describe("Ticket type id") },
+		async ({ ticketTypeId }) =>
+			run(
+				getTicketTypesIdPresaleWindows({ path: { id: ticketTypeId }, client }),
+			),
+	);
+	uiTool(
+		server,
+		"waitlist_list",
+		"Per-city waitlist entries of the workspace's landing, newest first " +
+			"(GET /waitlist). Contains personal data (name and contact): the API " +
+			"requires ADMIN.",
+		{
+			city: z
+				.string()
+				.optional()
+				.describe("Filter by city; accents and case are ignored"),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.optional()
+				.describe("Results per page (1-100, default 20)"),
+			cursor: z.string().optional().describe("Pagination cursor"),
+		},
+		async (q) => run(getWaitlist({ query: q, client })),
 	);
 }

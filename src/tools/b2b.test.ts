@@ -149,8 +149,10 @@ describe("tool registration", () => {
 		// 35 writes: 29 from contract 1.5.0 + the 6 from 1.7.0 (members area and
 		// token de reproducción de contenido) + the 7 from 1.19/1.20 (events_cancel,
 		// tickets_reassign, staff_delete, webhooks_update, customer_order_release,
-		// content_posts_create, workspaces_create).
-		expect(t.length).toBe(42);
+		// content_posts_create, workspaces_create) + the 10 from 1.21–1.27
+		// (events_schedule/unschedule, the lineup and its invitations, presale
+		// windows, waitlist_join).
+		expect(t.length).toBe(52);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -163,6 +165,8 @@ describe("tool registration", () => {
 			"ticket_types_update",
 			"plans_update",
 			"venues_update",
+			"events_schedule",
+			"presale_windows_create",
 		]) {
 			expect(t).toContain(n);
 		}
@@ -182,8 +186,9 @@ describe("tool registration", () => {
 		const t = names(server);
 		// 4 original reads + 15 from Wave C + admin_tokens (admin 1.1.0)
 		// + admin_workspaces_assign_plan (admin 1.3.0)
-		// + admin_workspaces_plan_get and admin_workspaces_delete (admin 1.5).
-		expect(t.length).toBe(23);
+		// + admin_workspaces_plan_get and admin_workspaces_delete (admin 1.5)
+		// + the 7 master CRM reads (admin 1.6–1.8).
+		expect(t.length).toBe(30);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of t) expect(n).toMatch(/^admin_/);
 		for (const n of [
@@ -191,6 +196,7 @@ describe("tool registration", () => {
 			"admin_impersonate",
 			"admin_platform_plans_create",
 			"admin_feature_flags_set",
+			"admin_crm_audience_preview",
 		]) {
 			expect(t).toContain(n);
 		}

@@ -8,6 +8,49 @@ Same contract and same session as the `ft` CLI: if you have run `ft login`, the
 MCP is already authenticated with nothing to configure (it reads
 `~/.freeticket/config.json`).
 
+## Install as a Claude plugin
+
+The repo is a Claude Code plugin **and** its own marketplace. The plugin wires
+the remote server (`https://mcp.appfreeticket.com/mcp`, declared in
+[`.mcp.json`](.mcp.json)) and ships two skills.
+
+```text
+/plugin marketplace add AppFreeticket/freeticket-mcp
+/plugin install freeticket@freeticket
+```
+
+Or in one step (Claude Code 2.1.275+):
+`/plugin install freeticket --marketplace AppFreeticket/freeticket-mcp`.
+
+Authentication is **OAuth** — the same embedded authorization server claude.ai
+uses (see below): Claude Code discovers it from the `401` +
+`WWW-Authenticate` (RFC 9728) and registers itself (RFC 7591). Run `/mcp`,
+pick `freeticket`, and sign in with your FreeTicket account in the browser. No
+API key or header goes in the plugin.
+
+| Skill | What it does |
+|---|---|
+| `/freeticket:publish-event` | Venue → event → dates → ticket types → optional member presale and lineup → publish now or schedule. |
+| `/freeticket:show-day-close` | Capacity vs. sold, revenue, stuck payments, attendee export and settlement status for one date. |
+
+Files: [`.claude-plugin/plugin.json`](.claude-plugin/plugin.json) (version kept
+equal to `package.json` by `src/plugin.test.ts`),
+[`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json) (plugin
+`source: "./"`, the repo root), [`.mcp.json`](.mcp.json) and `skills/`. Check
+them with `claude plugin validate .`. None of them is published to npm
+(`files` is `dist` only).
+
+**Local stdio instead of the remote server** (CI, headless, or a pinned
+build): add it yourself rather than through the plugin —
+
+```bash
+claude mcp add --env FT_API_KEY=ft_live_... --transport stdio freeticket \
+  -- npx -y @freeticket/mcp
+```
+
+(subject to the npm caveat below). If you also keep the plugin enabled, toggle
+its `freeticket` server off in `/mcp` so the tools are not listed twice.
+
 ## Use (Claude Code / Claude Desktop)
 
 ```jsonc
@@ -128,8 +171,10 @@ confirmation.
 | Domain | Reads | Writes |
 |---|---|---|
 | Session | `whoami` | `workspaces_create` |
-| Events | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_cancel` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
+| Events | `events_list` · `events_get` · `event_dates_list` | `events_create` · `events_update` · `events_publish` · `events_schedule` · `events_unschedule` · `events_cancel` · `events_delete` · `event_dates_create` · `event_dates_update` · `event_dates_delete` |
+| Lineup | `artists_search` · `event_artist_invitations_list` | `events_artists_set` · `events_artists_delete` · `event_artist_invitations_resend` · `event_artist_invitations_cancel` |
 | Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_reassign` · `tickets_resend` |
+| Presales | `presale_windows_list` | `presale_windows_create` · `presale_windows_update` · `presale_windows_delete` |
 | Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` | `sales_create` · `sales_cancel` · `sales_refund` |
 | Memberships | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
 | Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` · `staff_get` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_update` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` · `staff_delete` |
@@ -137,6 +182,7 @@ confirmation.
 | Settlements | `settlements_list` · `settlements_get` · `settlements_document` · `settlements_proof` | — |
 | Credentials | `api_keys_list` | — |
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
+| Landing waitlist | `waitlist_list` | `waitlist_join` |
 | Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` |
 | Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` |
 
@@ -177,6 +223,12 @@ members-only).
 | Users | `admin_users` · `admin_users_get` · `admin_users_update` · `admin_impersonate` · `admin_impersonate_stop` |
 | Platform plans | `admin_platform_plans_list` · `admin_platform_plans_get` · `admin_platform_plans_create` · `admin_platform_plans_update` |
 | Feature flags | `admin_feature_flags_list` · `admin_feature_flags_set` |
+| Master CRM (reads) | `admin_crm_campaigns_list` · `admin_crm_campaigns_get` · `admin_crm_audience_preview` · `admin_crm_quota` · `admin_crm_options` · `admin_crm_events` · `admin_crm_event_dates` |
+
+Launching, batching, stopping or cancelling a CRM campaign sends (or stops)
+real messages to customers. The contract marks those four operations
+`x-ft-mcp: { expose: false }`; they stay in the CLI (`ft admin crm`), and
+`src/coverage.test.ts` fails if a tool ever calls one.
 
 ## UI in the host (MCP Apps)
 
@@ -205,7 +257,7 @@ draws them.
 - Hosts without the extension (or terminal clients) ignore `_meta` and see the
   same text as always: nothing breaks.
 
-**29 tools with a view** (v0.14.0) — every list and every report. Details
+**37 tools with a view** (v0.16.0) — every list and every report. Details
 (`*_get`) and writes deliberately have none: a lone object or a `delete`
 acknowledgement gains nothing from a table, and drawing one suggests there is
 data where there is not. `src/ui.test.ts` mounts the real view in jsdom and
@@ -221,8 +273,8 @@ pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contracts this build targets: B2B **1.20.0**, superadmin **1.5.1**, public
-**0.9.1**. All three are served by `free-admin` and are the only source of
+Contracts this build targets: B2B **1.27.0**, superadmin **1.8.0**, public
+**0.10.1**. All three are served by `free-admin` and are the only source of
 truth, on separate semver lineages. To propagate a backend change, use the
 `contract-sync` agent from the
 [ai-native](https://github.com/AppFreeticket/ai-native) umbrella — and check for

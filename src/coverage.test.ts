@@ -70,13 +70,31 @@ const EXCLUDED: Record<string, string> = {
 		"charges a Brick card token — card data never passes through an agent",
 	postCustomerOrdersIdPaymentPse:
 		"PSE redirect of the landing page checkout, which the MCP does not open",
+	// Master CRM writes: each one sends (or stops) real messages to customers.
+	// The contract itself flags them `x-ft-mcp: { expose: false }` — see the
+	// test below, which keeps this list and that flag in step.
+	postCrmCampaigns:
+		"launches a CRM campaign (real messages) — CLI only (`ft admin crm`)",
+	postCrmCampaignsIdBatchesNext:
+		"sends the next WhatsApp batch (real messages) — CLI only (`ft admin crm`)",
+	postCrmCampaignsIdBatchesStop:
+		"irreversibly skips pending recipients — CLI only (`ft admin crm`)",
+	postCrmCampaignsIdCancel:
+		"cancels a scheduled campaign — CLI only (`ft admin crm`)",
 };
 
-function operations(specFile: string): { id: string; where: string }[] {
+type Op = {
+	operationId?: string;
+	"x-ft-mcp"?: { expose?: boolean; reason?: string };
+};
+
+function operations(
+	specFile: string,
+): { id: string; where: string; exposeToMcp: boolean }[] {
 	const spec = JSON.parse(readFileSync(join(root, specFile), "utf8")) as {
-		paths: Record<string, Record<string, { operationId?: string }>>;
+		paths: Record<string, Record<string, Op>>;
 	};
-	const out: { id: string; where: string }[] = [];
+	const out: { id: string; where: string; exposeToMcp: boolean }[] = [];
 	for (const [path, item] of Object.entries(spec.paths ?? {}))
 		for (const [method, op] of Object.entries(item)) {
 			if (!["get", "post", "patch", "put", "delete"].includes(method)) continue;
@@ -84,14 +102,15 @@ function operations(specFile: string): { id: string; where: string }[] {
 				out.push({
 					id: op.operationId,
 					where: `${method.toUpperCase()} ${path}`,
+					exposeToMcp: op["x-ft-mcp"]?.expose !== false,
 				});
 		}
 	return out;
 }
 
 describe.each([
-	["B2B /api/v1", "openapi.json", ["b2b.ts", "b2b-writes.ts"], 103],
-	["superadmin /api/admin", "admin-openapi.json", ["admin.ts"], 25],
+	["B2B /api/v1", "openapi.json", ["b2b.ts", "b2b-writes.ts"], 117],
+	["superadmin /api/admin", "admin-openapi.json", ["admin.ts"], 36],
 	["public /api/public", "public-openapi.json", ["public.ts"], 6],
 ])("contract %s", (_label, file, files, minOps) => {
 	const ops = operations(file);
@@ -103,6 +122,18 @@ describe.each([
 			.filter((o) => !new RegExp(`\\b${o.id}\\b`).test(source))
 			.map((o) => `${o.where} [${o.id}]`);
 		expect(uncovered).toEqual([]);
+	});
+
+	it("honours the contract's `x-ft-mcp: { expose: false }`", () => {
+		// The backend flags operations an agent must not fire. Each one has to be
+		// excluded here (with our reason) and must not be called by any tool.
+		const hidden = ops.filter((o) => !o.exposeToMcp);
+		expect(hidden.filter((o) => !EXCLUDED[o.id]).map((o) => o.id)).toEqual([]);
+		expect(
+			hidden
+				.filter((o) => new RegExp(`\\b${o.id}\\b`).test(source))
+				.map((o) => o.id),
+		).toEqual([]);
 	});
 
 	it("did not shrink abruptly (a truncated spec would break the clients silently)", () => {

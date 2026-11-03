@@ -23,6 +23,6 @@ export type CreateClientConfig<T extends DefaultClientOptions = ClientOptions> =
 
 export const client = createClient(
 	createConfig<ClientOptions>({
-		baseUrl: "https://admin.appfreeticket.com/api/public",
+		baseUrl: "https://appfreeticket.com/api/public",
 	}),
 );
