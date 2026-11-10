@@ -28,6 +28,9 @@ import type {
 	DeleteContentVideosIdData,
 	DeleteContentVideosIdError,
 	DeleteContentVideosIdResponse,
+	DeleteCustomerAddressesIdData,
+	DeleteCustomerAddressesIdError,
+	DeleteCustomerAddressesIdResponse,
 	DeleteDiscountsIdData,
 	DeleteDiscountsIdError,
 	DeleteDiscountsIdResponse,
@@ -121,12 +124,18 @@ import type {
 	GetContentVideosData,
 	GetContentVideosError,
 	GetContentVideosResponse,
+	GetCustomerAddressesData,
+	GetCustomerAddressesError,
+	GetCustomerAddressesResponse,
 	GetCustomerMeData,
 	GetCustomerMeError,
 	GetCustomerMembershipData,
 	GetCustomerMembershipError,
 	GetCustomerMembershipResponse,
 	GetCustomerMeResponse,
+	GetCustomerMerchOrdersData,
+	GetCustomerMerchOrdersError,
+	GetCustomerMerchOrdersResponse,
 	GetCustomerOrdersData,
 	GetCustomerOrdersError,
 	GetCustomerOrdersIdData,
@@ -190,6 +199,9 @@ import type {
 	GetMerchCatalogData,
 	GetMerchCatalogError,
 	GetMerchCatalogResponse,
+	GetMerchProductsData,
+	GetMerchProductsError,
+	GetMerchProductsResponse,
 	GetOrganizationProfileData,
 	GetOrganizationProfileError,
 	GetOrganizationProfileResponse,
@@ -314,6 +326,9 @@ import type {
 	PatchContentVideosIdData,
 	PatchContentVideosIdError,
 	PatchContentVideosIdResponse,
+	PatchCustomerAddressesIdData,
+	PatchCustomerAddressesIdError,
+	PatchCustomerAddressesIdResponse,
 	PatchCustomerProfileData,
 	PatchCustomerProfileError,
 	PatchCustomerProfileResponse,
@@ -332,6 +347,9 @@ import type {
 	PatchMembershipPlansIdData,
 	PatchMembershipPlansIdError,
 	PatchMembershipPlansIdResponse,
+	PatchMerchProductsIdStatusData,
+	PatchMerchProductsIdStatusError,
+	PatchMerchProductsIdStatusResponse,
 	PatchOrganizationAnalyticsData,
 	PatchOrganizationAnalyticsError,
 	PatchOrganizationAnalyticsResponse,
@@ -433,6 +451,9 @@ import type {
 	PostContentSeriesData,
 	PostContentSeriesError,
 	PostContentSeriesResponse,
+	PostCustomerAddressesData,
+	PostCustomerAddressesError,
+	PostCustomerAddressesResponse,
 	PostCustomerAuthRequestData,
 	PostCustomerAuthRequestError,
 	PostCustomerAuthRequestResponse,
@@ -508,6 +529,9 @@ import type {
 	PostMembershipPlansData,
 	PostMembershipPlansError,
 	PostMembershipPlansResponse,
+	PostMerchDiscountCodesPreviewData,
+	PostMerchDiscountCodesPreviewError,
+	PostMerchDiscountCodesPreviewResponse,
 	PostMerchOrdersCodePaymentCardData,
 	PostMerchOrdersCodePaymentCardError,
 	PostMerchOrdersCodePaymentCardResponse,
@@ -517,6 +541,12 @@ import type {
 	PostMerchOrdersLookupError,
 	PostMerchOrdersLookupResponse,
 	PostMerchOrdersResponse,
+	PostMerchProductsData,
+	PostMerchProductsError,
+	PostMerchProductsImagesUploadUrlData,
+	PostMerchProductsImagesUploadUrlError,
+	PostMerchProductsImagesUploadUrlResponse,
+	PostMerchProductsResponse,
 	PostProductsData,
 	PostProductsError,
 	PostProductsIdStatusData,
@@ -601,6 +631,9 @@ import type {
 	PutMasterQrsIdActiveData,
 	PutMasterQrsIdActiveError,
 	PutMasterQrsIdActiveResponse,
+	PutMerchProductsIdImagesData,
+	PutMerchProductsIdImagesError,
+	PutMerchProductsIdImagesResponse,
 	PutStaffIdAccessData,
 	PutStaffIdAccessError,
 	PutStaffIdAccessResponse,
@@ -627,6 +660,118 @@ export type Options<
 	 * used to access values that aren't defined as part of the SDK function.
 	 */
 	meta?: Record<string, unknown>;
+};
+
+/**
+ * List an event's dates
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const getEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsIdDatesResponse,
+		GetEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+	});
+};
+
+/**
+ * Add a date to an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const postEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdDatesResponse,
+		PostEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Merch store catalog of the key's brand
+ * Requires an enterprise service API key (Legend headless landing, called server-side); the store is ALWAYS the one of the key's organization. Returns the store settings (brand, support, shipping fees by zone — Bogotá is DANE 11001 —, free-shipping threshold, delivery modes), the PUBLISHED products with their active variants and `stock` (units available right now, already net of open 15-minute reservations), the active pickup points (only when pickup is enabled) and the public key of the brand's own MercadoPago account for the Payment Brick. Prices are COP integers, VAT included; the buyer pays no service fee. Preview: with a valid `X-Merch-Preview` token (issued by the dashboard for this key's store, 1 hour) the response also includes DRAFT products (each product carries `status`), answers even while the store onboarding is pending, sets `preview: true` and `Cache-Control: private, no-store`; an invalid or expired token silently returns the public catalog. Preview never enables ordering: `POST /merch/orders` only sells PUBLISHED products. 403 `MERCH_STORE_LOCKED` when the brand's Legend plan is not active; 404 `STORE_NOT_READY` when the brand has no store, its onboarding is incomplete or it has no connected MercadoPago account (a valid preview token is exempt). `mpPublicKey` is the public key of the brand's own MercadoPago account.
+ */
+export const getMerchCatalog = <ThrowOnError extends boolean = false>(
+	options?: Options<GetMerchCatalogData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetMerchCatalogResponse,
+		GetMerchCatalogError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/catalog",
+		...options,
+	});
+};
+
+/**
+ * List the organization's published videos
+ * Only published videos that have finished processing (READY) in the active workspace. Does not include the playback id: to play one, request a token from `POST /content/playback-token`.
+ */
+export const getContentVideos = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentVideosData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentVideosResponse,
+		GetContentVideosError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/videos",
+		...options,
+	});
 };
 
 /**
@@ -956,64 +1101,6 @@ export const postEventsIdCancel = <ThrowOnError extends boolean = false>(
 		],
 		url: "/events/{id}/cancel",
 		...options,
-	});
-};
-
-/**
- * List an event's dates
- * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
- */
-export const getEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<GetEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetEventsIdDatesResponse,
-		GetEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-	});
-};
-
-/**
- * Add a date to an event
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
- */
-export const postEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<PostEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostEventsIdDatesResponse,
-		PostEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
 	});
 };
 
@@ -1683,101 +1770,6 @@ export const postSalesIdCancel = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/sales/{id}/cancel",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Refund a sale (moving the funds depends on the payment gateway)
- * Marks the sale as REFUNDED and releases the associated numbered seats. IMPORTANT: whether the money goes back to the buyer depends on the payment gateway and the payment method used. Sales charged through MercadoPago are fully refunded against the MercadoPago API (stable idempotency key per sale, so retries never refund twice) and marked only once MercadoPago confirms. A 503 GATEWAY_REFUND_PENDING means MercadoPago did not answer clearly: the sale stays CONFIRMED and repeating the same call is safe. Sales charged through Wompi by CARD are voided against the payment gateway before being marked. In every other case this endpoint does NOT trigger the actual refund: the money is NOT returned automatically and a 200 only confirms the accounting status change. Those refunds must be handled separately in the payment gateway's dashboard. PARTIAL REFUND BY TICKET: send `items` with the ids of the sale items to refund (the `id` field of GET /sales/{id}/tickets). Each item refunds its prorated share of the sale total (by item subtotal; shares always add up to the exact total). The refunded tickets are invalidated at the door and their quota returns to stock; when no live item remains the sale becomes REFUNDED. Only MercadoPago (or uncharged / cash sales) support partial refunds: Wompi and Bold answer 409 GATEWAY_REFUND_NOT_SUPPORTED. Items already checked in answer 409 ITEM_ALREADY_CHECKED_IN — also for a FULL refund (no `items`, or all of them): a sale with any checked-in ticket is never refunded whole; refund the unused tickets by item; items from another sale answer 422 ITEM_NOT_IN_SALE; a refund already in flight over the same items answers 409 REFUND_IN_PROGRESS (retry exactly the same items). `block_seats: true` (also valid for a full refund) keeps the refunded numbered seats OUT of sale: seats.io moves them from booked straight to a blocked status, never through free. The `refund` object in the response reports the refunded amount and what happened to the seats. Wompi payment methods without API refunds (PSE, Nequi, Bancolombia transfer) respond 409: return the money in the Wompi dashboard and repeat the call with {"acknowledge_manual": true} to reflect the accounting status. A 502 means the gateway rejected the void and the sale remains CONFIRMED.
- */
-export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
-	options: Options<PostSalesIdRefundData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostSalesIdRefundResponse,
-		PostSalesIdRefundError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/sales/{id}/refund",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Transfer one ticket of a sale to another person (destructive)
- * DESTRUCTIVE: changes the ticket holder and voids the previous QR code (the ticket code is rotated and any installed Apple Wallet pass stops working). The new holder receives the ticket by email and the buyer is notified. Same rules as the dashboard and the buyer: the recipient must already have a verified FreeTicket buyer account (the holder name comes from that account), each ticket can be transferred only once (no staff override) and only until the show starts. 422 RECIPIENT_NOT_REGISTERED / SELF_TRANSFER: fix the recipient. 409 NOT_CONFIRMED, ALREADY_TRANSFERRED, CHECKED_IN, REFUNDED, ADDON, PRESALE_NOT_TRANSFERABLE, MULTI_QUANTITY, EVENT_STARTED or CONFLICT (the ticket changed in flight; re-read and retry). Not idempotent: a retry after success answers 409 ALREADY_TRANSFERRED. Minimum role: `ADMIN`.
- */
-export const postSalesIdItemsItemIdTransfer = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostSalesIdItemsItemIdTransferData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostSalesIdItemsItemIdTransferResponse,
-		PostSalesIdItemsItemIdTransferError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/sales/{id}/items/{itemId}/transfer",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Correct the recipient of a courtesy sale and resend its tickets
- * DESTRUCTIVE when the email changes (previous QR codes are voided). Only for courtesy sales issued from the dashboard (confirmed, `is_courtesy`); any other sale answers 404. Updates the recipient's name and email and resends the tickets to the corrected address. When the email changes, the ticket codes of the non-transferred tickets are rotated, so the QR codes sent to the wrong address stop working (`ticketCodesRotated: true`). Minimum role: `ADMIN`.
- */
-export const patchSalesIdRecipient = <ThrowOnError extends boolean = false>(
-	options: Options<PatchSalesIdRecipientData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).patch<
-		PatchSalesIdRecipientResponse,
-		PatchSalesIdRecipientError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/sales/{id}/recipient",
 		...options,
 		headers: {
 			"Content-Type": "application/json",
@@ -3086,35 +3078,6 @@ export const patchTicketsTicketCode = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Resend the confirmation email with the ticket
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
- */
-export const postTicketsTicketCodeResend = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostTicketsTicketCodeResendData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostTicketsTicketCodeResendResponse,
-		PostTicketsTicketCodeResendError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/tickets/{ticketCode}/resend",
-		...options,
-	});
-};
-
-/**
  * Undo a ticket check-in (destructive)
  * DESTRUCTIVE: reverts a door check-in so the ticket is valid again. Use it to fix a wrong scan; it is recorded in the audit log as CHECKIN_UNDO. Requires `ADMIN` (not `STAFF`): a checked-in ticket blocks cancelling its sale, and undoing the check-in reopens that path. The show's validation window does not apply. Idempotent: a ticket that is not checked in answers 200 with `undone: false`. 409 CHECKIN_CHANGED when the check-in changed between the read and the write (another undo or a new scan): re-read the ticket and retry. Minimum role: `ADMIN`.
  */
@@ -3652,193 +3615,15 @@ export const patchCustomerProfile = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * The purchase the buyer left unfinished for this event date
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, results are additionally scoped to the workspace pinned to it; without a key, any of the buyer's own unfinished purchases is visible. Returns the PENDING sale whose inventory hold is STILL ALIVE that the buyer has for that event date —with its seats, its total and when it expires—, or `order: null` if there is none. This is what lets reloading the checkout, or coming back from signing in, RESUME the purchase instead of starting from scratch: the seats remain held in that person's name. If `paymentOpened` is true the payment is already open and `POST /customer/orders/{id}/payment` returns the SAME signed configuration; to discard it and pick other seats, use `POST /customer/orders/{id}/release`.
+ * Buyer's saved shipping addresses
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. The address book belongs to the buyer's FreeTicket account and is shared across brands: any landing with the buyer's session sees and edits the same addresses, with any workspace's enterprise key or without a key. Returns at most 10 addresses, the default one first and then newest first. Colombia only: department and city are DANE codes (Bogotá = `11` / `11001`).
  */
-export const getCustomerOrders = <ThrowOnError extends boolean = false>(
-	options?: Options<GetCustomerOrdersData, ThrowOnError>,
-) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetCustomerOrdersResponse,
-		GetCustomerOrdersError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders",
-		...options,
-	});
-};
-
-/**
- * Create the ticket reservation (step 1 of the headless purchase)
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the date and the ticket type must belong to the workspace pinned to it (anything else is 404); without a key, it is enough for the ticket type to exist and be on sale (same eligibility as the first-party checkout). Reserves inventory and creates the PENDING sale with the SAME rules as the first-party checkout (stock under lock, seats validated against seats.io, per-buyer limit, presale, memberships and virtual queue turn). The buyer email comes from the session, never from the body. Rejections carry a stable `reason` in `error.details.reason` (`sold_out`, `queue_turn_required`, `seats_not_held`, `members_only`, `members_only_withdrawn` — a members-only ticket whose artist withdrew the permission or left the lineup: it is no longer sold even to members —, …). With `pending_sale_in_progress` the inventory is taken by a half-paid purchase FROM THE SAME buyer: `error.details.pendingSaleId` and `pendingReference` identify it, and the right step is to reopen its payment with `POST /customer/orders/{pendingSaleId}/payment` (idempotent) instead of reserving again. If `free` is true the sale is already confirmed and `/payment` must NOT be called. Next step: `POST /customer/orders/{id}/payment`.
- */
-export const postCustomerOrders = <ThrowOnError extends boolean = false>(
-	options: Options<PostCustomerOrdersData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersResponse,
-		PostCustomerOrdersError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Open payment for a reservation (Bold or MercadoPago, depending on the event)
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). The payment rail is chosen on the SERVER: Bold-eligible events (legend plan + allowlist) return the SIGNED configuration of the embedded Bold Payment Button (`apiKey` + `renderMode: "embedded"` + `integritySignature`, …), which the landing page mounts with `new BoldCheckout({...})`; all others return `publicKey` + `amount` + `currency` + `reference` + `payerEmail` to mount the MercadoPago Payment Brick (`POST .../payment/card` to charge, `POST .../payment/pse` for PSE). The landing page tells the rails apart by the SHAPE of the response (`apiKey`/`renderMode` ⇒ Bold, `publicKey` ⇒ MercadoPago), never by a separate flag. The sale must belong to the session buyer (and, with a key, to the workspace pinned to it): anything else is 404. Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, or (Bold only) the event has no legend plan or a payment attempt is already in flight with another gateway. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
- */
-export const postCustomerOrdersIdPayment = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostCustomerOrdersIdPaymentData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersIdPaymentResponse,
-		PostCustomerOrdersIdPaymentError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders/{id}/payment",
-		...options,
-	});
-};
-
-/**
- * Charge with the MercadoPago Payment Brick token
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Receives the token the Payment Brick produced on the landing page's domain and charges through the Orders API using the sale amount (never one sent by the client); `payer.email` travels in the body but is ignored — the payer is ALWAYS the sale's. `status` is `approved`, `pending` (normal, may require additional authentication from the bank) or `rejected` (business decline; the reason is in `message`) — all three are returned with 200. With `rejected`, `saleAlive` tells what happened to the purchase: `false` = it was cancelled and a new one must be started; `true` = this payment was declined but the purchase is still pending because another payment is in progress on it (do not start a new purchase: wait and check the order). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, the event only charges through Bold, or MercadoPago returned an error that cannot be classified as a decline. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 attempts per minute per buyer (429 with `Retry-After`).
- */
-export const postCustomerOrdersIdPaymentCard = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostCustomerOrdersIdPaymentCardData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersIdPaymentCardResponse,
-		PostCustomerOrdersIdPaymentCardError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders/{id}/payment/card",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Open a PSE payment through MercadoPago (redirect)
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Creates a MercadoPago preference restricted to PSE and returns `redirectUrl` (`init_point`): the landing page must REDIRECT the browser there, not mount it in an iframe. The buyer picks their bank and confirms the transfer inside MercadoPago; on return, they land on `GET /api/mp/return` (our domain), which issues a 302 to the `returnUrl` sent in `POST /customer/orders` — the landing page must call `GET /customer/orders/{id}` for the authoritative status, never infer it from the return URL. The sale is confirmed by webhook when the bank settles the payment (asynchronous: it may take a while). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, or the event only charges through Bold. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
- */
-export const postCustomerOrdersIdPaymentPse = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostCustomerOrdersIdPaymentPseData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersIdPaymentPseResponse,
-		PostCustomerOrdersIdPaymentPseError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders/{id}/payment/pse",
-		...options,
-	});
-};
-
-/**
- * Release a reservation the buyer will not pay for
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Abandons the PENDING sale and returns its inventory (and its seats) to stock, so the buyer can start over without waiting for the reservation to expire. It is the counterpart of `pending_sale_in_progress`: when `POST /customer/orders` rejects with that `reason`, the landing page can offer *continue paying* (`/payment`, idempotent) or *start over* (this route). It ONLY releases with evidence that nobody started the payment: if Bold reports any transaction, if a provider response is already stored, or if the payment goes through a rail we cannot query, it responds 409 with `details.reason` = `payment_in_flight` and the sale is left intact. If the gateway does not respond, 503 (`gateway_unreachable`): retry later. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 calls per minute per buyer.
- */
-export const postCustomerOrdersIdRelease = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostCustomerOrdersIdReleaseData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersIdReleaseResponse,
-		PostCustomerOrdersIdReleaseError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders/{id}/release",
-		...options,
-	});
-};
-
-/**
- * Status of a headless purchase (and its tickets, once paid)
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). `{id}` accepts the `reference` (FT-…) or the sale id. If the sale is still PENDING and its payment goes through Bold, the authoritative payment status is re-read from Bold; between re-reads it responds with the internal status, which the webhook keeps up to date. `status` is `approved`, `pending` or `rejected`; `pending` is a NORMAL state (asynchronous payment methods take time) and the landing page must retry. `tickets` —with each ticket's `ticketCode`— is only present when `status` is `approved`. The purchase must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. The route MAY rate-limit polling and respond 429: honor `Retry-After` and apply backoff. Polling every ~2 s fits comfortably, but do not treat any threshold as a guarantee.
- */
-export const getCustomerOrdersId = <ThrowOnError extends boolean = false>(
-	options: Options<GetCustomerOrdersIdData, ThrowOnError>,
+export const getCustomerAddresses = <ThrowOnError extends boolean = false>(
+	options: Options<GetCustomerAddressesData, ThrowOnError>,
 ) => {
 	return (options.client ?? _heyApiClient).get<
-		GetCustomerOrdersIdResponse,
-		GetCustomerOrdersIdError,
+		GetCustomerAddressesResponse,
+		GetCustomerAddressesError,
 		ThrowOnError
 	>({
 		security: [
@@ -3851,7 +3636,123 @@ export const getCustomerOrdersId = <ThrowOnError extends boolean = false>(
 				type: "apiKey",
 			},
 		],
-		url: "/customer/orders/{id}",
+		url: "/customer/addresses",
+		...options,
+	});
+};
+
+/**
+ * Save a shipping address for the buyer
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. The address book belongs to the buyer's FreeTicket account and is shared across brands: any landing with the buyer's session sees and edits the same addresses, with any workspace's enterprise key or without a key. At most 10 addresses per buyer (409 `ADDRESS_LIMIT`). The first address is always the default; `isDefault: true` makes the new one the default and clears the previous default atomically. DANE codes are validated by shape (department 2 digits, city 5 digits starting with the department), same rule as `POST /merch/orders`.
+ */
+export const postCustomerAddresses = <ThrowOnError extends boolean = false>(
+	options: Options<PostCustomerAddressesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerAddressesResponse,
+		PostCustomerAddressesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/addresses",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Delete one of the buyer's addresses
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. The address book belongs to the buyer's FreeTicket account and is shared across brands: any landing with the buyer's session sees and edits the same addresses, with any workspace's enterprise key or without a key. Responds 204 without a body. Deleting the default address promotes the most recent remaining one to default. An address of another buyer responds 404 `ADDRESS_NOT_FOUND`, same as one that does not exist.
+ */
+export const deleteCustomerAddressesId = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteCustomerAddressesIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteCustomerAddressesIdResponse,
+		DeleteCustomerAddressesIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/addresses/{id}",
+		...options,
+	});
+};
+
+/**
+ * Update one of the buyer's addresses
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL. The address book belongs to the buyer's FreeTicket account and is shared across brands: any landing with the buyer's session sees and edits the same addresses, with any workspace's enterprise key or without a key. Partial update: omitted fields are left untouched; `null` or an empty string clears `label`, `phone` and `addressExtra`. The DANE city must belong to the department after applying the change (422). `isDefault: true` makes it the default and clears the previous one atomically; `isDefault: false` on the default moves the default to the most recent other address (if it is the only address, it stays the default). An address of another buyer responds 404 `ADDRESS_NOT_FOUND`, same as one that does not exist.
+ */
+export const patchCustomerAddressesId = <ThrowOnError extends boolean = false>(
+	options: Options<PatchCustomerAddressesIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchCustomerAddressesIdResponse,
+		PatchCustomerAddressesIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/addresses/{id}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Buyer's merch orders in the key's store
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it). Lists the session buyer's merch orders in the key's organization store only (orders from other brands never appear), newest first, 20 per page. PENDING orders whose stock reservation already expired are excluded. Response envelope is `{ data, nextCursor }` (`nextCursor` is null on the last page; pass it back as `?cursor=`; an invalid cursor responds 422 `INVALID_CURSOR`). Each item is the same `MerchOrder` returned by `POST /merch/orders/lookup`. The buyer document is never returned. Keeps working after the brand's Legend plan lapses (the orders were already placed); 404 `STORE_NOT_READY` when the brand has no store.
+ */
+export const getCustomerMerchOrders = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerMerchOrdersData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerMerchOrdersResponse,
+		GetCustomerMerchOrdersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/merch-orders",
 		...options,
 	});
 };
@@ -3943,33 +3844,6 @@ export const postCustomerPurchaseSessionsIdRelease = <
 			},
 		],
 		url: "/customer/purchase-sessions/{id}/release",
-		...options,
-	});
-};
-
-/**
- * List the organization's published videos
- * Only published videos that have finished processing (READY) in the active workspace. Does not include the playback id: to play one, request a token from `POST /content/playback-token`.
- */
-export const getContentVideos = <ThrowOnError extends boolean = false>(
-	options?: Options<GetContentVideosData, ThrowOnError>,
-) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetContentVideosResponse,
-		GetContentVideosError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/content/videos",
 		...options,
 	});
 };
@@ -6908,15 +6782,17 @@ export const putMasterQrsIdActive = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Merch store catalog of the key's brand
- * Requires an enterprise service API key (Legend headless landing, called server-side); the store is ALWAYS the one of the key's organization. Returns the store settings (brand, support, shipping fees by zone — Bogotá is DANE 11001 —, free-shipping threshold, delivery modes), the PUBLISHED products with their active variants and `stock` (units available right now, already net of open 15-minute reservations), the active pickup points (only when pickup is enabled) and the MercadoPago public key for the Payment Brick. Prices are COP integers, VAT included; the buyer pays no service fee. 403 `MERCH_STORE_LOCKED` when the brand's Legend plan is not active; 404 `STORE_NOT_READY` when the brand has no store or its onboarding is incomplete.
+ * Preview what a merch discount code takes off
+ * Requires an enterprise service API key AND a valid `X-Customer-Session`. Creates no order, consumes no use of the code and reserves no stock, so the answer is not a guarantee. It is not read-only: like the catalog and order creation, it first releases this store's expired reservations, cancelling those orders and returning their stock and code uses. It validates the code and computes the amounts for THIS store only (a code of another store does not exist here): 422 `DISCOUNT_INVALID`, 409 `DISCOUNT_EXHAUSTED`, 409 `DISCOUNT_CUSTOMER_LIMIT`, 422 `DISCOUNT_TOTAL_ZERO`, and 409 `VARIANT_UNAVAILABLE` for variants that are not on sale here. It does NOT check product rules (`membersOnly`, `maxPerCustomer`, `maxPerOrder`) or stock: `POST /merch/orders` validates those, and the code again, when the order is created. A live PENDING order of the customer that a new order would replace does not count against the code. The response has no field for the code's type, value or uses, although a client can derive the discount from the amounts. Rate limited: 30 previews/min per customer and 10 failed codes per 10 minutes per customer and per `X-Buyer-Ip`, shared with `POST /merch/orders` (429 `RATE_LIMITED`).
  */
-export const getMerchCatalog = <ThrowOnError extends boolean = false>(
-	options?: Options<GetMerchCatalogData, ThrowOnError>,
+export const postMerchDiscountCodesPreview = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostMerchDiscountCodesPreviewData, ThrowOnError>,
 ) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetMerchCatalogResponse,
-		GetMerchCatalogError,
+	return (options.client ?? _heyApiClient).post<
+		PostMerchDiscountCodesPreviewResponse,
+		PostMerchDiscountCodesPreviewError,
 		ThrowOnError
 	>({
 		security: [
@@ -6929,14 +6805,18 @@ export const getMerchCatalog = <ThrowOnError extends boolean = false>(
 				type: "apiKey",
 			},
 		],
-		url: "/merch/catalog",
+		url: "/merch/discount-codes/preview",
 		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
 /**
  * Create a merch order and reserve its stock
- * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the buyer email is the session's (it is NOT sent in the body) and the order is always linked to that customer. The order belongs to the key's organization store (variant ids from another store respond 409 `VARIANT_UNAVAILABLE`). Creates a PENDING order and reserves the stock for 15 minutes, all-or-nothing: if any variant lacks units nothing is reserved (409 `OUT_OF_STOCK` with `details: [{ variantId, requested, available }]`). Prices, shipping and totals are computed server-side from the catalog (`total = subtotal + shippingFee`; shipping is 0 for pickup or above the free-shipping threshold). `max_per_order` is per product, adding all its variants (422 `MAX_PER_ORDER`); a delivery mode that is disabled, or an inactive pickup point, responds 422 `DELIVERY_UNAVAILABLE`. DANE codes are validated by shape (department 2 digits, city 5 digits starting with the department). Accepts `Idempotency-Key` (unique per store): retrying with the same key returns the order created on the first attempt (201 with `Idempotent-Replay: true`) without reserving stock again; the replay is only returned to the same customer as the original order (otherwise 422 `IDEMPOTENCY_KEY_REUSED`). A customer with a live PENDING order in the store who places another one REPLACES it (the previous order is cancelled and its stock returned in the same transaction), unless that order already has a payment attempt in flight (409 `ACTIVE_ORDER_EXISTS`). A live PENDING order of ANOTHER customer with the same phone (normalized to E.164, any country code) also responds 409 `ACTIVE_ORDER_EXISTS` (the existing order is never revealed). Optional `X-Buyer-Ip` (the buyer's IPv4/IPv6, sent by the landing server-to-server; invalid values are ignored): at most 10 orders per 10 minutes per store and IP (429 `RATE_LIMITED`). Rate limited: 5 orders/min per customer (429 `RATE_LIMITED` with `Retry-After`). 403 `MERCH_STORE_LOCKED` without an active Legend plan; 404 `STORE_NOT_READY` without a ready store. The buyer document is never returned.
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the buyer email is the session's (it is NOT sent in the body) and the order is always linked to that customer. The order belongs to the key's organization store (variant ids from another store respond 409 `VARIANT_UNAVAILABLE`). Creates a PENDING order and reserves the stock for 15 minutes, all-or-nothing: if any variant lacks units nothing is reserved (409 `OUT_OF_STOCK` with `details: [{ variantId, requested, available }]`). Prices, shipping and totals are computed server-side from the catalog (`total = subtotal - discountAmount + shippingFee`; shipping is 0 for pickup or above the free-shipping threshold). `maxPerOrder` is per product, adding all its variants (422 `MAX_PER_ORDER`). A product may also cap the units per person across ALL their orders that are not cancelled or refunded, matching by email or customer, and by buyer document or phone only on orders that are no longer PENDING; a cancelled order whose charge can still appear also counts (422 `MAX_PER_CUSTOMER` with `details: { productIds }`). On those products a customer can use at most 2 distinct documents in the store (422 `TOO_MANY_DOCUMENTS`). The document must be digits for CC, TI and NIT; separators and leading zeros are ignored when comparing; a delivery mode that is disabled, or an inactive pickup point, responds 422 `DELIVERY_UNAVAILABLE`. DANE codes are validated by shape (department 2 digits, city 5 digits starting with the department). Accepts `Idempotency-Key` (unique per store): retrying with the same key returns the order created on the first attempt (201 with `Idempotent-Replay: true`) without reserving stock again; the replay is only returned to the same customer as the original order (otherwise 422 `IDEMPOTENCY_KEY_REUSED`). A customer with a live PENDING order in the store who places another one REPLACES it (the previous order is cancelled and its stock returned in the same transaction), unless that order already has a payment attempt in flight (409 `ACTIVE_ORDER_EXISTS`). A live PENDING order of ANOTHER customer with the same phone (normalized to E.164, any country code) also responds 409 `ACTIVE_ORDER_EXISTS` (the existing order is never revealed). Optional `X-Buyer-Ip` (the buyer's IPv4/IPv6, sent by the landing server-to-server; invalid values are ignored): at most 10 orders per 10 minutes per store and IP (429 `RATE_LIMITED`). Rate limited: 5 orders/min per customer (429 `RATE_LIMITED` with `Retry-After`). Optional `discountCode`, validated server-side against THIS store only (a code of another store, or of the ticketing checkout, does not exist here): it applies to the products, never to shipping, and the free-shipping threshold is evaluated BEFORE the discount. Unknown, inactive or out-of-dates code: 422 `DISCOUNT_INVALID`; no uses left: 409 `DISCOUNT_EXHAUSTED`; this customer already used it as many times as the code allows: 409 `DISCOUNT_CUSTOMER_LIMIT`; a code that would leave the total at 0: 422 `DISCOUNT_TOTAL_ZERO`. Nothing is reserved on any of those. A rejection for the code leaves the previous PENDING order of the customer alive. The use returns to the code if the order expires unpaid or the customer replaces it with another order; it does NOT return on a refund. 10 failed codes per 10 minutes per customer and per `X-Buyer-Ip` respond 429 `RATE_LIMITED`. `POST /merch/discount-codes/preview` shows the result without creating the order. A product marked `membersOnly` in the catalog can only be ordered by a buyer with an active membership in the store's organization (403 `MEMBERS_ONLY` with `details: { productIds }`); a guest has no session and gets the 401 above. 403 `MERCH_STORE_LOCKED` without an active Legend plan; 404 `STORE_NOT_READY` without a ready store (no onboarding or no connected MercadoPago account). `mpPublicKey` is the public key of the brand's own MercadoPago account. The buyer document is never returned.
  */
 export const postMerchOrders = <ThrowOnError extends boolean = false>(
 	options: Options<PostMerchOrdersData, ThrowOnError>,
@@ -6957,6 +6837,209 @@ export const postMerchOrders = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/merch/orders",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * List the merch store's products (all statuses)
+ * Roles: `ADMIN`, `SUPER_ADMIN` or `MERCH_MANAGER` in the active workspace (`X-Workspace-Id`). The store is ALWAYS the one of the workspace's organization. Returns every non-deleted product, DRAFT and PUBLISHED, with its non-deleted variants (active or not), in display order. Prices are COP integers, VAT included; `stock` is the units available right now.
+ *
+ * Errors (`error.code`):
+ * - 400 `BAD_REQUEST`: the body is not valid JSON (endpoints with a body).
+ * - 403 `FORBIDDEN`: the key's role cannot manage the store catalog (allowed: `ADMIN`, `SUPER_ADMIN`, `MERCH_MANAGER`).
+ * - 403 `MERCH_STORE_LOCKED`: the brand's settlement workspace has no active Legend plan.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `STORE_NOT_FOUND`: the workspace's organization has no merch store yet (it is created from the dashboard).
+ */
+export const getMerchProducts = <ThrowOnError extends boolean = false>(
+	options?: Options<GetMerchProductsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetMerchProductsResponse,
+		GetMerchProductsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/products",
+		...options,
+	});
+};
+
+/**
+ * Create a merch product with its options and variants
+ * Roles: `ADMIN`, `SUPER_ADMIN` or `MERCH_MANAGER` (write key). Same action as the dashboard's product creator: the product, its options and the FULL variant matrix are created in one transaction (all or nothing). The product is ALWAYS created as `DRAFT`; publish it with `PATCH /merch/products/{id}/status`. The variant labels are built by the server from the options. Photos: upload them first with `POST /merch/products/images/upload-url` and pass the `publicUrl`s in `imageUrls`, or set them afterwards with `PUT /merch/products/{id}/images`. Returns the created product.
+ *
+ * Errors (`error.code`):
+ * - 400 `BAD_REQUEST`: a dashboard rule failed (variants that do not match the options, repeated SKU, `compareAtPrice` not greater than `price`, invalid slug or SKU characters…); `message` says which.
+ * - 409 `SLUG_TAKEN`: the slug already exists in the store.
+ * - 409 `SKU_TAKEN`: a SKU is already used by another product of the store.
+ * - 422 `INVALID_IMAGE_URL`: an image URL is not a photo uploaded for this organization.
+ * - 400 `BAD_REQUEST`: the body is not valid JSON (endpoints with a body).
+ * - 403 `FORBIDDEN`: the key's role cannot manage the store catalog (allowed: `ADMIN`, `SUPER_ADMIN`, `MERCH_MANAGER`).
+ * - 403 `MERCH_STORE_LOCKED`: the brand's settlement workspace has no active Legend plan.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `STORE_NOT_FOUND`: the workspace's organization has no merch store yet (it is created from the dashboard).
+ */
+export const postMerchProducts = <ThrowOnError extends boolean = false>(
+	options: Options<PostMerchProductsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostMerchProductsResponse,
+		PostMerchProductsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/products",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Publish or unpublish a merch product
+ * Roles: `ADMIN`, `SUPER_ADMIN` or `MERCH_MANAGER` (write key). Same rules as the dashboard: idempotent (setting the current status is a no-op 200); publishing requires the store onboarding to be complete, a connected MercadoPago account and at least one active variant. A PUBLISHED product shows up in `GET /merch/catalog`; `DRAFT` hides it (existing orders are kept).
+ *
+ * Errors (`error.code`):
+ * - 404 `PRODUCT_NOT_FOUND`: no such product in this store.
+ * - 409 `STORE_NOT_ONBOARDED`: finish the store setup in the dashboard before publishing.
+ * - 409 `STORE_PAYMENTS_NOT_CONNECTED`: connect the MercadoPago account in the dashboard (Tienda → Cobros) before publishing.
+ * - 409 `NO_ACTIVE_VARIANT`: the product has no active variant.
+ * - 400 `BAD_REQUEST`: the body is not valid JSON (endpoints with a body).
+ * - 403 `FORBIDDEN`: the key's role cannot manage the store catalog (allowed: `ADMIN`, `SUPER_ADMIN`, `MERCH_MANAGER`).
+ * - 403 `MERCH_STORE_LOCKED`: the brand's settlement workspace has no active Legend plan.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `STORE_NOT_FOUND`: the workspace's organization has no merch store yet (it is created from the dashboard).
+ */
+export const patchMerchProductsIdStatus = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PatchMerchProductsIdStatusData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchMerchProductsIdStatusResponse,
+		PatchMerchProductsIdStatusError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/products/{id}/status",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Set the ordered photos of a merch product
+ * Roles: `ADMIN`, `SUPER_ADMIN` or `MERCH_MANAGER` (write key). Replaces the product's photos with `imageUrls` (in order; the first is the cover; max 10, no repeats). Each URL must be a `publicUrl` returned by `POST /merch/products/images/upload-url` for this organization, or one the product already has: the server never downloads an external URL. Photos removed from the list are deleted from storage. `[]` clears them.
+ *
+ * Errors (`error.code`):
+ * - 400 `BAD_REQUEST`: more than 10 photos, repeated or malformed URLs.
+ * - 404 `PRODUCT_NOT_FOUND`: no such product in this store.
+ * - 422 `INVALID_IMAGE_URL`: a URL is not a photo uploaded for this organization.
+ * - 400 `BAD_REQUEST`: the body is not valid JSON (endpoints with a body).
+ * - 403 `FORBIDDEN`: the key's role cannot manage the store catalog (allowed: `ADMIN`, `SUPER_ADMIN`, `MERCH_MANAGER`).
+ * - 403 `MERCH_STORE_LOCKED`: the brand's settlement workspace has no active Legend plan.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `STORE_NOT_FOUND`: the workspace's organization has no merch store yet (it is created from the dashboard).
+ */
+export const putMerchProductsIdImages = <ThrowOnError extends boolean = false>(
+	options: Options<PutMerchProductsIdImagesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).put<
+		PutMerchProductsIdImagesResponse,
+		PutMerchProductsIdImagesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/products/{id}/images",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Get a signed upload URL for a merch product photo
+ * Roles: `ADMIN`, `SUPER_ADMIN` or `MERCH_MANAGER` (write key). Returns a single-use signed `uploadUrl` in the organization's merch folder and the photo's final `publicUrl`. Flow: call this, `PUT` the file bytes to `uploadUrl` with header `Content-Type: <mimeType>` (no Authorization header), then pass `publicUrl` in `imageUrls` of `POST /merch/products` or `PUT /merch/products/{id}/images`. JPG, PNG or WebP, up to 6 MB. Rate limited to 30 URLs per 5 minutes per user (shared with the dashboard).
+ *
+ * Errors (`error.code`):
+ * - 429 `RATE_LIMITED`: too many uploads; retry after `Retry-After`.
+ * - 502 `UPLOAD_URL_FAILED`: storage did not sign the URL; retry.
+ * - 400 `BAD_REQUEST`: the body is not valid JSON (endpoints with a body).
+ * - 403 `FORBIDDEN`: the key's role cannot manage the store catalog (allowed: `ADMIN`, `SUPER_ADMIN`, `MERCH_MANAGER`).
+ * - 403 `MERCH_STORE_LOCKED`: the brand's settlement workspace has no active Legend plan.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ * - 404 `STORE_NOT_FOUND`: the workspace's organization has no merch store yet (it is created from the dashboard).
+ */
+export const postMerchProductsImagesUploadUrl = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostMerchProductsImagesUploadUrlData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostMerchProductsImagesUploadUrlResponse,
+		PostMerchProductsImagesUploadUrlError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/products/images/upload-url",
 		...options,
 		headers: {
 			"Content-Type": "application/json",
@@ -6998,7 +7081,7 @@ export const postMerchOrdersLookup = <ThrowOnError extends boolean = false>(
 
 /**
  * Charge a merch order with the Payment Brick token
- * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it). Only orders of the key's organization store that belong to the session's customer are reachable (an unknown code, a code from another brand and a code of another customer all respond the same 404 `ORDER_NOT_FOUND`). Receives the token the Payment Brick produced on the landing's domain and charges through the MercadoPago Orders API using the order total from the database (never one sent by the client); the reservation is extended (capped at 45 minutes after creation) before the charge. Card only. `status` is `approved`, `pending` (normal: bank authentication or processing, also for an unrecognized MercadoPago status; confirmed later by webhook — poll `/merch/orders/lookup`) or `rejected` (business decline, reason in `message`; the order stays pending until its reservation expires, so the buyer can retry with another card) — all three return 200. Responds 409 `RESERVATION_EXPIRED` when the reservation lapsed (start a new order), 409 `ORDER_NOT_PAYABLE` when the order is no longer pending, 409 `PAYMENT_IN_PROGRESS` when another charge of the order is still in flight (pending bank authentication or processing, or a concurrent request with a different token): poll `/merch/orders/lookup` instead of charging another card — a definitively rejected charge never blocks a new attempt, and retrying with the SAME token is allowed (idempotent at MercadoPago), 409 `PAYMENT_REFUNDED` when the card was approved after the reservation expired and the stock ran out (the amount is refunded automatically), 502 `PAYMENT_GATEWAY_ERROR` when MercadoPago did not answer or failed (timeout, network, 5xx): the payment may still confirm via webhook, so until it is resolved another card gets 409 `PAYMENT_IN_PROGRESS` — the block lifts when MercadoPago reports the charge rejected, or about 90 seconds later if MercadoPago has no record of it. 403 `MERCH_STORE_LOCKED` when the brand's Legend plan is not active; 404 `STORE_NOT_READY` when the brand has no store. Limited to 10 attempts per minute per API key, customer and order code (429 with `Retry-After`).
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it). Only orders of the key's organization store that belong to the session's customer are reachable (an unknown code, a code from another brand and a code of another customer all respond the same 404 `ORDER_NOT_FOUND`). Receives the token the Payment Brick produced on the landing's domain and charges it through the MercadoPago Payments API with the brand's own MercadoPago account (FreeTicket's fee is retained per order), using the order total from the database (never one sent by the client); the optional `issuerId` the Brick returns is forwarded as is; the reservation is extended (capped at 45 minutes after creation) before the charge. Card only. `status` is `approved`, `pending` (normal: bank authentication or processing, also for an unrecognized MercadoPago status; confirmed later by webhook — poll `/merch/orders/lookup`) or `rejected` (business decline, reason in `message`; the order stays pending until its reservation expires, so the buyer can retry with another card) — all three return 200. Responds 409 `RESERVATION_EXPIRED` when the reservation lapsed (start a new order), 409 `ORDER_NOT_PAYABLE` when the order is no longer pending, 409 `PAYMENT_IN_PROGRESS` when another charge of the order is still in flight (pending bank authentication or processing, or a concurrent request with a different token): poll `/merch/orders/lookup` instead of charging another card — a definitively rejected charge never blocks a new attempt, and retrying with the SAME token is allowed (idempotent at MercadoPago), 409 `MERCH_PAYMENTS_UNAVAILABLE` when the brand's MercadoPago account cannot charge right now (its authorization was revoked or expired): nothing was charged and this is NOT a declined card — do not show a rejection, tell the buyer the store cannot take payments for the moment, 409 `PAYMENT_REFUNDED` when the card was approved after the reservation expired and the stock ran out (the amount is refunded automatically), 409 `PAYMENT_REFUND_PENDING` when that happened but the automatic refund was REJECTED (the brand's MercadoPago account could not return it): the buyer was charged and has NOT been refunded yet, so tell them to contact the brand's support with the order code (the message includes the brand's support contact) instead of saying it was refunded, 502 `PAYMENT_GATEWAY_ERROR` when MercadoPago did not answer or failed (timeout, network, 5xx): the payment may still confirm via webhook, so until it is resolved another card gets 409 `PAYMENT_IN_PROGRESS` — the block lifts when MercadoPago reports the charge rejected, or about 90 seconds later if MercadoPago has no record of it. 403 `MERCH_STORE_LOCKED` when the brand's Legend plan is not active; 404 `STORE_NOT_READY` when the brand has no store or no connected MercadoPago account. Limited to 10 attempts per minute per API key, customer and order code (429 with `Retry-After`).
  */
 export const postMerchOrdersCodePaymentCard = <
 	ThrowOnError extends boolean = false,
@@ -7026,5 +7109,334 @@ export const postMerchOrdersCodePaymentCard = <
 			"Content-Type": "application/json",
 			...options?.headers,
 		},
+	});
+};
+
+/**
+ * Refund a sale (moving the funds depends on the payment gateway)
+ * Marks the sale as REFUNDED and releases the associated numbered seats. IMPORTANT: whether the money goes back to the buyer depends on the payment gateway and the payment method used. Sales charged through MercadoPago are fully refunded against the MercadoPago API (stable idempotency key per sale, so retries never refund twice) and marked only once MercadoPago confirms. A 503 GATEWAY_REFUND_PENDING means MercadoPago did not answer clearly: the sale stays CONFIRMED and repeating the same call is safe. Sales charged through Wompi by CARD are voided against the payment gateway before being marked. In every other case this endpoint does NOT trigger the actual refund: the money is NOT returned automatically and a 200 only confirms the accounting status change. Those refunds must be handled separately in the payment gateway's dashboard. PARTIAL REFUND BY TICKET: send `items` with the ids of the sale items to refund (the `id` field of GET /sales/{id}/tickets). Each item refunds its prorated share of the sale total (by item subtotal; shares always add up to the exact total). The refunded tickets are invalidated at the door and their quota returns to stock; when no live item remains the sale becomes REFUNDED. Only MercadoPago (or uncharged / cash sales) support partial refunds: Wompi and Bold answer 409 GATEWAY_REFUND_NOT_SUPPORTED. Items already checked in answer 409 ITEM_ALREADY_CHECKED_IN — also for a FULL refund (no `items`, or all of them): a sale with any checked-in ticket is never refunded whole; refund the unused tickets by item; items from another sale answer 422 ITEM_NOT_IN_SALE; a refund already in flight over the same items answers 409 REFUND_IN_PROGRESS (retry exactly the same items). `block_seats: true` (also valid for a full refund) keeps the refunded numbered seats OUT of sale: seats.io moves them from booked straight to a blocked status, never through free. The `refund` object in the response reports the refunded amount and what happened to the seats. Wompi payment methods without API refunds (PSE, Nequi, Bancolombia transfer) respond 409: return the money in the Wompi dashboard and repeat the call with {"acknowledge_manual": true} to reflect the accounting status. A 502 means the gateway rejected the void and the sale remains CONFIRMED.
+ */
+export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
+	options: Options<PostSalesIdRefundData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSalesIdRefundResponse,
+		PostSalesIdRefundError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/refund",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Transfer one ticket of a sale to another person (destructive)
+ * DESTRUCTIVE: changes the ticket holder and voids the previous QR code (the ticket code is rotated and any installed Apple Wallet pass stops working). The new holder receives the ticket by email and the buyer is notified. Same rules as the dashboard and the buyer: the recipient must already have a verified FreeTicket buyer account (the holder name comes from that account), each ticket can be transferred only once (no staff override) and only until the show starts. 422 RECIPIENT_NOT_REGISTERED / SELF_TRANSFER: fix the recipient. 409 NOT_CONFIRMED, ALREADY_TRANSFERRED, CHECKED_IN, REFUNDED, ADDON, PRESALE_NOT_TRANSFERABLE, MULTI_QUANTITY, EVENT_STARTED or CONFLICT (the ticket changed in flight; re-read and retry). Not idempotent: a retry after success answers 409 ALREADY_TRANSFERRED. Minimum role: `ADMIN`.
+ */
+export const postSalesIdItemsItemIdTransfer = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostSalesIdItemsItemIdTransferData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSalesIdItemsItemIdTransferResponse,
+		PostSalesIdItemsItemIdTransferError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/items/{itemId}/transfer",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Correct the recipient of a courtesy sale and resend its tickets
+ * DESTRUCTIVE when the email changes (previous QR codes are voided). Only for courtesy sales issued from the dashboard (confirmed, `is_courtesy`); any other sale answers 404. Updates the recipient's name and email and resends the tickets to the corrected address. When the email changes, the ticket codes of the non-transferred tickets are rotated, so the QR codes sent to the wrong address stop working (`ticketCodesRotated: true`). Minimum role: `ADMIN`.
+ */
+export const patchSalesIdRecipient = <ThrowOnError extends boolean = false>(
+	options: Options<PatchSalesIdRecipientData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchSalesIdRecipientResponse,
+		PatchSalesIdRecipientError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/recipient",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Resend the confirmation email with the ticket
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const postTicketsTicketCodeResend = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostTicketsTicketCodeResendData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostTicketsTicketCodeResendResponse,
+		PostTicketsTicketCodeResendError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/tickets/{ticketCode}/resend",
+		...options,
+	});
+};
+
+/**
+ * The purchase the buyer left unfinished for this event date
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, results are additionally scoped to the workspace pinned to it; without a key, any of the buyer's own unfinished purchases is visible. Returns the PENDING sale whose inventory hold is STILL ALIVE that the buyer has for that event date —with its seats, its total and when it expires—, or `order: null` if there is none. This is what lets reloading the checkout, or coming back from signing in, RESUME the purchase instead of starting from scratch: the seats remain held in that person's name. If `paymentOpened` is true the payment is already open and `POST /customer/orders/{id}/payment` returns the SAME signed configuration; to discard it and pick other seats, use `POST /customer/orders/{id}/release`.
+ */
+export const getCustomerOrders = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerOrdersData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerOrdersResponse,
+		GetCustomerOrdersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders",
+		...options,
+	});
+};
+
+/**
+ * Create the ticket reservation (step 1 of the headless purchase)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the date and the ticket type must belong to the workspace pinned to it (anything else is 404); without a key, it is enough for the ticket type to exist and be on sale (same eligibility as the first-party checkout). Reserves inventory and creates the PENDING sale with the SAME rules as the first-party checkout (stock under lock, seats validated against seats.io, per-buyer limit, presale, memberships and virtual queue turn). The buyer email comes from the session, never from the body. Rejections carry a stable `reason` in `error.details.reason` (`sold_out`, `queue_turn_required`, `seats_not_held`, `members_only`, `members_only_withdrawn` — a members-only ticket whose artist withdrew the permission or left the lineup: it is no longer sold even to members —, …). With `pending_sale_in_progress` the inventory is taken by a half-paid purchase FROM THE SAME buyer: `error.details.pendingSaleId` and `pendingReference` identify it, and the right step is to reopen its payment with `POST /customer/orders/{pendingSaleId}/payment` (idempotent) instead of reserving again. If `free` is true the sale is already confirmed and `/payment` must NOT be called. Next step: `POST /customer/orders/{id}/payment`.
+ */
+export const postCustomerOrders = <ThrowOnError extends boolean = false>(
+	options: Options<PostCustomerOrdersData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersResponse,
+		PostCustomerOrdersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Open payment for a reservation (Bold or MercadoPago, depending on the event)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). The payment rail is chosen on the SERVER: Bold-eligible events (legend plan + allowlist) return the SIGNED configuration of the embedded Bold Payment Button (`apiKey` + `renderMode: "embedded"` + `integritySignature`, …), which the landing page mounts with `new BoldCheckout({...})`; all others return `publicKey` + `amount` + `currency` + `reference` + `payerEmail` to mount the MercadoPago Payment Brick (`POST .../payment/card` to charge, `POST .../payment/pse` for PSE). The landing page tells the rails apart by the SHAPE of the response (`apiKey`/`renderMode` ⇒ Bold, `publicKey` ⇒ MercadoPago), never by a separate flag. The sale must belong to the session buyer (and, with a key, to the workspace pinned to it): anything else is 404. Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, or (Bold only) the event has no legend plan or a payment attempt is already in flight with another gateway. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
+ */
+export const postCustomerOrdersIdPayment = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdPaymentData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdPaymentResponse,
+		PostCustomerOrdersIdPaymentError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/payment",
+		...options,
+	});
+};
+
+/**
+ * Charge with the MercadoPago Payment Brick token
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Receives the token the Payment Brick produced on the landing page's domain and charges through the Orders API using the sale amount (never one sent by the client); `payer.email` travels in the body but is ignored — the payer is ALWAYS the sale's. `status` is `approved`, `pending` (normal, may require additional authentication from the bank) or `rejected` (business decline; the reason is in `message`) — all three are returned with 200. With `rejected`, `saleAlive` tells what happened to the purchase: `false` = it was cancelled and a new one must be started; `true` = this payment was declined but the purchase is still pending because another payment is in progress on it (do not start a new purchase: wait and check the order). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, the event only charges through Bold, or MercadoPago returned an error that cannot be classified as a decline. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 attempts per minute per buyer (429 with `Retry-After`).
+ */
+export const postCustomerOrdersIdPaymentCard = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdPaymentCardData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdPaymentCardResponse,
+		PostCustomerOrdersIdPaymentCardError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/payment/card",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Open a PSE payment through MercadoPago (redirect)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Creates a MercadoPago preference restricted to PSE and returns `redirectUrl` (`init_point`): the landing page must REDIRECT the browser there, not mount it in an iframe. The buyer picks their bank and confirms the transfer inside MercadoPago; on return, they land on `GET /api/mp/return` (our domain), which issues a 302 to the `returnUrl` sent in `POST /customer/orders` — the landing page must call `GET /customer/orders/{id}` for the authoritative status, never infer it from the return URL. The sale is confirmed by webhook when the bank settles the payment (asynchronous: it may take a while). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, or the event only charges through Bold. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
+ */
+export const postCustomerOrdersIdPaymentPse = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdPaymentPseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdPaymentPseResponse,
+		PostCustomerOrdersIdPaymentPseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/payment/pse",
+		...options,
+	});
+};
+
+/**
+ * Release a reservation the buyer will not pay for
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Abandons the PENDING sale and returns its inventory (and its seats) to stock, so the buyer can start over without waiting for the reservation to expire. It is the counterpart of `pending_sale_in_progress`: when `POST /customer/orders` rejects with that `reason`, the landing page can offer *continue paying* (`/payment`, idempotent) or *start over* (this route). It ONLY releases with evidence that nobody started the payment: if Bold reports any transaction, if a provider response is already stored, or if the payment goes through a rail we cannot query, it responds 409 with `details.reason` = `payment_in_flight` and the sale is left intact. If the gateway does not respond, 503 (`gateway_unreachable`): retry later. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 calls per minute per buyer.
+ */
+export const postCustomerOrdersIdRelease = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdReleaseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdReleaseResponse,
+		PostCustomerOrdersIdReleaseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/release",
+		...options,
+	});
+};
+
+/**
+ * Status of a headless purchase (and its tickets, once paid)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). `{id}` accepts the `reference` (FT-…) or the sale id. If the sale is still PENDING and its payment goes through Bold, the authoritative payment status is re-read from Bold; between re-reads it responds with the internal status, which the webhook keeps up to date. `status` is `approved`, `pending` or `rejected`; `pending` is a NORMAL state (asynchronous payment methods take time) and the landing page must retry. `tickets` —with each ticket's `ticketCode`— is only present when `status` is `approved`. The purchase must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. The route MAY rate-limit polling and respond 429: honor `Retry-After` and apply backoff. Polling every ~2 s fits comfortably, but do not treat any threshold as a guarantee.
+ */
+export const getCustomerOrdersId = <ThrowOnError extends boolean = false>(
+	options: Options<GetCustomerOrdersIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCustomerOrdersIdResponse,
+		GetCustomerOrdersIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}",
+		...options,
 	});
 };
