@@ -1,6 +1,7 @@
 import { createClient, createConfig } from "@hey-api/client-fetch";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildServer } from "../server";
 import { registerB2bTools } from "./b2b";
 import { registerB2bWriteTools } from "./b2b-writes";
 
@@ -45,11 +46,13 @@ function setup() {
 		}),
 	);
 	const server = new McpServer({ name: "t", version: "0.0.0" });
-	registerB2bTools(server, client, {
+	const creds = {
 		apiUrl: "https://api.test",
 		apiKey: "ft_test",
-	});
-	registerB2bWriteTools(server, client);
+		customerSession: "sess_buyer",
+	};
+	registerB2bTools(server, client, creds);
+	registerB2bWriteTools(server, client, creds);
 	const tools = (
 		server as unknown as {
 			_registeredTools: Record<
@@ -102,7 +105,8 @@ describe.each([
 	},
 	{
 		tool: "merch_orders_lookup",
-		args: { code: "M-7K3Q9ZTA", customerSession: "sess_buyer" },
+		// The buyer session is the connection's credential, not an argument.
+		args: { code: "M-7K3Q9ZTA" },
 		method: "POST",
 		url: "https://api.test/api/v1/merch/orders/lookup",
 		// The buyer session travels in a header, never in the body.
@@ -126,5 +130,74 @@ describe.each([
 		for (const [k, v] of Object.entries(headers ?? {}))
 			expect(call.headers.get(k)).toBe(v);
 		if (!headers) expect(call.headers.get("X-Customer-Session")).toBeNull();
+	});
+});
+
+/**
+ * The buyer layer (customer_*): the session comes from the connection, never
+ * from the model. Boundary: the real buildServer and generated SDK, with a
+ * fake global fetch.
+ */
+describe("customer_* carry the buyer session as a credential", () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	const build = (creds: Record<string, string>) => {
+		const calls: Request[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: Request | string | URL, init?: RequestInit) => {
+				calls.push(new Request(input, init));
+				return new Response("{}", {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			}),
+		);
+		const server = buildServer({ apiUrl: "https://api.test", ...creds });
+		const tools = (
+			server as unknown as {
+				_registeredTools: Record<
+					string,
+					{
+						handler: (args: unknown, extra: unknown) => Promise<unknown>;
+						inputSchema?: { shape?: Record<string, unknown> };
+					}
+				>;
+			}
+		)._registeredTools;
+		return { calls, tools };
+	};
+
+	it("no tool takes the session as an argument", () => {
+		const { tools } = build({
+			apiKey: "ft_test",
+			customerSession: "sess_buyer",
+		});
+		for (const [name, t] of Object.entries(tools))
+			expect(
+				Object.keys(t.inputSchema?.shape ?? {}),
+				`${name} exposes the buyer session to the model`,
+			).not.toContain("customerSession");
+	});
+
+	it("sends X-Customer-Session from the credential and never the B2B key", async () => {
+		const { calls, tools } = build({
+			apiKey: "ft_test",
+			customerSession: "sess_buyer",
+		});
+		await tools.customer_tickets.handler({}, {});
+		expect(calls).toHaveLength(1);
+		expect(calls[0].url).toBe("https://api.test/api/v1/customer/tickets");
+		expect(calls[0].headers.get("X-Customer-Session")).toBe("sess_buyer");
+		expect(calls[0].headers.get("Authorization")).toBeNull();
+	});
+
+	it("registers the layer only with a buyer session", () => {
+		expect(build({ apiKey: "ft_test" }).tools.customer_me).toBeUndefined();
+		expect(build({ customerSession: "s" }).tools.customer_me).toBeDefined();
+		// merch_orders_lookup needs both credentials by contract.
+		expect(
+			build({ customerSession: "s" }).tools.merch_orders_lookup,
+		).toBeUndefined();
 	});
 });

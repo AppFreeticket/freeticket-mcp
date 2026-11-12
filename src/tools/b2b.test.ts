@@ -158,8 +158,9 @@ describe("tool registration", () => {
 		// profile, organization, ticket templates, master QRs) + the 8 from
 		// 1.33–1.36 (sales_transfer, sales_recipient_update, tickets_checkin_undo,
 		// events_viewers_add/delete, events_validators_add, staff_resend_invite,
-		// staff_access_set).
-		expect(t.length).toBe(113);
+		// staff_access_set). Minus the 6 customer_* writes, which moved to
+		// the buyer layer (./customer.ts) in 0.23.0.
+		expect(t.length).toBe(107);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",

@@ -59,13 +59,24 @@ describe("pkce", () => {
 
 describe("sealedToCreds", () => {
 	it("maps sealed payload to session creds, dropping empties", () => {
-		const c = sealedToCreds({ k: "key", w: "", a: "adm", exp: 0 }, "https://x");
+		const c = sealedToCreds({ k: "key", w: "", exp: 0 }, "https://x");
 		expect(c).toEqual({
 			apiUrl: "https://x",
 			apiKey: "key",
 			workspaceId: undefined,
-			adminSession: "adm",
 		});
+	});
+
+	it("ignores a legacy sealed admin cookie (admin_* left hosted OAuth)", () => {
+		const c = sealedToCreds({ k: "key", a: "cookie", exp: 0 }, "https://x");
+		expect(c.adminSession).toBeUndefined();
+	});
+
+	it("carries the read scope", () => {
+		expect(sealedToCreds({ k: "key", s: "read", exp: 0 }, "x").readOnly).toBe(
+			true,
+		);
+		expect(sealedToCreds({ k: "key", exp: 0 }, "x").readOnly).toBeUndefined();
 	});
 });
 

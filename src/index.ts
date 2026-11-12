@@ -12,6 +12,11 @@
  *   FT_WORKSPACE_ID   pin every call to one workspace (X-Workspace-Id header);
  *                     unset, the reads widen to every workspace the key reaches
  *   FT_ADMIN_SESSION  SUPER_ADMIN session — enables the admin_* tools (/api/admin)
+ *   FT_CUSTOMER_SESSION buyer session (X-Customer-Session) — enables customer_*
+ *   FT_READ_ONLY      "1" registers only the read-only tools
+ *
+ * ~/.freeticket/config.json is the ft CLI's plaintext file (mode 0600); the
+ * CLI does not use the OS keychain, so neither can this server.
  *
  * For the remote HTTP server (claude.ai, connectors), see `src/http.ts`.
  */

@@ -75,7 +75,12 @@ its `freeticket` server off in `/mcp` so the tools are not listed twice.
 Config precedence: env > `~/.freeticket/config.json` > default. Variables:
 `FT_API_URL` (base, without `/api/v1`), `FT_API_KEY`, `FT_WORKSPACE_ID`,
 `FT_ADMIN_SESSION` (enables the `admin_*` tools of the superadmin contract
-`/api/admin`).
+`/api/admin`), `FT_CUSTOMER_SESSION` (a buyer session: enables `customer_*`),
+`FT_READ_ONLY=1` (registers only the read-only tools).
+
+The stored session is the `ft` CLI's `~/.freeticket/config.json`: plaintext
+JSON, mode 0600. The CLI does not use the OS keychain, so this server cannot
+either; prefer a read-only key (`ft login --read-only`) on shared machines.
 
 ## Remote use over URL (HTTP)
 
@@ -93,7 +98,8 @@ many workspaces without crossing sessions. Endpoints:
 
 | Endpoint | Auth | Tools |
 |---|---|---|
-| `POST /mcp` | Bearer (OAuth token or raw API key) | `public_*` + B2B (+ `admin_*` when the credential carries it) |
+| `POST /mcp` | optional Bearer (OAuth access token issued by this server) | No token: `public_*`, and the B2B tools are listed but a call answers 401 + `WWW-Authenticate` (lazy auth: Claude shows its Connect card). With a token: `public_*` + B2B (only reads with scope `read`) |
+| `POST /mcp` + `X-Customer-Session` | buyer session header | adds `customer_*` (with or without a Bearer) |
 | `POST /mcp/public` | none | `public_*` only (buyer-side agents) |
 
 ### Connecting from claude.ai (Add custom connector)
@@ -109,10 +115,17 @@ headers). Steps:
    signs you into free-admin with your usual account and asks for approval
    (device flow, RFC 8628 — the same backend as `ft login`). No keys to paste,
    and no workspace to pick: the connection reaches **every workspace your
-   account does**. Under "Advanced options" there is still the manual form (an
-   API key for CI, the superadmin cookie for the `admin_*` tools, and a
-   workspace field if you want this connection tied to a single tenant).
-4. Credentials are sealed (AES-256-GCM, `MCP_TOKEN_SECRET`) inside the issued
+   account does**. Tick **"Solo lectura"** on that page (or request OAuth
+   scope `read`) for a read-only connection: only read tools are registered.
+   Under "Advanced options" there is still the manual form (an API key for CI
+   and a workspace field to tie the connection to a single tenant). The
+   superadmin cookie field is gone since 0.23.0: `admin_*` is stdio-only.
+4. Tokens: access 1 h, refresh 30 days rotated on every use, session capped at
+   90 days from sign-in. Each refresh re-checks the API key with free-admin,
+   so revoking the key (panel or `ft api-keys revoke`) ends the connection
+   within the hour. Being stateless, a used refresh token cannot be
+   invalidated (no replay detection) — the price of not having a database.
+5. Credentials are sealed (AES-256-GCM, `MCP_TOKEN_SECRET`) inside the issued
    token — the server persists nothing: no database, multi-tenant safe.
 
 The full standard flow: RFC 9728/8414 discovery → `/register` → `/authorize`
@@ -121,15 +134,22 @@ an external AS (for instance, once `free-admin` publishes its own).
 
 ### Direct auth (curl, your own clients)
 
+Raw API keys are **not** accepted as Bearer since 0.23.0 (401
+`invalid_token`). For scripts and CI use stdio (`FT_API_KEY`), or go through
+OAuth once and use the access token it issues. Anonymous calls need nothing:
+
 ```bash
 curl -X POST http://localhost:3333/mcp \
-  -H 'authorization: Bearer ft_live_...' \      # raw API key
-  -H 'x-workspace-id: ws_...' \                 # optional — pins it to one workspace
-  -H 'x-admin-session: <cookie>' \              # optional — enables admin_*
+  -H 'x-customer-session: <buyer session>' \    # optional — enables customer_*
   -H 'content-type: application/json' \
   -H 'accept: application/json, text/event-stream' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
+
+Anonymous traffic (`/mcp` without a token, `/mcp/public`) is limited to
+`MCP_ANON_RPM` requests per minute per IP (default 120, per instance).
+`MCP_REQUIRE_AUTH=1` turns lazy auth off (401 on any `/mcp` request without a
+token, as before 0.23.0).
 
 ### Deploying on Vercel
 
@@ -190,7 +210,7 @@ and ask for confirmation.
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
 | Landing waitlist | `waitlist_list` | `waitlist_join` |
 | Landing merch store | `merch_catalog` · `merch_orders_lookup` | — (placing and paying an order needs the buyer's ID document and the card widget) |
-| Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` |
+| Members area (buyer session) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` |
 | Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` · `content_posts_update` · `content_posts_pin` · `content_posts_delete` · `content_comments_delete` |
 | Community channels | `content_channels_list` | `content_channels_create` · `content_channels_update` · `content_channels_reorder` · `content_channels_archive` |
 | Community moderation | `content_moderation_queue` · `content_moderation_bans` · `content_member_posts_list` | `content_comments_hide` · `content_comments_unhide` · `content_comments_ignore_reports` · `content_member_posts_approve` · `content_member_posts_reject` · `content_member_posts_remove` · `content_members_ban` · `content_members_unban` |
@@ -203,10 +223,13 @@ and ask for confirmation.
 
 Minting and revoking credentials (`ft api-keys`, `ft admin tokens`) is left out
 of the MCP on purpose: an agent lists credentials to audit them, it does not
-issue them. The `customer_*` tools are for enterprise integrations: they need an
-enterprise service API key **and** the buyer's session token
-(`X-Customer-Session`). The exchange that issues that token is not a tool
-either — it mints third-party sessions.
+issue them. The `customer_*` tools speak for one buyer: they are registered
+only when the connection carries a buyer session (`X-Customer-Session` header,
+or `FT_CUSTOMER_SESSION` over stdio) and send nothing else — never the B2B key,
+and the session is never a tool argument, so it does not pass through the
+model. The exchange that issues that token is not a tool either — it mints
+third-party sessions. `merch_orders_lookup` needs both an enterprise key and
+the buyer session.
 
 `settlements_document` and `settlements_proof` return a **signed URL with a
 5-minute TTL**, not the file: the API answers 302, and following the redirect

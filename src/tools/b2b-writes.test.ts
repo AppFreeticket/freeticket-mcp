@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it } from "vitest";
 import { makeB2bClient } from "../api";
 import { registerB2bWriteTools } from "./b2b-writes";
+import { registerCustomerTools } from "./customer";
 
 const stub = makeB2bClient({ apiUrl: "http://localhost", apiKey: "test" });
 
@@ -13,6 +14,7 @@ interface Registered {
 function registered(): Record<string, Registered> {
 	const server = new McpServer({ name: "t", version: "0.0.0" });
 	registerB2bWriteTools(server, stub);
+	registerCustomerTools(server, stub);
 	// ponytail: _registeredTools is SDK-internal; if it changes, this test says so.
 	return (server as unknown as { _registeredTools: Record<string, Registered> })
 		._registeredTools;

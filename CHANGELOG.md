@@ -5,6 +5,56 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-12
+
+Auth hardening against Block's MCP playbook (OAuth, minimum scopes,
+short-lived tokens, no secrets in plaintext, no tokens in the model context).
+
+### ⚠️ Breaking
+- **Raw API keys are no longer accepted as Bearer on `/mcp`** (nor the
+  `X-Workspace-Id` / `X-Admin-Session` headers that rode with them). They get
+  401 `invalid_token`. Use OAuth, or stdio with `FT_API_KEY`. No consumer was
+  found in the repos (README curl example only).
+- **The superadmin cookie field is gone from the consent page**, and admin
+  cookies sealed by earlier tokens are ignored: `admin_*` is no longer
+  reachable over the hosted server. Use stdio with `FT_ADMIN_SESSION` until
+  free-admin issues admin credentials through a device flow.
+- **`customer_*` no longer take `customerSession` as an argument.** The buyer
+  session is a connection credential: `X-Customer-Session` header (HTTP) or
+  `FT_CUSTOMER_SESSION` (stdio). The tools are registered only when it is
+  present and send only that header (never the B2B key). Same for
+  `merch_orders_lookup`, `content_playback_token` and `waitlist_join`.
+  `customer_membership` and `customer_subscription_cancel` now require
+  `workspaceId` (it was implied by the enterprise key).
+- `/mcp` without a token no longer answers 401 upfront (lazy auth, below).
+  `MCP_REQUIRE_AUTH=1` restores the old behaviour.
+
+### Changed
+- Access tokens live **1 h** (were 30 days); refresh tokens 30 days (were 90),
+  rotated on every use, bound to their `client_id`, and never past a 90-day
+  absolute session cap. Every refresh re-validates the API key with
+  free-admin (`GET /api/v1/me`): a revoked key stops refreshing
+  (`invalid_grant`); free-admin down answers 503 `temporarily_unavailable`
+  instead of forcing a sign-in. Stateless trade-off: a used refresh token
+  cannot be invalidated, so replay is not detected (needs a store).
+- An expired or unknown Bearer is a 401 `invalid_token` (it used to be served
+  as if it were a raw API key, so the client never refreshed).
+- stdio reads the ft CLI's multi-account config (`accounts` +
+  `activeAccount`), not only the legacy top-level `apiKey`.
+
+### Added
+- OAuth scope **`read`**: a read-only connection registers only the tools
+  annotated `readOnlyHint` (fail-closed: no annotation = write). Requested
+  with `scope=read` (pre-ticks "Solo lectura" on free-admin's `/device`), the
+  manual form's checkbox, or implied by a read-scoped API key. Advertised
+  scopes: `b2b`, `read` (`admin` removed). stdio: `FT_READ_ONLY=1`.
+- Lazy auth on `/mcp`: without a token it serves `public_*` and lists the B2B
+  tools; calling one answers 401 + `WWW-Authenticate` (`scope="b2b"`) before
+  the SDK runs, which is what makes Claude show its Connect card.
+- Per-IP rate limit for anonymous traffic (`MCP_ANON_RPM`, default 120/min,
+  in memory per instance) with 429 + `Retry-After`. Anonymous `GET /mcp`
+  answers 405 (no SSE stream, see #29).
+
 ## [0.20.0] - 2026-11-03
 
 Brings the B2B contract to **1.36.0** (superadmin 1.8.0 and public 0.10.1

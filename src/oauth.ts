@@ -5,11 +5,23 @@
  * discovery (RFC 8414/9728) → dynamic client registration (RFC 7591) →
  * authorize with PKCE → token. It cannot send custom headers or an API key.
  *
- * This module is the bridge: a consent page where the user supplies their
- * FreeTicket credentials (B2B API key, workspace, superadmin session) and a
+ * This module is the bridge: a consent page where the user signs in with their
+ * FreeTicket account (device flow) or, for CI, pastes a B2B API key, and a
  * **stateless** token issuer — the token is the credential payload sealed with
  * AES-256-GCM under MCP_TOKEN_SECRET. There is no database and no client
  * registry; the server stores nothing.
+ *
+ * Token lifetimes (Block MCP playbook: short-lived access, rotating refresh):
+ *  - access  1 h  (ACCESS_TTL). Claude refreshes ahead of expiry.
+ *  - refresh 30 d (REFRESH_TTL), rotated on every use, and never past the
+ *    absolute session cap of 90 d from the original sign-in (SESSION_TTL).
+ * Trade-off of staying stateless: a used refresh token cannot be invalidated
+ * (no store to remember it), so replay of a stolen refresh token is not
+ * detected. What bounds it instead: every refresh re-validates the sealed API
+ * key against free-admin (GET /api/v1/me), so revoking the key in the panel
+ * or with `ft api-keys revoke` kills the connection within one access TTL, and
+ * the absolute cap ends every session. Reuse detection needs a store (KV, or
+ * an authorization server in free-admin behind FT_OAUTH_ISSUER).
  *
  * The consent page copy is in Spanish on purpose: it is the login screen a
  * FreeTicket organizer sees, and their product language is Spanish. Everything
@@ -33,8 +45,13 @@ export interface Sealed {
 	k?: string;
 	/** workspace id */
 	w?: string;
-	/** superadmin session (better-auth cookie) */
+	/** superadmin session (better-auth cookie). LEGACY: no longer sealed and
+	 * ignored when opened — admin_* no longer travels through hosted OAuth. */
 	a?: string;
+	/** granted scope: "read" = read-only connection. Absent = read/write. */
+	s?: "read";
+	/** absolute session end (epoch s): refresh rotation never extends past it */
+	ae?: number;
 	/** PKCE code_challenge — solo en authorization codes */
 	ch?: string;
 	/** redirect_uri — solo en authorization codes */
@@ -56,8 +73,9 @@ export interface Sealed {
 export const ACCESS_PREFIX = "ftmcp_";
 export const REFRESH_PREFIX = "ftr_";
 export const CODE_PREFIX = "ftc_";
-export const ACCESS_TTL = 30 * 24 * 3600;
-export const REFRESH_TTL = 90 * 24 * 3600;
+export const ACCESS_TTL = 3600;
+export const REFRESH_TTL = 30 * 24 * 3600;
+export const SESSION_TTL = 90 * 24 * 3600;
 export const CODE_TTL = 300;
 export const CLIENT_PREFIX = "ftcl_";
 export const CLIENT_TTL = 10 * 365 * 24 * 3600;
@@ -185,13 +203,36 @@ export function pkceMatches(verifier: string, challenge: string): boolean {
 	);
 }
 
+/**
+ * Session credentials from a sealed token. `a` (a pasted superadmin cookie,
+ * sealed by versions before 0.23.0) is dropped on purpose: the admin layer no
+ * longer comes through hosted OAuth.
+ */
 export function sealedToCreds(p: Sealed, apiUrl: string): Creds {
 	return {
 		apiUrl,
 		apiKey: p.k || undefined,
 		workspaceId: p.w || undefined,
-		adminSession: p.a || undefined,
+		...(p.s === "read" ? { readOnly: true } : {}),
 	};
+}
+
+/** OAuth scopes this server grants. `read` = only the read-only tools. */
+export const SCOPES = ["b2b", "read"] as const;
+
+/**
+ * Whether a requested `scope` asks for a read-only connection. Only an
+ * explicit `read` without `b2b` does: Claude requests every scope in
+ * scopes_supported when it has no hint, and that must keep meaning read/write.
+ */
+export function wantsReadOnly(scope: string | null | undefined): boolean {
+	const set = new Set((scope ?? "").split(/\s+/).filter(Boolean));
+	return set.has("read") && !set.has("b2b");
+}
+
+/** The `scope` string a token response reports. */
+export function grantedScope(p: Pick<Sealed, "s">): string {
+	return p.s === "read" ? "read" : "b2b";
 }
 
 /** RFC 8414 metadata for the embedded authorization server. */
@@ -205,7 +246,7 @@ export function authServerMetadata(origin: string) {
 		grant_types_supported: ["authorization_code", "refresh_token"],
 		code_challenge_methods_supported: ["S256"],
 		token_endpoint_auth_methods_supported: ["none"],
-		scopes_supported: ["b2b", "admin"],
+		scopes_supported: [...SCOPES],
 	};
 }
 
@@ -217,7 +258,7 @@ const esc = (s: string) =>
  * the device flow (RFC 8628, the same backend as `ft login`) — one
  * botón, cero keys. La página hace polling a /device-token y redirige sola al
  * cliente MCP. El form de credenciales manuales queda como "Opciones
- * avanzadas" (CI, superadmin). Copy en español neutro (audiencia LATAM).
+ * avanzadas" (CI). Copy en español neutro (audiencia LATAM).
  *
  * Diseño = tokens de free-admin (globals.css): amarillo #ffd500 sobre negro
  * #070707, muted #717182, borde #e0e0e0, radios 0.75rem card / 0.5rem botón,
@@ -257,8 +298,7 @@ export function consentPage(
     <input type="password" name="api_key" autocomplete="off">
     <label>Workspace ID <small>(opcional — solo si quieres atar esta conexión a un único workspace; en blanco los lee todos)</small></label>
     <input type="text" name="workspace_id" autocomplete="off">
-    <label>Sesión superadmin <small>(opcional — cookie <code>better-auth.session_token</code>, habilita los tools admin)</small></label>
-    <input type="password" name="admin_session" autocomplete="off">
+    <label class="check"><input type="checkbox" name="read_only" value="1"${wantsReadOnly(params.get("scope")) ? " checked" : ""}> Solo lectura <small>(el asistente solo verá herramientas de consulta)</small></label>
     ${hidden}
     <button type="submit" class="secondary">Autorizar con credenciales</button>
   </form>`;
@@ -280,6 +320,7 @@ export function consentPage(
 				ru: params.get("redirect_uri") ?? "",
 				ch: params.get("code_challenge") ?? "",
 				st: params.get("state") ?? "",
+				sc: params.get("scope") ?? "",
 				// `<` escaped: these come from the query string, and a raw
 				// "</script>" in state or code_challenge would end this block.
 			}).replace(/</g, "\\u003c")};
@@ -290,7 +331,7 @@ export function consentPage(
         fetch("/device-token", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ client_id: cfg.ci, redirect_uri: cfg.ru, code_challenge: cfg.ch, state: cfg.st, ...body }),
+          body: JSON.stringify({ client_id: cfg.ci, redirect_uri: cfg.ru, code_challenge: cfg.ch, state: cfg.st, scope: cfg.sc, ...body }),
         }).then((r) => r.json());
       const finish = (j) => {
         if (j.redirect) { status.textContent = "Conectado. Volviendo…"; location.href = j.redirect; return true; }
@@ -336,6 +377,7 @@ export function consentPage(
   p{color:var(--muted-foreground);font-size:.85rem;line-height:1.45;margin:.25rem 0 1rem}
   label{display:block;font-size:.8rem;font-weight:500;margin:.85rem 0 .3rem}
   label small{color:var(--muted-foreground);font-weight:400}
+  label.check{display:flex;gap:.5rem;align-items:center;font-weight:400}
   code{font-family:ui-monospace,monospace;font-size:.75rem}
   input[type=text],input[type=password]{width:100%;background:var(--input-background);
     border:1px solid var(--border);border-radius:var(--radius-button);color:var(--foreground);

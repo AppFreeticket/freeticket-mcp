@@ -17,25 +17,71 @@ export interface Creds {
 	workspaceId?: string;
 	adminSession?: string;
 	adminApiUrl?: string;
+	/**
+	 * Buyer session (headless SSO / buyer OTP), sent as `X-Customer-Session`.
+	 * Enables the customer_* layer. It is a credential, never a tool argument:
+	 * the buyer's token must not pass through the model context.
+	 */
+	customerSession?: string;
+	/** Read-only connection (OAuth scope `read`): only readOnly tools register. */
+	readOnly?: boolean;
+}
+
+interface CliFile {
+	apiUrl?: string;
+	apiKey?: string;
+	workspaceId?: string;
+	activeAccount?: string;
+	accounts?: Record<
+		string,
+		{ apiKey?: string; apiUrl?: string; workspaceId?: string }
+	>;
 }
 
 /**
  * Config shared with the `ft` CLI: env > ~/.freeticket/config.json > default.
  * That way `ft login` (the browser device flow) also authenticates the MCP over
- * stdio.
+ * stdio. Reads both layouts the CLI writes: the legacy top-level `apiKey`, and
+ * the multi-account one (`accounts`, pinned by `activeAccount`, or the only
+ * stored account). With several accounts and none pinned, no key is in effect
+ * — the same rule as the CLI.
+ *
+ * The file is plaintext JSON (mode 0600, written by the CLI): the OS keychain
+ * is not used because the CLI does not store there. Tracked in
+ * AppFreeticket/freeticket-cli#57.
  */
-function cliConfig(): {
+export function cliConfig(raw?: string): {
 	apiUrl?: string;
 	apiKey?: string;
 	workspaceId?: string;
 } {
+	let file: CliFile;
 	try {
-		return JSON.parse(
-			readFileSync(join(homedir(), ".freeticket", "config.json"), "utf8"),
+		file = JSON.parse(
+			raw ??
+				readFileSync(join(homedir(), ".freeticket", "config.json"), "utf8"),
 		);
 	} catch {
 		return {};
 	}
+	if (!file || typeof file !== "object") return {};
+	if (file.apiKey)
+		return {
+			apiUrl: file.apiUrl,
+			apiKey: file.apiKey,
+			workspaceId: file.workspaceId,
+		};
+	const accounts = Object.values(file.accounts ?? {});
+	const only = file.activeAccount
+		? file.accounts?.[file.activeAccount]
+		: accounts.length === 1
+			? accounts[0]
+			: undefined;
+	return {
+		apiUrl: only?.apiUrl ?? file.apiUrl,
+		apiKey: only?.apiKey,
+		workspaceId: only?.workspaceId,
+	};
 }
 
 /** Normalizes the base: accepts FT_API_URL with or without /api/v1 (older versions). */
@@ -59,6 +105,8 @@ export function credsFromEnv(): Creds {
 		workspaceId: process.env.FT_WORKSPACE_ID ?? stored.workspaceId,
 		adminSession: process.env.FT_ADMIN_SESSION,
 		adminApiUrl: process.env.FT_ADMIN_API_URL,
+		customerSession: process.env.FT_CUSTOMER_SESSION || undefined,
+		readOnly: process.env.FT_READ_ONLY === "1" || undefined,
 	};
 }
 
@@ -71,6 +119,21 @@ export function makeB2bClient(c: Creds): Client {
 				Authorization: `Bearer ${c.apiKey}`,
 				...(c.workspaceId ? { "X-Workspace-Id": c.workspaceId } : {}),
 			},
+		}),
+	);
+}
+
+/**
+ * Isolated buyer client: `X-Customer-Session` and nothing else. The B2B API key
+ * never rides along — the buyer layer and the workspace layer do not mix
+ * (/api/v1/customer/* takes the key as optional, and a non-enterprise key
+ * would turn every call into a 403).
+ */
+export function makeCustomerClient(c: Creds): Client {
+	return createClient(
+		createConfig({
+			baseUrl: `${c.apiUrl}/api/v1`,
+			headers: { "X-Customer-Session": c.customerSession ?? "" },
 		}),
 	);
 }
