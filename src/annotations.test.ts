@@ -45,6 +45,16 @@ const POST_READS: Record<string, string> = {
 };
 
 /**
+ * GETs that write server-side, so they are not announced as reads. Each with
+ * what the GET writes.
+ */
+const GET_WRITES: Record<string, string> = {
+	content_channels_list:
+		"GET /content/channels creates the default Announcements and General " +
+		"channels on a workspace that has none (listChannelsCore)",
+};
+
+/**
  * Tools that bypass the generated SDK, with the method they send. Both are
  * 302s to a signed URL, which the generated client would follow.
  */
@@ -80,10 +90,12 @@ const DESTRUCTIVE = [
 	"event_artist_invitations_cancel",
 	"event_dates_access_close_sign",
 	"event_dates_delete",
+	"event_dates_update",
 	"events_artists_delete",
 	"events_artists_set",
 	"events_cancel",
 	"events_delete",
+	"events_unschedule",
 	"events_viewers_delete",
 	"master_qrs_delete",
 	"merch_products_set_images",
@@ -98,8 +110,10 @@ const DESTRUCTIVE = [
 	"sales_transfer",
 	"staff_access_set",
 	"staff_delete",
+	"staff_update_role",
 	"subscriptions_cancel",
 	"ticket_templates_delete",
+	"ticket_templates_update",
 	"ticket_types_delete",
 	"tickets_checkin_undo",
 	"tickets_reassign",
@@ -128,7 +142,8 @@ describe("tool annotations", () => {
 			.map((t) => t.name)
 			.sort();
 		// Leaving FreeTicket counts a payment gateway (Mercado Pago, Stripe),
-		// an email and Mux — see `write()` in tool-meta.ts.
+		// an email, Mux, seats.io, an outbound webhook and publishing to the
+		// public web — see `write()` in tool-meta.ts.
 		expect(open).toEqual([
 			"admin_workspaces_assign_plan",
 			"content_lives_create",
@@ -142,12 +157,20 @@ describe("tool annotations", () => {
 			"customer_subscription_cancel",
 			"event_artist_invitations_resend",
 			"event_dates_access_close_sign",
+			"event_dates_update",
 			"events_artists_set",
+			"events_publish",
+			"events_schedule",
+			"events_update",
 			"events_validators_add",
 			"events_viewers_add",
+			"merch_products_set_status",
+			"products_create",
+			"products_set_status",
 			"products_update",
 			"public_orders_create",
 			"public_tickets_resend",
+			"sales_create",
 			"sales_recipient_update",
 			"sales_refund",
 			"sales_transfer",
@@ -155,6 +178,9 @@ describe("tool annotations", () => {
 			"staff_resend_invite",
 			"subscriptions_cancel",
 			"tickets_resend",
+			"webhooks_create",
+			"webhooks_update",
+			"website_set_published",
 		]);
 	});
 
@@ -175,7 +201,9 @@ describe("tool annotations", () => {
 			const methods = DIRECT[t.name]
 				? [DIRECT[t.name]]
 				: (toolOps.get(t.name)?.ops.map((o) => o.method) ?? []);
-			const reads = methods.every((m) => m === "GET") || t.name in POST_READS;
+			const reads =
+				(methods.every((m) => m === "GET") && !(t.name in GET_WRITES)) ||
+				t.name in POST_READS;
 			return t.a.readOnlyHint === reads
 				? []
 				: [
@@ -183,6 +211,13 @@ describe("tool annotations", () => {
 					];
 		});
 		expect(wrong).toEqual([]);
+	});
+
+	it("lists only GET writes that really are GETs", () => {
+		const stale = Object.keys(GET_WRITES).filter(
+			(n) => !toolOps.get(n)?.ops.every((o) => o.method === "GET"),
+		);
+		expect(stale).toEqual([]);
 	});
 
 	it("allowlists only POST reads that really are POSTs", () => {

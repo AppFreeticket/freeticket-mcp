@@ -238,15 +238,26 @@ export function registerB2bWriteTools(
 				.nullish()
 				.describe("Minimum age classification; null = unspecified"),
 		},
-		write("events_update", { destructive: false }),
+		// openWorld: slug, images, `listedOnPortal` and the copy change the
+		// public event page and portal listing anonymous buyers see.
+		write("events_update", { destructive: false, openWorld: true }),
 		async ({ id, ...body }) =>
 			run(patchEventsId({ path: { id }, body, client })),
 	);
 	server.tool(
 		"events_publish",
-		"Publica un evento en borrador (POST /events/{id}/publish).",
+		"Publishes a DRAFT event and its dates now: its public page goes live " +
+			"and tickets go on sale (POST /events/{id}/publish). Needs a future " +
+			"date (409 `CONFLICT`). Seated events are checked against seats.io " +
+			"(409 `SEATSIO_INVALID`, 409 `SEAT_MAP_CATEGORIES_UNCOVERED`, 503 " +
+			"`SEAT_MAP_UNVERIFIABLE`). A paid event of an unverified workspace " +
+			"answers 409 `IDENTITY_VERIFICATION_REQUIRED` and publishes itself " +
+			"once the verification is approved. To publish later, use " +
+			"`events_schedule`.",
 		{ id: z.string().describe("Event id") },
-		write("events_publish", { destructive: false }),
+		// openWorld: puts the event on the public web and validates the seat
+		// map against seats.io.
+		write("events_publish", { destructive: false, openWorld: true }),
 		async ({ id }) => run(postEventsIdPublish({ path: { id }, client })),
 	);
 	server.tool(
@@ -300,7 +311,11 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"event_dates_update",
-		"Updates a date (PATCH /events/{id}/dates/{dateId}).",
+		"Updates one date of an event; absent fields are left untouched " +
+			"(PATCH /events/{id}/dates/{dateId}). Changing `startsAt` or `venueId` " +
+			"of a published event EMAILS the ticket holders about the change. " +
+			"`status: CANCELLED` cancels that date and closes its waiting room. Confirm with the user before " +
+			"rescheduling or cancelling a date that has sold tickets.",
 		{
 			eventId: z.string().describe("Event id"),
 			dateId: z.string().describe("Date id"),
@@ -326,7 +341,10 @@ export function registerB2bWriteTools(
 				.nullish()
 				.describe("Ticket cap per buyer for this date; null = no cap"),
 		},
-		write("event_dates_update", { destructive: false }),
+		// destructive: cancelling a date or moving it under people who bought
+		// for the old time is hard to walk back. openWorld: the reschedule
+		// email to ticket holders (notifyEventRescheduled).
+		write("event_dates_update", { destructive: true, openWorld: true }),
 		async ({ eventId, dateId, ...body }) =>
 			run(
 				patchEventsIdDatesDateId({
@@ -427,7 +445,13 @@ export function registerB2bWriteTools(
 	// ── Ventas y tickets ─────────────────────────────────────────────────────
 	server.tool(
 		"sales_create",
-		"Creates a programmatic sale or order — comps or a direct sale (POST /sales).",
+		"Issues tickets to a buyer without going through checkout " +
+			"(POST /sales): `comp: true` gives complimentary tickets at price 0 " +
+			"(counted apart from paid sales in reports); `comp: false` records a " +
+			"sale paid outside FreeTicket (e.g. cash at the box office). Nothing is " +
+			"charged to the buyer. The sale is created CONFIRMED with one QR per " +
+			"ticket and consumes stock; on seated events the seats are booked in " +
+			"seats.io. Requires ADMIN. Undo it with `sales_cancel`.",
 		{
 			buyer: z.object({
 				name: z.string(),
@@ -446,7 +470,8 @@ export function registerB2bWriteTools(
 			comp: z.boolean().describe("true = comp (no charge)"),
 			notes: z.string().optional(),
 		},
-		write("sales_create", { destructive: false }),
+		// openWorld: books the seats in seats.io on numbered events.
+		write("sales_create", { destructive: false, openWorld: true }),
 		async (body) => run(postSales({ body, client })),
 	);
 	server.tool(
@@ -525,7 +550,13 @@ export function registerB2bWriteTools(
 	// ── Membresías ───────────────────────────────────────────────────────────
 	server.tool(
 		"plans_create",
-		"Crea un plan de membresía (POST /membership-plans).",
+		"Creates a fan membership plan that buyers can subscribe to " +
+			"(POST /membership-plans): name, price and currency, billing cycle " +
+			"(MONTHLY, QUARTERLY, ANNUAL or LIFETIME, a one-time payment) and the " +
+			"benefits it grants (presale access, free ticket, discount, exclusive " +
+			"content, merch). `isActive: false` keeps it hidden from buyers. " +
+			"Requires ADMIN and Memberships in the plan (403 `FEATURE_LOCKED`); " +
+			"a paid price below the minimum answers 422 `VALIDATION_ERROR`.",
 		{
 			name: z.string(),
 			description: z.string().optional(),
@@ -550,7 +581,11 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"plans_update",
-		"Actualiza un plan de membresía (PATCH /membership-plans/{id}).",
+		"Edits a fan membership plan; absent fields are left untouched " +
+			"(PATCH /membership-plans/{id}). `isActive: false` hides it from " +
+			"buyers. Requires ADMIN and " +
+			"Memberships in the plan (403 `FEATURE_LOCKED`); a paid price below " +
+			"the minimum answers 422 `VALIDATION_ERROR`.",
 		{
 			id: z.string().describe("Plan id"),
 			name: z.string().optional(),
@@ -639,7 +674,11 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"staff_update_role",
-		"Changes a staff member role (PATCH /staff/{id}/role).",
+		"Changes the role of a staff member in this workspace, which sets what " +
+			"they can do: SUPER_ADMIN/ADMIN manage everything (sales, refunds, " +
+			"staff), STAFF validates tickets at the door, VIEWER only reads " +
+			"(PATCH /staff/{id}/role). Takes effect immediately; confirm with the " +
+			"user first.",
 		{
 			id: z.string().describe("Member id"),
 			role: z.enum([
@@ -651,7 +690,9 @@ export function registerB2bWriteTools(
 				"MERCH_MANAGER",
 			]),
 		},
-		write("staff_update_role", { destructive: false }),
+		// destructive: a demotion removes access the member relied on, and a
+		// promotion to ADMIN/SUPER_ADMIN hands over refunds and staff control.
+		write("staff_update_role", { destructive: true }),
 		async ({ id, role }) =>
 			run(patchStaffIdRole({ path: { id }, body: { role }, client })),
 	);
@@ -713,7 +754,9 @@ export function registerB2bWriteTools(
 				.describe("Events to subscribe to"),
 			secret: z.string().optional().describe("Secret used to sign the payload"),
 		},
-		write("webhooks_create", { destructive: false }),
+		// openWorld: from now on every subscribed sale event is POSTed to a
+		// third-party URL.
+		write("webhooks_create", { destructive: false, openWorld: true }),
 		async (body) => run(postWebhooks({ body, client })),
 	);
 	server.tool(
@@ -730,7 +773,7 @@ export function registerB2bWriteTools(
 				.optional(),
 			active: z.boolean().optional(),
 		},
-		write("webhooks_update", { destructive: true }),
+		write("webhooks_update", { destructive: true, openWorld: true }),
 		async ({ id, ...body }) =>
 			run(patchWebhooksId({ path: { id }, body, client })),
 	);
@@ -839,7 +882,9 @@ export function registerB2bWriteTools(
 					"Publish now and open sales at this instant, ISO 8601 UTC (…Z)",
 				),
 		},
-		write("events_schedule", { destructive: false }),
+		// openWorld: `saleStartsAt` publishes the event to the public web now,
+		// `publishAt` at that instant; both validate seat maps against seats.io.
+		write("events_schedule", { destructive: false, openWorld: true }),
 		async ({ id, ...body }) =>
 			run(postEventsIdSchedule({ path: { id }, body, client })),
 	);
@@ -850,7 +895,8 @@ export function registerB2bWriteTools(
 			"`saleStartsAt` schedule: edit the ticket types' `saleStartsAt` with " +
 			"`ticket_types_update` instead.",
 		{ id: z.string().describe("Event id") },
-		write("events_unschedule", { destructive: false, idempotent: true }),
+		// destructive: a launch planned for a set time silently stops happening.
+		write("events_unschedule", { destructive: true, idempotent: true }),
 		async ({ id }) => run(deleteEventsIdSchedule({ path: { id }, client })),
 	);
 
@@ -1695,7 +1741,8 @@ export function registerB2bWriteTools(
 				.default(false)
 				.describe("true creates it PUBLISHED; default DRAFT"),
 		},
-		write("products_create", { destructive: false }),
+		// openWorld: `publish: true` puts the product on the public storefront.
+		write("products_create", { destructive: false, openWorld: true }),
 		async (body) => run(postProducts({ body, client })),
 	);
 	server.tool(
@@ -1752,7 +1799,12 @@ export function registerB2bWriteTools(
 			id: z.string().describe("Product id"),
 			status: z.enum(["DRAFT", "PUBLISHED"]),
 		},
-		write("products_set_status", { destructive: false, idempotent: true }),
+		// openWorld: PUBLISHED lists it on the public storefront for sale.
+		write("products_set_status", {
+			destructive: false,
+			idempotent: true,
+			openWorld: true,
+		}),
 		async ({ id, status }) =>
 			run(postProductsIdStatus({ path: { id }, body: { status }, client })),
 	);
@@ -2034,7 +2086,12 @@ export function registerB2bWriteTools(
 			"`PROFILE_INCOMPLETE` (publishing needs brand name and profile " +
 			"photo). Requires ADMIN.",
 		{ published: z.boolean() },
-		write("website_set_published", { destructive: false, idempotent: true }),
+		// openWorld: lists or unlists the public organization page.
+		write("website_set_published", {
+			destructive: false,
+			idempotent: true,
+			openWorld: true,
+		}),
 		async ({ published }) =>
 			run(putWebsitePublished({ body: { published }, client })),
 	);
@@ -2211,7 +2268,9 @@ export function registerB2bWriteTools(
 				.describe("Replaces the whole list; absent keeps it"),
 			...templateFields,
 		},
-		write("ticket_templates_update", { destructive: false }),
+		// destructive: `fields` replaces the whole buyer form and `null` wipes
+		// an optional field; the previous values are not kept.
+		write("ticket_templates_update", { destructive: true }),
 		async ({ id, ...body }) =>
 			run(patchTicketTemplatesId({ path: { id }, body, client })),
 	);
@@ -2635,9 +2694,12 @@ export function registerB2bWriteTools(
 			id: z.string().describe("Merch product id"),
 			status: z.enum(["DRAFT", "PUBLISHED"]),
 		},
+		// openWorld: PUBLISHED sells it in the public store, paid through the
+		// organizer's Mercado Pago account.
 		write("merch_products_set_status", {
 			destructive: false,
 			idempotent: true,
+			openWorld: true,
 		}),
 		async ({ id, status }) =>
 			run(
