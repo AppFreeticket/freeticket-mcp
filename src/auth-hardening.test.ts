@@ -276,7 +276,13 @@ describe("(b) read scope", () => {
 			expect(t.annotations?.readOnlyHint, n).toBe(true);
 		for (const n of ["events_list", "customer_tickets", "public_events_list"])
 			expect(roTools[n], n).toBeDefined();
-		for (const n of ["events_create", "sales_refund", "customer_logout"]) {
+		for (const n of [
+			"events_create",
+			"sales_refund",
+			"customer_logout",
+			// A GET that seeds the default channels: not a read.
+			"content_channels_list",
+		]) {
 			expect(annotations(full)[n], n).toBeDefined();
 			expect(roTools[n], n).toBeUndefined();
 		}

@@ -552,7 +552,8 @@ export function registerB2bWriteTools(
 		"plans_create",
 		"Creates a fan membership plan that buyers can subscribe to " +
 			"(POST /membership-plans): name, price and currency, billing cycle " +
-			"(MONTHLY, QUARTERLY, ANNUAL or LIFETIME, a one-time payment) and the " +
+			"(MONTHLY, QUARTERLY, SEMIANNUAL, ANNUAL or LIFETIME, a one-time " +
+			"payment) and the " +
 			"benefits it grants (presale access, free ticket, discount, exclusive " +
 			"content, merch). `isActive: false` keeps it hidden from buyers. " +
 			"Requires ADMIN and Memberships in the plan (403 `FEATURE_LOCKED`); " +
@@ -562,7 +563,13 @@ export function registerB2bWriteTools(
 			description: z.string().optional(),
 			price: z.number(),
 			currency: z.string(),
-			billingCycle: z.enum(["MONTHLY", "QUARTERLY", "ANNUAL", "LIFETIME"]),
+			billingCycle: z.enum([
+				"MONTHLY",
+				"QUARTERLY",
+				"SEMIANNUAL",
+				"ANNUAL",
+				"LIFETIME",
+			]),
 			benefitPresale: z.boolean(),
 			benefitFreeTicket: z.boolean(),
 			benefitDiscount: z.boolean(),
@@ -593,7 +600,7 @@ export function registerB2bWriteTools(
 			price: z.number().min(0).optional(),
 			currency: z.string().optional(),
 			billingCycle: z
-				.enum(["MONTHLY", "QUARTERLY", "ANNUAL", "LIFETIME"])
+				.enum(["MONTHLY", "QUARTERLY", "SEMIANNUAL", "ANNUAL", "LIFETIME"])
 				.optional(),
 			benefitPresale: z.boolean().optional(),
 			benefitFreeTicket: z.boolean().optional(),
@@ -676,7 +683,9 @@ export function registerB2bWriteTools(
 		"staff_update_role",
 		"Changes the role of a staff member in this workspace, which sets what " +
 			"they can do: SUPER_ADMIN/ADMIN manage everything (sales, refunds, " +
-			"staff), STAFF validates tickets at the door, VIEWER only reads " +
+			"staff), STAFF validates tickets at the door, VIEWER only reads, " +
+			"MERCH_MANAGER only runs the merch store, MINCULTURA is the Ministry " +
+			"of Culture auditor that only sees the global sales report " +
 			"(PATCH /staff/{id}/role). Takes effect immediately; confirm with the " +
 			"user first.",
 		{

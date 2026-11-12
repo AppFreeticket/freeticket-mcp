@@ -150,9 +150,10 @@ export function slimEvent(event: unknown): Record<string, unknown> {
  * wrong: absent already means every workspace).
  */
 const ACROSS =
-	" By default it reads every workspace the session can access and tags " +
-	"each row with workspaceId/workspaceName; pass `workspace` with ids to " +
-	"narrow it.";
+	" Without `workspace` it reads every workspace the session can access, " +
+	"unless the session is pinned to one (then only that one); pass " +
+	"`workspace` with ids to choose. When more than one workspace is read, " +
+	"rows are tagged with workspaceId/workspaceName.";
 
 const workspaceParam = z
 	.union([z.literal("all"), z.array(z.string())])
@@ -378,7 +379,8 @@ export function registerB2bTools(
 		server,
 		"plans_list",
 		"Lists the fan membership plans an organizer sells, with price, " +
-			"currency, billing cycle (MONTHLY, QUARTERLY, ANNUAL, LIFETIME), " +
+			"currency, billing cycle (MONTHLY, QUARTERLY, SEMIANNUAL, ANNUAL, " +
+			"LIFETIME), " +
 			"benefits and whether each is active (GET /membership-plans). Use it to " +
 			`get a plan id for \`plans_get\` or \`plans_subscribers\`.${ACROSS}`,
 		{ ...paging, workspace: workspaceParam },
@@ -409,10 +411,13 @@ export function registerB2bTools(
 		"Lists discount coupons buyers can enter at checkout, with code, type " +
 			"(PERCENT or FIXED), value, uses and validity window (GET /discounts). " +
 			"Filters: `event` (coupons limited to one event) and `active` " +
-			`("true" or "false").${ACROSS}`,
+			`(true or false).${ACROSS}`,
 		{
 			event: z.string().optional().describe("Filter by event"),
-			active: z.string().optional().describe("true | false"),
+			active: z
+				.boolean()
+				.optional()
+				.describe("true = only active coupons, false = only inactive"),
 			...paging,
 			workspace: workspaceParam,
 		},

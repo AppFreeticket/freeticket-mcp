@@ -31,6 +31,9 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
   `workspace` they already read every accessible workspace. `events_publish`,
   `sales_create`, `plans_create`, `plans_update` and `staff_update_role` get
   full descriptions too.
+- `plans_create` / `plans_update` accept the `SEMIANNUAL` billing cycle the
+  contract already had, and `discounts_list` takes `active` as a boolean, as
+  the contract declares it.
 
 ## [0.24.0] - 2026-11-12
 
