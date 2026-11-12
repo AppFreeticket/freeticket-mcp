@@ -1,5 +1,11 @@
 import type { Client } from "@hey-api/client-fetch";
-import { type Creds, makeB2bClient, run } from "./api";
+import {
+	type Creds,
+	makeB2bClient,
+	okResult,
+	run,
+	type ToolResult,
+} from "./api";
 import { getMe } from "./client/sdk.gen";
 import type { WorkspaceAccess } from "./client/types.gen";
 
@@ -151,11 +157,7 @@ export async function runAcrossWorkspaces<T>(
 function fanOutContent<T>(
 	result: WorkspaceFanOutResult<T>,
 	unresolved: string[] = [],
-): {
-	content: { type: "text"; text: string }[];
-	structuredContent?: { data: unknown };
-	isError?: boolean;
-} {
+): ToolResult {
 	// A requested id that is not among the reachable ones used to be dropped
 	// silently: the agent got fewer rows with no way to tell "does not exist"
 	// from "lost access" from "has no data" (issue #13). Now it travels as an error.
@@ -171,16 +173,16 @@ function fanOutContent<T>(
 			},
 		})),
 	];
+	// The aggregate has no cursor, so the truncation hint points at narrowing
+	// instead. The view gets the rows through uiTool (structuredContent).
 	return {
-		content: [
+		...okResult(
+			{ data: result.rows, errors },
 			{
-				type: "text",
-				text: JSON.stringify({ data: result.rows, errors }, null, 2),
+				hint: (shown, total) =>
+					`Respuesta recortada a ${shown} de ${total} filas por tamaño. El modo global no pagina: nombra un solo \`workspace\` para paginar con \`limit\`/\`cursor\`, o acota con los filtros del tool.`,
 			},
-		],
-		// The aggregated rows feed the MCP Apps view exactly like a single-workspace
-		// list; partial errors live only in the text.
-		structuredContent: { data: result.rows },
+		),
 		isError: result.rows.length === 0 && errors.length > 0,
 	};
 }
@@ -229,13 +231,11 @@ export function splitLimit(
 export async function runWorkspaceList<T>(
 	ctx: WorkspaceListContext,
 	workspace: string | string[] | undefined,
-	limit: string | undefined,
+	rawLimit: string | number | undefined,
 	fn: ListFn<T>,
-): Promise<{
-	content: { type: "text"; text: string }[];
-	structuredContent?: { data: unknown };
-	isError?: boolean;
-}> {
+): Promise<ToolResult> {
+	// `limit` is a number in the schemas now (views.ts) and a string on the wire.
+	const limit = rawLimit === undefined ? undefined : String(rawLimit);
 	// An explicitly pinned session keeps meaning one workspace: whoever set the
 	// header asked for that tenant and nothing else.
 	const requested = workspace ?? (ctx.creds.workspaceId ? undefined : "all");

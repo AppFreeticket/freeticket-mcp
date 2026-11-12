@@ -21,6 +21,7 @@
  * bundled with tsup.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { withStructured } from "./api";
 import { BRAND, FAVICON_SVG } from "./brand";
 import { read } from "./tool-meta";
 
@@ -57,7 +58,8 @@ export function uiTool(
 			annotations: read(name),
 			_meta: UI_META,
 		},
-		cb,
+		// The view reads `structuredContent`; only these tools carry it (api.ts).
+		async (args: unknown) => withStructured(await cb(args)),
 	);
 }
 
@@ -429,7 +431,11 @@ const VIEW_HTML = `<!DOCTYPE html>
       sub.textContent = "";
       root.innerHTML = "<pre>" + esc(String(data ?? "")) + "</pre>";
     }
-    foot.textContent = "";
+    // A cut list says so: the view must not pass a partial page off as whole.
+    const cut = result && result.structuredContent && result.structuredContent.truncated;
+    foot.textContent = cut
+      ? "Mostrando " + cut.shown + " de " + cut.total + ". " + (cut.hint || "")
+      : "";
     // A cover the host cannot load (CSP, dead link) drops out; the card stays.
     for (const img of root.querySelectorAll("img"))
       img.onerror = () => { const c = img.closest(".cover"); if (c) c.remove(); size(); };

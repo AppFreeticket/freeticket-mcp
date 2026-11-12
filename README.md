@@ -266,8 +266,21 @@ The server implements the **`io.modelcontextprotocol/ui`** extension
 draws them.
 
 - Resource: `ui://freeticket/view.html`, mimeType `text/html;profile=mcp-app`.
-- Tools with a view point at it through `_meta.ui.resourceUri`; the result also
-  travels in `structuredContent` so the view can read it.
+- Tools with a view point at it through `_meta.ui.resourceUri`; only those carry
+  `structuredContent` (what the view reads). Every other tool returns the text
+  alone, so a host that feeds structuredContent to the model never gets the
+  payload twice.
+
+## Output budget
+
+Every result is **compact JSON** capped at `MAX_TEXT_CHARS` (25 000 chars,
+`src/api.ts`). Over the cap the largest list is cut by whole items and a
+`truncated: { shown, total, field, hint }` note says how to get the rest
+(`limit` + `cursor` when the tool pages, filters when it does not); the result
+is always valid JSON. `sales_list`, `sales_tickets`, `sales_attempts` and the
+buyer/attendee exports return a trimmed row by default — `verbose: true` returns
+it as the API sends it. Errors keep the API's `error.code` and add `status`,
+`retryable`, `retryAfterSeconds` (429) and a `hint` with the next step.
 - A single view picks the render from the shape of the payload: **array → table**
   (currency formatting, status pills, horizontal scroll), **object → KPI tiles**.
 - The HTML is self-contained: no external scripts, no fetch, no remote fonts. It

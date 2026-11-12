@@ -1,7 +1,13 @@
 import type { Client } from "@hey-api/client-fetch";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { type Creds, makeB2bClient, run } from "../api";
+import {
+	type Creds,
+	httpErrorResult,
+	makeB2bClient,
+	okResult,
+	run,
+} from "../api";
 import {
 	getApiKeys,
 	getArtists,
@@ -79,10 +85,21 @@ import {
 } from "../client/sdk.gen";
 import { read } from "../tool-meta";
 import { uiTool } from "../ui";
+import {
+	ATTENDEE_FIELDS,
+	fields,
+	limitParam,
+	SALE_ATTEMPT_FIELDS,
+	SALE_FIELDS,
+	SALE_TICKET_FIELDS,
+	slimBuyer,
+	slimResult,
+	verboseParam,
+} from "../views";
 import { makeWorkspaceResolver, runWorkspaceList } from "../workspaces";
 
 const paging = {
-	limit: z.string().optional().describe("Results per page (1-100)"),
+	limit: limitParam,
 	cursor: z.string().optional().describe("Pagination cursor"),
 };
 const id = z.string().describe("Resource id");
@@ -152,39 +169,25 @@ const workspaceParam = z
  * model's context, so we stop at the 302 and return the link for whoever should
  * open it. That is why this uses a raw fetch and not the generated client.
  */
-async function signedDownload(
-	creds: Creds,
-	path: string,
-): Promise<{
-	content: { type: "text"; text: string }[];
-	isError?: boolean;
-}> {
-	const res = await fetch(`${creds.apiUrl}/api/v1${path}`, {
-		redirect: "manual",
-		headers: {
-			Authorization: `Bearer ${creds.apiKey}`,
-			...(creds.workspaceId ? { "X-Workspace-Id": creds.workspaceId } : {}),
-		},
-	});
-	const url = res.headers.get("location");
-	if (!url)
-		return {
-			isError: true,
-			content: [
-				{
-					type: "text",
-					text: `The API did not return the signed URL (HTTP ${res.status}): ${await res.text()}`,
-				},
-			],
-		};
-	return {
-		content: [
-			{
-				type: "text",
-				text: JSON.stringify({ url, expiresInMinutes: 5 }, null, 2),
+async function signedDownload(creds: Creds, path: string) {
+	let res: Response;
+	try {
+		res = await fetch(`${creds.apiUrl}/api/v1${path}`, {
+			redirect: "manual",
+			headers: {
+				Authorization: `Bearer ${creds.apiKey}`,
+				...(creds.workspaceId ? { "X-Workspace-Id": creds.workspaceId } : {}),
 			},
-		],
-	};
+		});
+	} catch (e) {
+		// Same envelope as run() on a transport failure (#12).
+		return run(Promise.reject(e));
+	}
+	const url = res.headers.get("location");
+	// No redirect = the API answered an error (401/403/404…): same recovery
+	// hints as every other tool instead of the raw HTTP text.
+	if (!url) return httpErrorResult(res);
+	return okResult({ url, expiresInMinutes: 5 });
 }
 
 /**
@@ -303,11 +306,16 @@ export function registerB2bTools(
 			from: z.string().optional().describe("Created from (ISO 8601)"),
 			to: z.string().optional().describe("Creadas hasta (ISO 8601)"),
 			...paging,
+			verbose: verboseParam,
 			workspace: workspaceParam,
 		},
-		async ({ workspace, ...q }) =>
-			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
-				getSales({ query: { ...q, limit }, client: c }),
+		async ({ workspace, verbose, ...q }) =>
+			runWorkspaceList(ctx, workspace, q.limit, async (c, limit) =>
+				slimResult(
+					await getSales({ query: { ...q, limit }, client: c }),
+					fields(SALE_FIELDS),
+					verbose,
+				),
 			),
 	);
 	server.tool(
@@ -320,18 +328,28 @@ export function registerB2bTools(
 	server.tool(
 		"sales_tickets",
 		"Individual tickets and attendees of a sale (GET /sales/{id}/tickets).",
-		{ id: z.string().describe("Sale id") },
+		{ id: z.string().describe("Sale id"), verbose: verboseParam },
 		read("sales_tickets"),
-		async ({ id }) => run(getSalesIdTickets({ path: { id }, client })),
+		async ({ id, verbose }) =>
+			run(
+				getSalesIdTickets({ path: { id }, client }).then((r) =>
+					slimResult(r, fields(SALE_TICKET_FIELDS), verbose),
+				),
+			),
 	);
 	server.tool(
 		"sales_attempts",
 		"Payment attempt history of a sale, newest first — approved, declined or " +
 			"refunded at the gateway (GET /sales/{id}/attempts). Answers \"why didn't " +
 			'this sale go through?".',
-		{ id: z.string().describe("Sale id") },
+		{ id: z.string().describe("Sale id"), verbose: verboseParam },
 		read("sales_attempts"),
-		async ({ id }) => run(getSalesIdAttempts({ path: { id }, client })),
+		async ({ id, verbose }) =>
+			run(
+				getSalesIdAttempts({ path: { id }, client }).then((r) =>
+					slimResult(r, fields(SALE_ATTEMPT_FIELDS), verbose),
+				),
+			),
 	);
 	server.tool(
 		"tickets_access",
@@ -691,17 +709,29 @@ export function registerB2bTools(
 
 	server.tool(
 		"reports_export_buyers",
-		"Buyer export — one row per sale (GET /reports/exports/buyers).",
-		exportFilters,
+		"Buyer export — one row per sale (GET /reports/exports/buyers). Trimmed " +
+			"view by default (no phone or document); `verbose` returns every column.",
+		{ ...exportFilters, verbose: verboseParam },
 		read("reports_export_buyers"),
-		async (q) => run(getReportsExportsBuyers({ query: q, client })),
+		async ({ verbose, ...q }) =>
+			run(
+				getReportsExportsBuyers({ query: q, client }).then((r) =>
+					slimResult(r, slimBuyer, verbose),
+				),
+			),
 	);
 	server.tool(
 		"reports_export_attendees",
-		"Attendee export — one row per ticket (GET /reports/exports/attendees).",
-		exportFilters,
+		"Attendee export — one row per ticket (GET /reports/exports/attendees). " +
+			"Trimmed view by default (no phone or document); `verbose` returns every column.",
+		{ ...exportFilters, verbose: verboseParam },
 		read("reports_export_attendees"),
-		async (q) => run(getReportsExportsAttendees({ query: q, client })),
+		async ({ verbose, ...q }) =>
+			run(
+				getReportsExportsAttendees({ query: q, client }).then((r) =>
+					slimResult(r, fields(ATTENDEE_FIELDS), verbose),
+				),
+			),
 	);
 	server.tool(
 		"reports_export_subscribers",

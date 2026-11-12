@@ -11,7 +11,7 @@ import { registerB2bWriteTools } from "./tools/b2b-writes";
 import { registerPublicTools } from "./tools/public";
 import { registerUi } from "./ui";
 
-export const VERSION = "0.22.0";
+export const VERSION = "0.23.0";
 
 /**
  * Server-level guidance sent once in `initialize`. Static on purpose: no
@@ -36,6 +36,9 @@ export const INSTRUCTIONS = [
 	"- Una key read solo puede leer: las escrituras responden 403.",
 	"- Los montos están en pesos colombianos (COP), enteros y sin decimales.",
 	"- Paginación por cursor: limit (1-100) y cursor; sigue page.nextCursor mientras page.hasMore sea true.",
+	"- Las respuestas son JSON compacto con un tope de tamaño. Si una lista no cabe llega recortada con truncated: { shown, total, field, hint } y page.nextCursor en null: repite la misma llamada con el mismo cursor y limit igual a shown para seguir sin saltar filas.",
+	"- sales_list, sales_tickets, sales_attempts y los exports de compradores/asistentes devuelven una vista recortada por defecto; verbose: true trae la fila completa.",
+	"- Los errores traen error.code, status, retryable y un hint con el siguiente paso; si viene retryAfterSeconds, espera ese tiempo antes de reintentar.",
 	"- Los ids y los slugs no son intercambiables: public_* usa slug, el resto usa id.",
 	"- Las herramientas destructivas (borrar, cancelar, reembolsar, banear) se confirman con el usuario antes de ejecutarlas.",
 ].join("\n");
