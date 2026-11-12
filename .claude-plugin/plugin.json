@@ -2,7 +2,7 @@
 	"$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
 	"name": "freeticket",
 	"displayName": "FreeTicket",
-	"version": "0.21.0",
+	"version": "0.22.0",
 	"description": "Run your FreeTicket box office from Claude: events, dates, ticket types, presales, lineups, sales, check-in, memberships, venues, staff, reports and settlements, through the official FreeTicket MCP server (OAuth, no keys to paste).",
 	"author": {
 		"name": "FreeTicket",

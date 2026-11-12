@@ -109,6 +109,22 @@ describe.each([
 		body: { code: "M-7K3Q9ZTA" },
 		headers: { "X-Customer-Session": "sess_buyer" },
 	},
+	// Moderating a post never bans its author: even a stray `banAuthor: true`
+	// from the model goes out as false. Banning is `content_members_ban`.
+	{
+		tool: "content_member_posts_reject",
+		args: { id: "post_1", reason: "Spam", banAuthor: true },
+		method: "POST",
+		url: "https://api.test/api/v1/content/moderation/member-posts/post_1/reject",
+		body: { reason: "Spam", banAuthor: false },
+	},
+	{
+		tool: "content_member_posts_remove",
+		args: { id: "post_2", banAuthor: true },
+		method: "POST",
+		url: "https://api.test/api/v1/content/moderation/member-posts/post_2/remove",
+		body: { banAuthor: false },
+	},
 	// ── Contract 1.37–1.42: merch admin catalog, buyer address book ──────
 	{
 		tool: "merch_products_list",
