@@ -5,6 +5,42 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+### Fixed
+- ChatGPT custom MCP connectors ("Agregar servidor MCP personalizado")
+  redirect to a per-connector `https://chatgpt.com/connector/oauth/<id>`.
+  That exact shape (one `[A-Za-z0-9_-]{1,64}` segment, no query, fragment or
+  extra path) is now a known callback, so the consent page no longer shows
+  the "Ese destino no es un cliente conocido" warning for it. Any other
+  chatgpt.com path or lookalike host is still unknown.
+- `tickets_reassign` and `webhooks_update` are now `destructiveHint: true`:
+  reassigning voids the previous holder's QR and repointing a webhook
+  redirects every future event. Flagged by the ChatGPT plugin review.
+- More hints corrected after the second ChatGPT plugin review:
+  - `destructiveHint: true` on `event_dates_update` (cancelling or moving a
+    date with sold tickets), `staff_update_role` (takes or grants access at
+    once), `events_unschedule` (a planned launch stops happening) and
+    `ticket_templates_update` (`fields` replaces the whole form, `null` wipes).
+  - `openWorldHint: true` on writes that publish to the public web or reach
+    a third party: `events_update`, `events_publish`, `events_schedule`,
+    `products_create`, `products_set_status`, `website_set_published`,
+    `merch_products_set_status` (public pages and stores), `webhooks_create`,
+    `webhooks_update` (POSTs to the organizer's URL), `event_dates_update`
+    (emails ticket holders on a reschedule) and `sales_create` (books seats
+    in seats.io).
+  - `content_channels_list` is no longer announced as read-only: its GET
+    creates the default channels on a workspace without any. It now drops
+    out of read-only connections.
+- Clear descriptions for `events_list`, `ticket_types_list`, `sales_list`,
+  `plans_list`, `discounts_list`, `webhooks_list`, `venues_list` and
+  `reports_by_event` (what each returns, its filters, when to use it). The
+  old "`workspace` turns on global mode" also had it backwards: without
+  `workspace` they already read every accessible workspace. `events_publish`,
+  `sales_create`, `plans_create`, `plans_update` and `staff_update_role` get
+  full descriptions too.
+- `plans_create` / `plans_update` accept the `SEMIANNUAL` billing cycle the
+  contract already had, and `discounts_list` takes `active` as a boolean, as
+  the contract declares it.
+
 ## [0.24.0] - 2026-11-12
 
 Auth hardening against Block's MCP playbook (OAuth, minimum scopes,

@@ -25,8 +25,11 @@ export function read(name: string): ToolAnnotations {
  * server-side, not just the HTTP call the tool makes: a payment gateway
  * (Mercado Pago or Stripe — charges, refunds, and cancelling a recurring
  * subscription or a platform plan there), an outbound email or WhatsApp to a
- * person (invitations, tickets, notifications), or a third-party media
- * service (Mux). Before marking a write closed-world, read its route in
+ * person (invitations, tickets, notifications), a third-party service (Mux,
+ * seats.io), an outbound webhook to a URL the user controls, or making
+ * something visible on the public web (publishing an event, a product, the
+ * organization page or a store item: anonymous buyers and search engines
+ * see it). Before marking a write closed-world, read its route in
  * free-admin: `staff_create` looks local but emails the invite.
  */
 export function write(

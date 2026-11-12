@@ -21,6 +21,7 @@
  * bundled with tsup.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import type { ToolAnnotations } from "@modelcontextprotocol/sdk/types.js";
 import { withStructured } from "./api";
 import { BRAND, FAVICON_SVG } from "./brand";
 import { read } from "./tool-meta";
@@ -48,6 +49,8 @@ export function uiTool(
 	inputSchema: Record<string, unknown>,
 	// biome-ignore lint/suspicious/noExplicitAny: SDK signature, varies per tool.
 	cb: (args: any) => Promise<any>,
+	// A GET with a server-side write (content_channels_list) passes its own.
+	annotations: ToolAnnotations = read(name),
 ): void {
 	server.registerTool(
 		name,
@@ -55,7 +58,7 @@ export function uiTool(
 			description,
 			// biome-ignore lint/suspicious/noExplicitAny: same — zod pins the shape.
 			inputSchema: inputSchema as any,
-			annotations: read(name),
+			annotations,
 			_meta: UI_META,
 		},
 		// The view reads `structuredContent`; only these tools carry it (api.ts).

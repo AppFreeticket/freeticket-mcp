@@ -75,7 +75,7 @@ import {
 	getWebsite,
 	postMerchOrdersLookup,
 } from "../client/sdk.gen";
-import { read } from "../tool-meta";
+import { read, write } from "../tool-meta";
 import { uiTool } from "../ui";
 import {
 	ATTENDEE_FIELDS,
@@ -143,6 +143,17 @@ export function slimEvent(event: unknown): Record<string, unknown> {
 	}
 	return slim;
 }
+
+/**
+ * Tail of every list that fans out. The OpenAI plugin review read the old
+ * "`workspace` turns on global mode" as an unclear description (and it was
+ * wrong: absent already means every workspace).
+ */
+const ACROSS =
+	" Without `workspace` it reads every workspace the session can access, " +
+	"unless the session is pinned to one (then only that one); pass " +
+	"`workspace` with ids to choose. When more than one workspace is read, " +
+	"rows are tagged with workspaceId/workspaceName.";
 
 const workspaceParam = z
 	.union([z.literal("all"), z.array(z.string())])
@@ -212,9 +223,13 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"events_list",
-		"Lists the workspace's events (GET /events). `status` filters in the " +
-			"consulta (así `limit` cuenta solo filas devueltas) y `withTotal` agrega " +
-			"`page.total`. `workspace` turns on global mode.",
+		"Lists the organizer's events with their status, venue and next date " +
+			"(GET /events). Use it to find an event id before reading its dates, " +
+			"ticket types or sales. Filters: `q` searches name and description, " +
+			"`status` (DRAFT, PUBLISHED, SOLD_OUT, CANCELLED, COMPLETED) is applied " +
+			"in the query so `limit` counts only matching rows, `withTotal` adds " +
+			"`page.total`. Returns a slim row per event; `verbose: true` returns " +
+			`the full event.${ACROSS}`,
 		{
 			...paging,
 			q: z.string().optional().describe("Búsqueda por nombre/descripción"),
@@ -262,7 +277,10 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"ticket_types_list",
-		"Ticket types (GET /ticket-types). `workspace` turns on global mode.",
+		"Lists ticket types (the price tiers sold for an event date, e.g. " +
+			"General, VIP) with price, capacity, sold count and sale window " +
+			"(GET /ticket-types). Filter by `eventDateId` to get the tiers of one " +
+			`date; use it before creating a sale or editing prices.${ACROSS}`,
 		{
 			eventDateId: z.string().optional().describe("Filter by event date"),
 			...paging,
@@ -284,7 +302,12 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"sales_list",
-		"Lists sales with filters (GET /sales). `workspace` turns on global mode.",
+		"Lists ticket sales (orders), newest first, with buyer, total, status " +
+			"and channel (GET /sales). Filters: `status`, `channel`, `event`, " +
+			"`eventDate`, `reference`, `buyer` (name or email, partial match) and " +
+			"a `from`/`to` creation range in ISO 8601. Use it to find a sale " +
+			"before reading its tickets or refunding it; for totals per event use " +
+			`\`reports_by_event\`.${ACROSS}`,
 		{
 			// The contract declares these as enums; typing them as a loose string
 			// cost the agent a roundtrip to discover that "PAID" or "MOBILE_APP"
@@ -355,7 +378,11 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"plans_list",
-		"Membership plans (GET /membership-plans). `workspace` turns on global mode.",
+		"Lists the fan membership plans an organizer sells, with price, " +
+			"currency, billing cycle (MONTHLY, QUARTERLY, SEMIANNUAL, ANNUAL, " +
+			"LIFETIME), " +
+			"benefits and whether each is active (GET /membership-plans). Use it to " +
+			`get a plan id for \`plans_get\` or \`plans_subscribers\`.${ACROSS}`,
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) =>
 			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
@@ -381,10 +408,16 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"discounts_list",
-		"Workspace coupons and discounts (GET /discounts). `workspace` turns on global mode.",
+		"Lists discount coupons buyers can enter at checkout, with code, type " +
+			"(PERCENT or FIXED), value, uses and validity window (GET /discounts). " +
+			"Filters: `event` (coupons limited to one event) and `active` " +
+			`(true or false).${ACROSS}`,
 		{
 			event: z.string().optional().describe("Filter by event"),
-			active: z.string().optional().describe("true | false"),
+			active: z
+				.boolean()
+				.optional()
+				.describe("true = only active coupons, false = only inactive"),
 			...paging,
 			workspace: workspaceParam,
 		},
@@ -396,7 +429,10 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"webhooks_list",
-		"Registered webhooks (GET /webhooks). `workspace` turns on global mode.",
+		"Lists the webhooks the organizer registered to receive sale events " +
+			"(sale.confirmed, sale.refunded) at their own URL, with url, " +
+			"subscribed events and whether each is active (GET /webhooks). Signing " +
+			`secrets are not returned.${ACROSS}`,
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) =>
 			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
@@ -407,7 +443,9 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"venues_list",
-		"Workspace venues (GET /venues). `workspace` turns on global mode.",
+		"Lists the venues (physical places where events happen) saved by the " +
+			"organizer, with name, address, city and capacity (GET /venues). Use " +
+			`it to get a \`venueId\` for creating or editing an event.${ACROSS}`,
 		{ ...paging, workspace: workspaceParam },
 		async ({ workspace, ...q }) =>
 			runWorkspaceList(ctx, workspace, q.limit, (c, limit) =>
@@ -485,8 +523,11 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"reports_by_event",
-		"Revenue, tickets sold and availability per event (GET /reports/by-event). " +
-			"`workspace` turns on global mode.",
+		"Sales report with one row per event: revenue, tickets sold and " +
+			"remaining availability (GET /reports/by-event). Optional `from`/`to` " +
+			"(ISO 8601) limit the sales counted and `status` counts only sales in " +
+			"that status. Use it to compare how events are selling; for workspace " +
+			`KPIs use \`reports_summary\`.${ACROSS}`,
 		{
 			from: z.string().optional().describe("Desde (ISO 8601)"),
 			to: z.string().optional().describe("Hasta (ISO 8601)"),
@@ -881,11 +922,15 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"content_channels_list",
-		"Active community channels in display order (GET /content/channels). " +
-			"Creates the default Announcements and General channels on first read " +
-			"if the workspace has none.",
+		"Lists the active community channels in display order " +
+			"(GET /content/channels). On a workspace with no channels yet, the " +
+			"first call creates the default Announcements and General channels, " +
+			"so it is not a pure read.",
 		{},
 		async () => run(getContentChannels({ client })),
+		// Not read-only: the GET seeds the default channels (listChannelsCore
+		// in free-admin). Idempotent: the seed happens once.
+		write("content_channels_list", { destructive: false, idempotent: true }),
 	);
 	const page0 = z
 		.number()
