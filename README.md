@@ -189,8 +189,9 @@ and ask for confirmation.
 | Credentials | `api_keys_list` | — |
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
 | Landing waitlist | `waitlist_list` | `waitlist_join` |
-| Landing merch store | `merch_catalog` · `merch_orders_lookup` | — (placing and paying an order needs the buyer's ID document and the card widget) |
-| Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` |
+| Landing merch store | `merch_catalog` · `merch_orders_lookup` · `customer_merch_orders` | — (placing and paying an order needs the buyer's ID document and the card widget) |
+| Merch store catalog | `merch_products_list` | `merch_products_create` · `merch_products_set_status` · `merch_products_set_images` (replaces the list; dropped photos are deleted) |
+| Members area (headless SSO) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` · `customer_addresses_list` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` · `customer_addresses_create` · `customer_addresses_update` · `customer_addresses_delete` |
 | Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` · `content_posts_update` · `content_posts_pin` · `content_posts_delete` · `content_comments_delete` |
 | Community channels | `content_channels_list` | `content_channels_create` · `content_channels_update` · `content_channels_reorder` · `content_channels_archive` |
 | Community moderation | `content_moderation_queue` · `content_moderation_bans` · `content_member_posts_list` | `content_comments_hide` · `content_comments_unhide` · `content_comments_ignore_reports` · `content_member_posts_approve` · `content_member_posts_reject` · `content_member_posts_remove` · `content_members_ban` · `content_members_unban` |
@@ -305,7 +306,7 @@ pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contracts this build targets: B2B **1.36.0**, superadmin **1.8.0**, public
+Contracts this build targets: B2B **1.45.0**, superadmin **1.8.0**, public
 **0.10.1**. All three are served by `free-admin` and are the only source of
 truth, on separate semver lineages. To propagate a backend change, use the
 `contract-sync` agent from the

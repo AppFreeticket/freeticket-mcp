@@ -3,7 +3,43 @@
 All notable changes to `@freeticket/mcp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: semver.
 
-## [Unreleased]
+## [0.21.0] - 2026-11-12
+
+Brings the B2B contract to **1.45.0** (from 1.36.0), synced from production
+(`https://admin.appfreeticket.com/api/v1/openapi.json`). Superadmin 1.8.0 and
+public 0.10.1 are unchanged. Additive only: no operationId removed or renamed.
+**230 tools** (B2B 194 · superadmin 30 · public 6), 52 with a view.
+
+1.42.0 → 1.45.0 adds no operation: `Me.scope` (`read` | `write`, the scope of
+the key in use, now returned by `GET /me`) and length/range limits on ticket
+types (`name` 1–100 chars, `price` 0–9 999 999 999).
+
+### Changed
+- `ticket_types_create` / `ticket_types_update` validate `name` (1–100) and
+  `price` (0–9 999 999 999) like the contract, so an out-of-range value fails
+  in the tool instead of as a 422.
+- `whoami` mentions the key scope it now returns.
+- `merch_products_create` rejects a variant `price` / `compareAtPrice` that is
+  not an integer from 1 to 100 000 000 COP (the server's rule, answered as a
+  400 `BAD_REQUEST`; the OpenAPI only says integer). Negatives used to pass.
+
+### Added
+- Merch store catalog admin (ADMIN, SUPER_ADMIN or MERCH_MANAGER):
+  `merch_products_list` (view), `merch_products_create` (always DRAFT, full
+  variant matrix), `merch_products_set_status` (idempotent) and
+  `merch_products_set_images` (destructive: photos dropped from the list are
+  deleted from storage).
+- Buyer address book (headless SSO, shared across brands):
+  `customer_addresses_list` (view), `customer_addresses_create`,
+  `customer_addresses_update` and `customer_addresses_delete` (destructive).
+- `customer_merch_orders` (view): the session buyer's merch orders in the key's
+  store, cursor-paginated.
+
+### Not exposed (see `EXCLUDED` in `src/coverage.test.ts`)
+- `POST /merch/products/images/upload-url`: a signed URL for raw file bytes;
+  photos are uploaded with `ft merch products create`.
+- `POST /merch/discount-codes/preview`: a step of the landing merch checkout,
+  which is not a tool either.
 
 ## [0.20.0] - 2026-11-03
 

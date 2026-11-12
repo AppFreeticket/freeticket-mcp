@@ -109,6 +109,106 @@ describe.each([
 		body: { code: "M-7K3Q9ZTA" },
 		headers: { "X-Customer-Session": "sess_buyer" },
 	},
+	// ── Contract 1.37–1.42: merch admin catalog, buyer address book ──────
+	{
+		tool: "merch_products_list",
+		args: {},
+		method: "GET",
+		url: "https://api.test/api/v1/merch/products",
+		body: undefined,
+	},
+	{
+		tool: "merch_products_create",
+		args: {
+			name: "Camiseta Gira",
+			maxPerOrder: 4,
+			options: [{ name: "Talla", values: ["S", "M"] }],
+			variants: [
+				{ attributes: { Talla: "S" }, sku: "CAM-S", price: 80000, stock: 10 },
+				{ attributes: { Talla: "M" }, sku: "CAM-M", price: 80000, stock: 0 },
+			],
+		},
+		method: "POST",
+		url: "https://api.test/api/v1/merch/products",
+		body: {
+			name: "Camiseta Gira",
+			maxPerOrder: 4,
+			options: [{ name: "Talla", values: ["S", "M"] }],
+			variants: [
+				{ attributes: { Talla: "S" }, sku: "CAM-S", price: 80000, stock: 10 },
+				{ attributes: { Talla: "M" }, sku: "CAM-M", price: 80000, stock: 0 },
+			],
+		},
+	},
+	{
+		tool: "merch_products_set_status",
+		args: { id: "prod_1", status: "PUBLISHED" },
+		method: "PATCH",
+		url: "https://api.test/api/v1/merch/products/prod_1/status",
+		// `id` is the path, never part of the body.
+		body: { status: "PUBLISHED" },
+	},
+	{
+		tool: "merch_products_set_images",
+		args: { id: "prod_1", imageUrls: [] },
+		method: "PUT",
+		url: "https://api.test/api/v1/merch/products/prod_1/images",
+		// `[]` is a full replace that clears every photo; it must reach the API.
+		body: { imageUrls: [] },
+	},
+	{
+		tool: "customer_merch_orders",
+		args: { cursor: "c_2", customerSession: "sess_buyer" },
+		method: "GET",
+		url: "https://api.test/api/v1/customer/merch-orders?cursor=c_2",
+		body: undefined,
+		headers: { "X-Customer-Session": "sess_buyer" },
+	},
+	{
+		tool: "customer_addresses_list",
+		args: { customerSession: "sess_buyer" },
+		method: "GET",
+		url: "https://api.test/api/v1/customer/addresses",
+		body: undefined,
+		headers: { "X-Customer-Session": "sess_buyer" },
+	},
+	{
+		tool: "customer_addresses_create",
+		args: {
+			recipientName: "María Muñoz",
+			departmentCode: "11",
+			cityCode: "11001",
+			address: "Calle 80 # 12-34",
+			isDefault: true,
+			customerSession: "sess_buyer",
+		},
+		method: "POST",
+		url: "https://api.test/api/v1/customer/addresses",
+		body: {
+			recipientName: "María Muñoz",
+			departmentCode: "11",
+			cityCode: "11001",
+			address: "Calle 80 # 12-34",
+			isDefault: true,
+		},
+		headers: { "X-Customer-Session": "sess_buyer" },
+	},
+	{
+		tool: "customer_addresses_update",
+		args: { id: "addr_1", cityCode: "05001", customerSession: "sess_buyer" },
+		method: "PATCH",
+		url: "https://api.test/api/v1/customer/addresses/addr_1",
+		body: { cityCode: "05001" },
+		headers: { "X-Customer-Session": "sess_buyer" },
+	},
+	{
+		tool: "customer_addresses_delete",
+		args: { id: "addr_1", customerSession: "sess_buyer" },
+		method: "DELETE",
+		url: "https://api.test/api/v1/customer/addresses/addr_1",
+		body: undefined,
+		headers: { "X-Customer-Session": "sess_buyer" },
+	},
 ])("$tool request", ({ tool, args, method, url, body, headers }) => {
 	it(`sends ${method} to the resolved path with the expected body`, async () => {
 		const { calls, tools } = setup();
@@ -126,5 +226,95 @@ describe.each([
 		for (const [k, v] of Object.entries(headers ?? {}))
 			expect(call.headers.get(k)).toBe(v);
 		if (!headers) expect(call.headers.get("X-Customer-Session")).toBeNull();
+	});
+});
+
+describe("customer_addresses_update partial semantics", () => {
+	it("sends null to clear a field and omits the fields left undefined", async () => {
+		const { calls, tools } = setup();
+		await tools.customer_addresses_update.handler(
+			{
+				id: "addr_1",
+				label: null,
+				phone: undefined,
+				addressExtra: null,
+				customerSession: "sess_buyer",
+			},
+			{},
+		);
+		const body = calls[0].body as Record<string, unknown>;
+		// `null` clears it on the server; a missing key leaves it untouched.
+		expect(body).toStrictEqual({ label: null, addressExtra: null });
+		expect("phone" in body).toBe(false);
+		expect("recipientName" in body).toBe(false);
+	});
+});
+
+/**
+ * Input limits as the agent sees them: the zod schema the SDK registered,
+ * parsed the same way the server parses a `tools/call`.
+ */
+function schemaOf(tool: string) {
+	const { tools } = setup();
+	const schema = (
+		tools[tool] as unknown as {
+			inputSchema: { safeParse: (v: unknown) => { success: boolean } };
+		}
+	).inputSchema;
+	return (v: unknown) => schema.safeParse(v).success;
+}
+
+const ticketTypeBase = {
+	eventDateId: "date_1",
+	name: "General",
+	price: 50000,
+	capacity: 100,
+	maxPerOrder: 10,
+	isVisible: true,
+	organizerAbsorbsFee: false,
+};
+
+describe.each([
+	{ tool: "ticket_types_create", base: ticketTypeBase },
+	{ tool: "ticket_types_update", base: { id: "tt_1" } },
+])("$tool limits (contract TicketType*: price 0..9999999999, name 1..100)", ({
+	tool,
+	base,
+}) => {
+	const ok = schemaOf(tool);
+	it("accepts a free ticket (price 0) and the max price", () => {
+		expect(ok({ ...base, price: 0 })).toBe(true);
+		expect(ok({ ...base, price: 9_999_999_999 })).toBe(true);
+	});
+	it("rejects a price above 9999999999 and a negative price", () => {
+		expect(ok({ ...base, price: 10_000_000_000 })).toBe(false);
+		expect(ok({ ...base, price: -1 })).toBe(false);
+	});
+	it("accepts a 100-char name and rejects empty or 101 chars", () => {
+		expect(ok({ ...base, name: "Á".repeat(100) })).toBe(true);
+		expect(ok({ ...base, name: "" })).toBe(false);
+		expect(ok({ ...base, name: "a".repeat(101) })).toBe(false);
+	});
+});
+
+describe("merch_products_create variant price", () => {
+	const ok = schemaOf("merch_products_create");
+	const product = (variant: Record<string, unknown>) => ({
+		name: "Gorra",
+		maxPerOrder: 2,
+		variants: [{ sku: "GOR-1", stock: 5, price: 45000, ...variant }],
+	});
+	it("accepts an integer COP price up to 100,000,000", () => {
+		expect(ok(product({ price: 1 }))).toBe(true);
+		expect(ok(product({ price: 100_000_000 }))).toBe(true);
+	});
+	it("rejects negative, zero and above-range prices before the API 400s", () => {
+		expect(ok(product({ price: -45000 }))).toBe(false);
+		expect(ok(product({ price: 0 }))).toBe(false);
+		expect(ok(product({ price: 100_000_001 }))).toBe(false);
+	});
+	it("rejects a negative strikethrough price", () => {
+		expect(ok(product({ compareAtPrice: -1 }))).toBe(false);
+		expect(ok(product({ compareAtPrice: null }))).toBe(true);
 	});
 });

@@ -158,8 +158,9 @@ describe("tool registration", () => {
 		// profile, organization, ticket templates, master QRs) + the 8 from
 		// 1.33–1.36 (sales_transfer, sales_recipient_update, tickets_checkin_undo,
 		// events_viewers_add/delete, events_validators_add, staff_resend_invite,
-		// staff_access_set).
-		expect(t.length).toBe(113);
+		// staff_access_set) + the 6 from 1.37–1.42 (customer_addresses_create/
+		// update/delete, merch_products_create/set_status/set_images).
+		expect(t.length).toBe(119);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -183,6 +184,8 @@ describe("tool registration", () => {
 			"sales_transfer",
 			"tickets_checkin_undo",
 			"staff_access_set",
+			"customer_addresses_delete",
+			"merch_products_create",
 		]) {
 			expect(t).toContain(n);
 		}
