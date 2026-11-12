@@ -93,7 +93,7 @@ export function makeAdminClient(c: Creds): Client {
 /** The CallToolResult shape every tool here returns. */
 export interface ToolResult {
 	content: { type: "text"; text: string }[];
-	structuredContent?: { data: unknown };
+	structuredContent?: { data: unknown; truncated?: TruncationNote };
 	isError?: boolean;
 	// The SDK's callback type carries an index signature.
 	[key: string]: unknown;
@@ -115,34 +115,80 @@ export interface TruncationNote {
 	hint: string;
 }
 
+/** How deep `largestArray` looks for a list inside nested objects. */
+const MAX_LIST_DEPTH = 4;
+
+type ListPath = { path: string[]; items: unknown[] };
+
 /**
- * The list worth cutting: the payload itself if it is an array, otherwise the
- * top-level array property that weighs the most (`data` in the `{ data, page }`
- * envelope and in the fan-out's `{ data, errors }`).
+ * Every non-empty array reachable through plain objects (not through other
+ * arrays), up to `MAX_LIST_DEPTH` levels: `{ data: [...] }`,
+ * `{ data: { events: [...] } }`, a bare array (path `[]`).
  */
-function largestArray(
-	payload: unknown,
-): { key: string | null; items: unknown[] } | null {
-	if (Array.isArray(payload)) return { key: null, items: payload };
-	if (!payload || typeof payload !== "object") return null;
-	let best: { key: string; items: unknown[]; size: number } | null = null;
-	for (const [key, value] of Object.entries(payload)) {
-		if (!Array.isArray(value) || value.length === 0) continue;
-		const size = JSON.stringify(value).length;
-		if (!best || size > best.size) best = { key, items: value, size };
-	}
-	return best;
+function arrays(payload: unknown, path: string[] = []): ListPath[] {
+	if (Array.isArray(payload))
+		return payload.length ? [{ path, items: payload }] : [];
+	if (!payload || typeof payload !== "object" || path.length >= MAX_LIST_DEPTH)
+		return [];
+	return Object.entries(payload).flatMap(([k, v]) => arrays(v, [...path, k]));
+}
+
+/**
+ * The lists worth cutting, in the order to try them: the primary list first
+ * (top-level `data` when it is an array — the `{ data, page }` envelope and
+ * the fan-out's `{ data, errors }`, so a long `errors` never wins over the
+ * rows), then the heaviest array at any depth.
+ */
+function cutCandidates(payload: unknown): ListPath[] {
+	const all = arrays(payload);
+	const primary = all.find((a) => a.path.length === 1 && a.path[0] === "data");
+	const heaviest = all
+		.map((a) => ({ a, size: JSON.stringify(a.items).length }))
+		.sort((x, y) => y.size - x.size)[0]?.a;
+	return [primary, heaviest].filter(
+		(a, i, xs): a is ListPath => !!a && xs.indexOf(a) === i,
+	);
+}
+
+/** Immutably replaces the array at `path` (`[]` = the payload itself). */
+function setAt(node: unknown, path: string[], items: unknown[]): unknown {
+	if (path.length === 0) return items;
+	const [head, ...rest] = path;
+	const obj = node as Record<string, unknown>;
+	return { ...obj, [head]: setAt(obj[head], rest, items) };
 }
 
 function withItems(
 	payload: unknown,
-	key: string | null,
+	path: string[],
 	items: unknown[],
 	note: TruncationNote,
+	paginated: boolean,
 ): unknown {
-	if (key === null) return { data: items, truncated: note };
-	return { ...(payload as object), [key]: items, truncated: note };
+	if (path.length === 0) return { data: items, truncated: note };
+	const out = setAt(payload, path, items) as Record<string, unknown>;
+	// The API's nextCursor points past the END of the full page: following it
+	// would silently skip the rows that were cut. Drop it and keep hasMore
+	// true; the hint says how to get an exact cursor (same call, smaller limit).
+	if (paginated)
+		out.page = {
+			...(out.page as object),
+			nextCursor: null,
+			hasMore: true,
+		};
+	return { ...out, truncated: note };
 }
+
+/** Cuts to at most `room` UTF-16 units without splitting a surrogate pair. */
+export function sliceCodePoints(s: string, room: number): string {
+	let out = s.slice(0, Math.max(0, room));
+	const last = out.charCodeAt(out.length - 1);
+	if (last >= 0xd800 && last <= 0xdbff) out = out.slice(0, -1);
+	return out;
+}
+
+/** A fixed recovery hint, or one built from how many items fit. */
+export type Hint = string | ((shown: number, total: number) => string);
 
 /**
  * Serializes the payload as compact JSON, never above `max` chars. Always
@@ -151,9 +197,6 @@ function withItems(
  * object. `hint` overrides the default recovery hint (the fan-out has no
  * cursor, for instance).
  */
-/** A fixed recovery hint, or one built from how many items fit. */
-export type Hint = string | ((shown: number, total: number) => string);
-
 export function capJson(
 	payload: unknown,
 	opts: { max?: number; hint?: Hint } = {},
@@ -162,71 +205,80 @@ export function capJson(
 	const text = JSON.stringify(payload) ?? "null";
 	if (text.length <= max) return { text, payload };
 
-	const list = largestArray(payload);
+	const candidates = cutCandidates(payload);
 	const paginated =
 		!!payload &&
+		!Array.isArray(payload) &&
 		typeof payload === "object" &&
-		"page" in (payload as object) &&
-		(payload as { page?: unknown }).page != null;
-	const note = (shown: number, total: number): TruncationNote => ({
+		(payload as { page?: unknown }).page != null &&
+		typeof (payload as { page?: unknown }).page === "object";
+	const note = (
+		list: ListPath,
+		shown: number,
+		total: number,
+	): TruncationNote => ({
 		shown,
 		total,
-		field: list?.key ?? "data",
+		field: list.path.length ? list.path.join(".") : "data",
 		hint:
 			typeof opts.hint === "function"
 				? opts.hint(shown, total)
 				: (opts.hint ??
 					(paginated
-						? `Respuesta recortada a ${shown} de ${total} ítems (tope ~${max} caracteres). Repite la llamada con \`limit: ${Math.max(1, shown)}\` y sigue con \`cursor\` = page.nextCursor para recorrer el resto, o acota con los filtros del tool.`
+						? `Respuesta recortada a ${shown} de ${total} ítems (tope ~${max} caracteres); page.nextCursor se anuló porque saltaría las filas recortadas. Para seguir sin perder filas: repite esta misma llamada con el mismo \`cursor\` que usaste (ninguno si era la primera página) y \`limit: ${Math.max(1, shown)}\`; esa respuesta trae el page.nextCursor exacto para continuar. O acota con los filtros del tool.`
 						: `Respuesta recortada a ${shown} de ${total} ítems (tope ~${max} caracteres). Este tool no pagina: acota con sus filtros (evento, fecha, rango from/to, estado) para traer menos filas.`)),
 	});
 
-	if (list) {
+	for (const list of candidates) {
 		const total = list.items.length;
-		let lo = 0;
+		let lo = 1;
 		let hi = total - 1;
-		let best: string | null = null;
-		let bestPayload: unknown = null;
-		let bestNote: TruncationNote | null = null;
+		let best: { text: string; payload: unknown; note: TruncationNote } | null =
+			null;
 		while (lo <= hi) {
 			const mid = (lo + hi) >> 1;
-			const n = note(mid, total);
+			const n = note(list, mid, total);
 			const candidate = withItems(
 				payload,
-				list.key,
+				list.path,
 				list.items.slice(0, mid),
 				n,
+				paginated,
 			);
 			const t = JSON.stringify(candidate);
 			if (t.length <= max) {
-				best = t;
-				bestPayload = candidate;
-				bestNote = n;
+				best = { text: t, payload: candidate, note: n };
 				lo = mid + 1;
 			} else hi = mid - 1;
 		}
-		if (best !== null && bestNote && bestNote.shown > 0)
-			return { text: best, payload: bestPayload, truncated: bestNote };
+		if (best)
+			return { text: best.text, payload: best.payload, truncated: best.note };
 	}
 
 	// No list to cut, or one single item already over budget.
+	const list = candidates[0];
 	const n: TruncationNote = {
 		shown: 0,
 		total: list?.items.length ?? 1,
-		field: list?.key ?? "data",
+		field: list?.path.length ? list.path.join(".") : "data",
 		hint:
 			typeof opts.hint === "string"
 				? opts.hint
 				: `Respuesta demasiado grande (${text.length} caracteres, tope ~${max}). Se muestra solo el comienzo como texto: pide un recurso puntual (*_get) o acota con filtros.`,
 	};
 	const shell = { truncated: n, preview: "" };
-	const room = Math.max(0, max - JSON.stringify(shell).length - 16);
-	const preview = text.slice(0, room);
-	return {
-		text: JSON.stringify({ ...shell, preview }),
-		payload: { ...shell, preview },
-		truncated: n,
-	};
+	// Escaping (quotes, backslashes, control chars) can grow the preview once
+	// serialized: shrink by the overflow until it fits.
+	let room = Math.max(0, max - JSON.stringify(shell).length);
+	let out = shell;
+	let serialized = JSON.stringify(shell);
+	while (room > 0) {
+		out = { ...shell, preview: sliceCodePoints(text, room) };
+		serialized = JSON.stringify(out);
+		if (serialized.length <= max) break;
+		room -= Math.max(1, serialized.length - max);
+	}
+	return { text: serialized, payload: out, truncated: n };
 }
 
 /** A success result: compact, capped text. No structuredContent here — see `withStructured`. */
@@ -247,9 +299,20 @@ export function withStructured(r: ToolResult): ToolResult {
 	const text = r.content.find((c) => c.type === "text")?.text;
 	if (text === undefined) return r;
 	try {
+		const parsed = JSON.parse(text) as unknown;
+		const truncated =
+			parsed && typeof parsed === "object" && "truncated" in parsed
+				? (parsed as { truncated: TruncationNote }).truncated
+				: undefined;
+		// The preview fallback is a string cut of the JSON, not data: the view
+		// shows it as text, next to the note.
+		const data =
+			truncated && "preview" in (parsed as object)
+				? (parsed as { preview: string }).preview
+				: unwrapEnvelope(parsed);
 		return {
 			...r,
-			structuredContent: { data: unwrapEnvelope(JSON.parse(text)) },
+			structuredContent: truncated ? { data, truncated } : { data },
 		};
 	} catch {
 		return r;

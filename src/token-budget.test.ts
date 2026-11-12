@@ -9,7 +9,9 @@ import {
 	httpErrorResult,
 	MAX_TEXT_CHARS,
 	run,
+	sliceCodePoints,
 	type ToolResult,
+	withStructured,
 } from "./api";
 import { registerB2bTools } from "./tools/b2b";
 import { registerUi } from "./ui";
@@ -191,6 +193,176 @@ describe("capJson: truncation", () => {
 		const { text, truncated } = capJson({ data: [{ a: 1 }] });
 		expect(text).toBe('{"data":[{"a":1}]}');
 		expect(truncated).toBeUndefined();
+	});
+});
+
+describe("truncation never skips rows (QA #43 P0)", () => {
+	/** GET /sales with the API's real keyset cursor: nextCursor = last row id. */
+	function pagedSales(all: ReturnType<typeof salesFixture>["data"]) {
+		return (req: Request) => {
+			const u = new URL(req.url);
+			const limit = Number(u.searchParams.get("limit") ?? 20);
+			const cursor = u.searchParams.get("cursor");
+			const from = cursor ? all.findIndex((r) => r.id === cursor) + 1 : 0;
+			const data = all.slice(from, from + limit);
+			const hasMore = from + limit < all.length;
+			return json({
+				data,
+				page: {
+					hasMore,
+					nextCursor: hasMore ? data[data.length - 1].id : null,
+				},
+			});
+		};
+	}
+	type Page = {
+		data: { id: string }[];
+		page: { hasMore: boolean; nextCursor: string | null };
+		truncated?: { shown: number; total: number; hint: string };
+	};
+
+	it("a cut page drops nextCursor; following the hint walks every row in order", async () => {
+		const all = salesFixture(250).data;
+		const { call } = await connect(pagedSales(all));
+		// verbose: full rows, so a 100-row page goes over the cap.
+		const first = JSON.parse(
+			(await call("sales_list", { limit: 100, verbose: true })).content[0].text,
+		) as Page;
+		expect(first.truncated).toBeDefined();
+		const shown = first.truncated?.shown ?? 0;
+		expect(shown).toBeLessThan(100);
+		// The API's cursor would land on row 99 and lose 100−shown rows.
+		expect(first.page.nextCursor).toBeNull();
+		expect(first.page.hasMore).toBe(true);
+		expect(first.truncated?.hint).toContain(`limit: ${shown}`);
+		expect(first.truncated?.hint).toContain("mismo `cursor`");
+
+		// Follow the hint: same call (no cursor, it was page 1), limit = shown.
+		const seen: string[] = [];
+		let cursor: string | undefined;
+		let page = JSON.parse(
+			(await call("sales_list", { limit: shown, verbose: true })).content[0]
+				.text,
+		) as Page;
+		for (let guard = 0; guard < 20; guard++) {
+			expect(page.truncated).toBeUndefined();
+			seen.push(...page.data.map((r) => r.id));
+			if (!page.page.hasMore) break;
+			cursor = page.page.nextCursor ?? undefined;
+			expect(cursor).toBeDefined();
+			page = JSON.parse(
+				(await call("sales_list", { limit: shown, cursor, verbose: true }))
+					.content[0].text,
+			) as Page;
+		}
+		// Contiguous and complete: every row once, in order, none skipped.
+		expect(seen).toEqual(all.map((r) => r.id));
+		// The rows shown on the cut page are exactly the head of that walk.
+		expect(first.data.map((r) => r.id)).toEqual(seen.slice(0, shown));
+	});
+
+	it("the API's last page cut still says there is more", () => {
+		const p = salesFixture(300);
+		p.page = { nextCursor: null, hasMore: false } as never;
+		const parsed = JSON.parse(capJson(p).text) as Page;
+		expect(parsed.page).toEqual({ nextCursor: null, hasMore: true });
+	});
+});
+
+describe("capJson: shapes (QA #43 P1)", () => {
+	it("trims a nested list ({ data: { events: [...] } })", () => {
+		const payload = {
+			data: { events: salesFixture(300).data, summary: { count: 300 } },
+		};
+		const { text, truncated } = capJson(payload);
+		expect(text.length).toBeLessThanOrEqual(MAX_TEXT_CHARS);
+		const parsed = JSON.parse(text) as {
+			data: { events: unknown[]; summary: unknown };
+			preview?: string;
+		};
+		expect(parsed.preview).toBeUndefined();
+		expect(truncated?.field).toBe("data.events");
+		expect(parsed.data.events).toHaveLength(truncated?.shown ?? -1);
+		expect(truncated?.shown).toBeGreaterThan(0);
+		expect(parsed.data.summary).toEqual({ count: 300 });
+	});
+
+	it("the fan-out cuts the rows, not a heavier errors list", () => {
+		const errors = Array.from({ length: 400 }, (_, i) => ({
+			workspaceId: `ws_${i}`,
+			workspaceName: `Workspace con un nombre bastante largo ${i}`,
+			error: { code: "forbidden", message: "x".repeat(60) },
+		}));
+		const data = salesFixture(60).data;
+		expect(JSON.stringify(errors).length).toBeGreaterThan(
+			JSON.stringify(data).length,
+		);
+		// Cap that fits the errors plus some rows.
+		const max = JSON.stringify(errors).length + 10_000;
+		const { text, truncated } = capJson({ data, errors }, { max });
+		const parsed = JSON.parse(text) as { data: unknown[]; errors: unknown[] };
+		expect(truncated?.field).toBe("data");
+		expect(parsed.errors).toHaveLength(400);
+		expect(parsed.data.length).toBeGreaterThan(0);
+		expect(parsed.data.length).toBeLessThan(60);
+	});
+
+	it("the preview never splits an emoji (surrogate pair)", () => {
+		const loneSurrogate =
+			/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+		const payload = { blob: "🎟️".repeat(MAX_TEXT_CHARS) };
+		// Sweep the cap so the cut lands on every offset of the 3-unit emoji,
+		// with and without slack left by escaping.
+		// "a🎟" is a + D83C DF9F: a cut at 2 must not keep the high half.
+		expect(sliceCodePoints("a🎟b", 2)).toBe("a");
+		expect(sliceCodePoints("a🎟b", 3)).toBe("a🎟");
+		for (let max = 600; max < 640; max++) {
+			const { text } = capJson(payload, { max });
+			expect(text.length).toBeLessThanOrEqual(max);
+			expect(text).not.toMatch(/\\ud[89ab][0-9a-f]{2}/i);
+			const { preview } = JSON.parse(text) as { preview: string };
+			expect(preview.length).toBeGreaterThan(0);
+			expect(loneSurrogate.test(preview)).toBe(false);
+		}
+	});
+
+	it("an escape-heavy preview (JSON quotes) still fits the cap", () => {
+		const { text } = capJson({ blob: '"'.repeat(MAX_TEXT_CHARS * 2) });
+		expect(text.length).toBeLessThanOrEqual(MAX_TEXT_CHARS);
+		expect(
+			(JSON.parse(text) as { preview: string }).preview.length,
+		).toBeGreaterThan(0);
+	});
+});
+
+describe("withStructured: the view sees the cut (QA #43 P1)", () => {
+	it("a truncated view tool passes the note to structuredContent", async () => {
+		const { call } = await connect(() => json(salesFixture(100)));
+		const res = await call("sales_list", { limit: 100, verbose: true });
+		const text = JSON.parse(res.content[0].text) as {
+			data: unknown[];
+			truncated: { shown: number; total: number };
+		};
+		expect(text.truncated.total).toBe(100);
+		const sc = res.structuredContent as {
+			data: unknown[];
+			truncated?: { shown: number; total: number };
+		};
+		expect(sc.truncated).toEqual(text.truncated);
+		expect(sc.data).toHaveLength(text.truncated.shown);
+	});
+
+	it("the preview fallback reaches the view as text, not as an object", async () => {
+		const r = withStructured({
+			content: [
+				{
+					type: "text",
+					text: capJson({ blob: "x".repeat(MAX_TEXT_CHARS * 2) }).text,
+				},
+			],
+		});
+		expect(typeof r.structuredContent?.data).toBe("string");
+		expect(r.structuredContent?.truncated?.shown).toBe(0);
 	});
 });
 

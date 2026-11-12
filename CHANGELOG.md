@@ -5,7 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
-## [0.21.0] - 2026-11-12
+## [0.23.0] - 2026-11-12
 
 Output token budget (Block MCP playbook). Measured on a realistic 100-row
 `sales_list` page: **138 768 chars before** (indented text 79 118 + the same
@@ -21,6 +21,17 @@ rows again in `structuredContent` 59 650) → **24 737 chars of text after**
   by whole items, with `truncated: { shown, total, field, hint }`. The hint
   names `limit`/`cursor` when the response pages, the filters when it does not,
   and a single `workspace` for global-mode aggregates. Never invalid JSON.
+  The cut prefers the primary list (top-level `data`, so the fan-out never
+  trims `errors` instead of the rows) and otherwise the heaviest array up to
+  4 levels deep (`{ data: { events: [...] } }`); the text preview fallback
+  cuts by code point (no split emoji) and accounts for JSON escaping.
+- **A cut page never skips rows**: the API's `page.nextCursor` points past the
+  end of the full page, so on a cut page it is set to `null` (with
+  `hasMore: true`) and the hint says to repeat the same call with the same
+  `cursor` and `limit: <shown>` — that response carries the exact cursor.
+- The tools with a view also get the note in `structuredContent.truncated`
+  (the view footer says "Mostrando N de M"); the preview fallback reaches the
+  view as text, not as an object.
 - Trimmed views by default for `sales_list`, `sales_tickets`, `sales_attempts`,
   `reports_export_buyers` and `reports_export_attendees` (ids, codes, status,
   amounts, dates, buyer name/email; no phone, document, gateway refs or nulls).
