@@ -16,7 +16,7 @@ import { registerCustomerTools } from "./tools/customer";
 import { registerPublicTools } from "./tools/public";
 import { registerUi } from "./ui";
 
-export const VERSION = "0.23.0";
+export const VERSION = "0.24.0";
 
 /**
  * A view of the server that drops every tool not annotated `readOnlyHint:

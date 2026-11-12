@@ -5,7 +5,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
-## [0.23.0] - 2026-11-12
+## [0.24.0] - 2026-11-12
 
 Auth hardening against Block's MCP playbook (OAuth, minimum scopes,
 short-lived tokens, no secrets in plaintext, no tokens in the model context).
@@ -54,6 +54,28 @@ short-lived tokens, no secrets in plaintext, no tokens in the model context).
 - Per-IP rate limit for anonymous traffic (`MCP_ANON_RPM`, default 120/min,
   in memory per instance) with 429 + `Retry-After`. Anonymous `GET /mcp`
   answers 405 (no SSE stream, see #29).
+
+### Security (review of #45)
+- The consent page warns about any destination that is not **exactly** a known
+  callback URL (it compared hosts: `https://claude.ai/<other path>`, which
+  `/register` accepts, showed no warning). For those, the registered
+  `client_name` is quoted as unverified and the full URL is shown.
+- The device flow starts on the user's click (`POST /device-start`), not on
+  every `GET /authorize`: free-admin caps pending device flows per IP and sees
+  this server's single egress IP, so ~10 anonymous page loads locked everyone
+  out. Per-IP limits on `/authorize`, `/device-start` (5 per 10 min),
+  `/device-token` and `/token`, plus 6 refreshes/min per refresh token.
+- 429 and 408 from free-admin's `/me` on refresh are 503
+  `temporarily_unavailable`, not `invalid_grant` (no forced sign-in).
+- Rate limiter: IPv6 keyed by /64, at most 10k counters (oldest evicted),
+  `X-Forwarded-For` trusted only on Vercel.
+- A grant bound to `client_id` `""` only redeems for `""`; a token's client is
+  never rebound.
+- Legacy refresh tokens (no absolute end) get at most 30 more days (or 90 d
+  from their `iat`), not a fresh 90 days. A refresh past its absolute end is
+  `invalid_grant`.
+- A request body that is not JSON answers 400 (JSON-RPC `-32700` on `/mcp`),
+  not 500.
 
 ## [0.20.0] - 2026-11-03
 

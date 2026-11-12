@@ -119,9 +119,10 @@ headers). Steps:
    scope `read`) for a read-only connection: only read tools are registered.
    Under "Advanced options" there is still the manual form (an API key for CI
    and a workspace field to tie the connection to a single tenant). The
-   superadmin cookie field is gone since 0.23.0: `admin_*` is stdio-only.
+   superadmin cookie field is gone since 0.24.0: `admin_*` is stdio-only.
 4. Tokens: access 1 h, refresh 30 days rotated on every use, session capped at
-   90 days from sign-in. Each refresh re-checks the API key with free-admin,
+   90 days from sign-in (refresh tokens issued before 0.24.0 get at most 30
+   more days). Each refresh re-checks the API key with free-admin,
    so revoking the key (panel or `ft api-keys revoke`) ends the connection
    within the hour. Being stateless, a used refresh token cannot be
    invalidated (no replay detection) — the price of not having a database.
@@ -134,7 +135,7 @@ an external AS (for instance, once `free-admin` publishes its own).
 
 ### Direct auth (curl, your own clients)
 
-Raw API keys are **not** accepted as Bearer since 0.23.0 (401
+Raw API keys are **not** accepted as Bearer since 0.24.0 (401
 `invalid_token`). For scripts and CI use stdio (`FT_API_KEY`), or go through
 OAuth once and use the access token it issues. Anonymous calls need nothing:
 
@@ -146,10 +147,24 @@ curl -X POST http://localhost:3333/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-Anonymous traffic (`/mcp` without a token, `/mcp/public`) is limited to
-`MCP_ANON_RPM` requests per minute per IP (default 120, per instance).
+Rate limits are **best-effort and per instance**: counters live in memory, so
+each Vercel instance keeps its own and a restart clears them. They stop one
+client hammering free-admin through this server; they are not a quota.
+Per client IP (IPv6 grouped by /64; `X-Forwarded-For` is trusted only on
+Vercel, the standalone server uses the socket address):
+
+| What | Limit |
+|---|---|
+| Anonymous `/mcp`, `/mcp/public` | `MCP_ANON_RPM` per minute (default 120) |
+| Consent page: `GET`/`POST /authorize`, `/device-start`, `/device-token` | 60 per minute |
+| Device flows started (`/device-start`) | 5 per 10 minutes |
+| `/token` | 600 per minute (it comes from the client's backend: one IP, many users) |
+| Refresh of one same token | 6 per minute |
+
+The consent page starts the device flow only when the user clicks
+"Continuar con FreeTicket" (`POST /device-start`), not on page load.
 `MCP_REQUIRE_AUTH=1` turns lazy auth off (401 on any `/mcp` request without a
-token, as before 0.23.0).
+token, as before 0.24.0).
 
 ### Deploying on Vercel
 

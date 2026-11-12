@@ -66,6 +66,9 @@ export interface Sealed {
 	 * anybody a sealed blob, and without it that blob opened under another
 	 * prefix. Payloads sealed before carry none and stay valid. */
 	t?: string;
+	/** issued at (epoch s). Read only when present: legacy refresh tokens use
+	 * it to derive their absolute session end. */
+	iat?: number;
 	/** expiración, epoch en segundos */
 	exp: number;
 }
@@ -85,7 +88,7 @@ export const CLIENT_TTL = 10 * 365 * 24 * 3600;
  * not sealed (registered before ids were sealed, or after a secret rotation)
  * may only redirect to one of these exact URLs or to loopback. Exact URLs, not
  * hosts: some of these hosts run open redirectors on other paths. The consent
- * page warns about any host not listed here.
+ * page warns about any destination that is not exactly one of these URLs.
  */
 export const KNOWN_CALLBACKS = [
 	"https://claude.ai/api/mcp/auth_callback",
@@ -94,15 +97,19 @@ export const KNOWN_CALLBACKS = [
 	"https://vscode.dev/redirect",
 	"https://insiders.vscode.dev/redirect",
 ];
-const KNOWN_HOSTS = new Set(KNOWN_CALLBACKS.map((u) => new URL(u).host));
 const MAX_REDIRECT_LENGTH = 2048;
 
 export interface RedirectCheck {
 	ok: boolean;
-	/** client_name sealed at registration, when the client_id is sealed */
+	/** client_name sealed at registration, when the client_id is sealed.
+	 * Registration is open: this is whatever the registrant typed. */
 	clientName?: string;
 	host?: string;
-	/** true when the destination is neither loopback nor a known client */
+	/** the redirect_uri, shown in full when it is not a known callback */
+	uri?: string;
+	/** true when the destination is neither loopback nor EXACTLY one of
+	 * KNOWN_CALLBACKS. Compared by URL, not host: claude.ai/<other path> with a
+	 * chosen client_name is how a phishing client would look like Claude. */
 	unknownHost?: boolean;
 }
 
@@ -133,7 +140,8 @@ export function checkRedirect(
 	if (u.protocol !== "https:" && !loopback) return { ok: false };
 	const base = {
 		host: u.host,
-		unknownHost: !loopback && !KNOWN_HOSTS.has(u.host),
+		uri: redirectUri,
+		unknownHost: !loopback && !KNOWN_CALLBACKS.includes(redirectUri),
 	};
 	const client = open(clientId, secret, CLIENT_PREFIX);
 	if (client)
@@ -205,7 +213,7 @@ export function pkceMatches(verifier: string, challenge: string): boolean {
 
 /**
  * Session credentials from a sealed token. `a` (a pasted superadmin cookie,
- * sealed by versions before 0.23.0) is dropped on purpose: the admin layer no
+ * sealed by versions before 0.24.0) is dropped on purpose: the admin layer no
  * longer comes through hosted OAuth.
  */
 export function sealedToCreds(p: Sealed, apiUrl: string): Creds {
@@ -256,9 +264,12 @@ const esc = (s: string) =>
 /**
  * The consent page. Primary path: **login with the free-admin session** via
  * the device flow (RFC 8628, the same backend as `ft login`) — one
- * botón, cero keys. La página hace polling a /device-token y redirige sola al
- * cliente MCP. El form de credenciales manuales queda como "Opciones
- * avanzadas" (CI). Copy en español neutro (audiencia LATAM).
+ * botón, cero keys. The flow starts only when the user clicks (POST
+ * /device-start): free-admin caps pending device flows per IP and sees this
+ * server's egress IP for everybody, so starting one on every GET /authorize let
+ * a handful of anonymous page loads lock every user out. La página hace polling
+ * a /device-token y redirige sola al cliente MCP. El form de credenciales
+ * manuales queda como "Opciones avanzadas" (CI). Copy en español neutro.
  *
  * Diseño = tokens de free-admin (globals.css): amarillo #ffd500 sobre negro
  * #070707, muted #717182, borde #e0e0e0, radios 0.75rem card / 0.5rem botón,
@@ -266,18 +277,21 @@ const esc = (s: string) =>
  */
 export function consentPage(
 	params: URLSearchParams,
-	opts: { device?: DeviceStart; error?: string; redirect?: RedirectCheck } = {},
+	opts: { error?: string; redirect?: RedirectCheck } = {},
 ): string {
-	const { device, error, redirect } = opts;
+	const { error, redirect } = opts;
 	// Who gets the connection. Registration is open, so client_name alone proves
-	// nothing: the destination host is what the user has to recognise.
-	const target = redirect?.host
-		? `<div class="target">Vas a conectar <b>${esc((!redirect.unknownHost && redirect.clientName) || redirect.host)}</b>.<br>Al aprobar, volverás a <b>${esc(redirect.host)}</b>.</div>${
-				redirect.unknownHost
-					? `<div class="err">Ese destino no es un cliente conocido. Continúa solo si tú iniciaste esta conexión.</div>`
-					: ""
-			}`
-		: "";
+	// nothing: for a destination that is not exactly a known callback, the page
+	// names the host and the full URL, and quotes the name as unverified.
+	let target = "";
+	if (redirect?.host && !redirect.unknownHost)
+		target = `<div class="target">Vas a conectar <b>${esc(redirect.clientName || redirect.host)}</b>.<br>Al aprobar, volverás a <b>${esc(redirect.host)}</b>.</div>`;
+	else if (redirect?.host)
+		target = `<div class="target">Vas a conectar <b>${esc(redirect.host)}</b>.<br>Al aprobar, volverás a <code>${esc(redirect.uri ?? redirect.host)}</code>.${
+			redirect.clientName
+				? `<br><small>El cliente se identifica como “${esc(redirect.clientName)}”; ese nombre no está verificado.</small>`
+				: ""
+		}</div><div class="err">Ese destino no es un cliente conocido. Continúa solo si tú iniciaste esta conexión.</div>`;
 	const hidden = [
 		"client_id",
 		"redirect_uri",
@@ -292,8 +306,8 @@ export function consentPage(
 		.join("\n      ");
 	const manualForm = `
   <form method="post" action="/authorize">
-    ${device ? "" : `<p>Pega tus credenciales; se sellan dentro del token y este servidor no las almacena.</p>`}
-    ${!device && error ? `<div class="err">${esc(error)}</div>` : ""}
+    <p>Pega tus credenciales; se sellan dentro del token y este servidor no las almacena.</p>
+    ${error ? `<div class="err">${esc(error)}</div>` : ""}
     <label>API key B2B <small>(genera una con <code>ft login</code> o en el panel)</small></label>
     <input type="password" name="api_key" autocomplete="off">
     <label>Workspace ID <small>(opcional — solo si quieres atar esta conexión a un único workspace; en blanco los lee todos)</small></label>
@@ -302,21 +316,19 @@ export function consentPage(
     ${hidden}
     <button type="submit" class="secondary">Autorizar con credenciales</button>
   </form>`;
-	const deviceSection = device
-		? `
+	const deviceSection = `
     <p>Se abrirá FreeTicket para que inicies sesión con tu cuenta de siempre y
     apruebes la conexión. Verifica que el código coincida:</p>
-    <div class="code">${esc(device.user_code)}</div>
-    <a class="btn" id="go" href="${esc(device.verification_uri_complete)}" target="_blank" rel="noopener">Continuar con FreeTicket</a>
-    <p class="status" id="status">Esperando aprobación…</p>
-    <details><summary>Opciones avanzadas</summary>${manualForm}</details>
+    <div class="code" id="code" hidden></div>
+    <button type="button" id="go">Continuar con FreeTicket</button>
+    <a class="btn" id="open" hidden target="_blank" rel="noopener">Abrir FreeTicket</a>
+    <p class="status" id="status"></p>
+    <noscript><p class="status bad">Activa JavaScript o usa Opciones avanzadas.</p></noscript>
+    <details${error ? " open" : ""}><summary>Opciones avanzadas</summary>${manualForm}</details>
     <script>
     (() => {
       const cfg = ${JSON.stringify({
-				dc: device.device_code,
 				ci: params.get("client_id") ?? "",
-				iv: device.interval,
-				exp: device.expires_in,
 				ru: params.get("redirect_uri") ?? "",
 				ch: params.get("code_challenge") ?? "",
 				st: params.get("state") ?? "",
@@ -324,33 +336,55 @@ export function consentPage(
 				// `<` escaped: these come from the query string, and a raw
 				// "</script>" in state or code_challenge would end this block.
 			}).replace(/</g, "\\u003c")};
-      const status = document.getElementById("status");
-      const deadline = Date.now() + cfg.exp * 1000;
-      let iv = cfg.iv;
-      const post = (body) =>
-        fetch("/device-token", {
+      const $ = (id) => document.getElementById(id);
+      const status = $("status"), go = $("go"), code = $("code"), link = $("open");
+      const say = (t, bad) => { status.textContent = t; status.classList.toggle("bad", !!bad); };
+      let dc = "", iv = 5, deadline = 0;
+      const post = (path, body) =>
+        fetch(path, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ client_id: cfg.ci, redirect_uri: cfg.ru, code_challenge: cfg.ch, state: cfg.st, scope: cfg.sc, ...body }),
         }).then((r) => r.json());
       const finish = (j) => {
-        if (j.redirect) { status.textContent = "Conectado. Volviendo…"; location.href = j.redirect; return true; }
-        if (j.error) { status.textContent = j.error; status.classList.add("bad"); return true; }
+        if (j.redirect) { say("Conectado. Volviendo…"); location.href = j.redirect; return true; }
+        if (j.error) { say(j.error, true); return true; }
         return false;
       };
       const poll = async () => {
-        if (Date.now() > deadline) { status.textContent = "El código expiró. Recarga la página para reintentar."; status.classList.add("bad"); return; }
+        if (Date.now() > deadline) { say("El código expiró. Recarga la página para reintentar.", true); return; }
         try {
-          const j = await post({ device_code: cfg.dc });
+          const j = await post("/device-token", { device_code: dc });
           if (finish(j)) return;
           if (j.slow) iv += 5;
         } catch {}
         setTimeout(poll, iv * 1000);
       };
-      setTimeout(poll, iv * 1000);
+      go.addEventListener("click", async () => {
+        go.disabled = true;
+        // Opened inside the click so popup blockers allow it; pointed at
+        // FreeTicket once the flow exists.
+        const w = window.open("", "_blank");
+        say("Iniciando…");
+        let d = null;
+        try { d = await post("/device-start", {}); } catch {}
+        if (!d || !d.verification_uri_complete) {
+          if (w) w.close();
+          go.disabled = false;
+          say((d && d.error) || "No se pudo iniciar sesión con FreeTicket. Reintenta o usa Opciones avanzadas.", true);
+          return;
+        }
+        code.textContent = d.user_code; code.hidden = false;
+        link.href = d.verification_uri_complete; link.hidden = false;
+        go.hidden = true;
+        if (w) { w.opener = null; w.location.href = d.verification_uri_complete; }
+        dc = d.device_code; iv = d.interval || 5;
+        deadline = Date.now() + (d.expires_in || 600) * 1000;
+        say("Esperando aprobación…");
+        setTimeout(poll, iv * 1000);
+      });
     })();
-    </script>`
-		: "";
+    </script>`;
 	return `<!doctype html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Conectar FreeTicket</title>
@@ -368,6 +402,7 @@ export function consentPage(
     --input-background:oklch(.17 0 0);--destructive:oklch(.637 .237 25.331);
   }}
   *{box-sizing:border-box}
+  [hidden]{display:none!important}
   body{font-family:Inter,system-ui,-apple-system,sans-serif;background:var(--background);
     color:var(--foreground);display:grid;place-items:center;min-height:100vh;margin:0;padding:1.5rem}
   .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-card);
@@ -404,8 +439,7 @@ export function consentPage(
     <img class="logo" src="/favicon.svg" alt="FreeTicket">
     <h1>Conectar FreeTicket</h1>
     ${target}
-    ${device && error ? `<div class="err">${esc(error)}</div>` : ""}
-    ${device ? deviceSection : manualForm}
+    ${deviceSection}
     <p class="foot">La conexión usa tus permisos de FreeTicket y puedes revocarla cerrando sesión en el panel.</p>
   </div>
 </body></html>`;

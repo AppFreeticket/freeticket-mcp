@@ -13,13 +13,14 @@
  *                      sealed credentials); anything else — an expired token, a
  *                      raw API key — is 401 invalid_token, so the client
  *                      refreshes or signs in again. Raw API keys are no longer
- *                      accepted as Bearer (0.23.0): use OAuth, or stdio with
+ *                      accepted as Bearer (0.24.0): use OAuth, or stdio with
  *                      FT_API_KEY.
  *                      Optional `X-Customer-Session`: a buyer session that adds
  *                      the customer_* layer (with or without a Bearer).
  *   POST /mcp/public   anonymous: public B2C tools only (the buyer has no
  *                      cuenta). Para agentes compradores.
- * Anonymous requests are rate limited per IP (see RateLimiter).
+ * Anonymous requests and the OAuth endpoints are rate limited per client IP
+ * (see RateLimiter), best-effort and per instance.
  *
  * OAuth 2.1 embebido (ver src/oauth.ts): discovery RFC 8414/9728, registro
  * RFC 7591 dynamic registration, /authorize with a consent page + PKCE, /token
@@ -37,7 +38,7 @@
  *                     instance once free-admin publishes its own); turns the
  *                     embedded AS off
  *   MCP_REQUIRE_AUTH  "1" turns lazy auth off: /mcp without a Bearer answers
- *                     401 at once, as before 0.23.0 (kill switch for a client
+ *                     401 at once, as before 0.24.0 (kill switch for a client
  *                     that cannot sign in on a tool call)
  *   MCP_ANON_RPM      anonymous requests per minute per IP (default 120)
  *   OPENAI_APPS_CHALLENGE
@@ -45,7 +46,7 @@
  *                     submission portal, served as plain text at
  *                     /.well-known/openai-apps-challenge. Unset → that path 404s
  */
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { type Creds, normalizeApiUrl } from "./api";
@@ -109,7 +110,7 @@ type RequestAuth =
 
 /**
  * Request credentials. Only an access token sealed by this server counts as a
- * Bearer: the raw-API-key fallback is gone (0.23.0). Besides being the
+ * Bearer: the raw-API-key fallback is gone (0.24.0). Besides being the
  * credential-in-plaintext path the audit flagged, it turned an EXPIRED access
  * token into a "raw key" that free-admin then rejected tool by tool, so the
  * client never learnt it had to refresh. The buyer session rides in its own
@@ -132,24 +133,35 @@ export function authFromRequest(
 }
 
 /**
- * Best-effort per-IP limiter for anonymous traffic: a fixed one-minute window
- * held in memory, so it is per instance (Fluid Compute reuses instances, which
- * is what makes it bite). It caps one client hammering free-admin's public API
- * through us; it is not a quota. Authenticated traffic is limited by
- * free-admin per key.
+ * Best-effort fixed-window limiter, held in memory, so it is per instance
+ * (Fluid Compute reuses instances, which is what makes it bite). It caps one
+ * client hammering free-admin through us; it is not a quota. Authenticated
+ * traffic is limited by free-admin per key.
+ *
+ * Memory is bounded: at most `maxKeys` counters. A new key past the cap evicts
+ * the oldest one (Map insertion order = window start, so the evicted counter
+ * is the one closest to its reset anyway).
  */
 export class RateLimiter {
 	private hits = new Map<string, { n: number; reset: number }>();
 	constructor(
 		private limit: number,
 		private windowMs = 60_000,
+		private maxKeys = 10_000,
 	) {}
+	get size(): number {
+		return this.hits.size;
+	}
 	/** Seconds to wait, or 0 when the request may pass. */
 	check(key: string, now = Date.now()): number {
-		if (this.hits.size > 10_000)
-			for (const [k, v] of this.hits) if (v.reset <= now) this.hits.delete(k);
 		const h = this.hits.get(key);
 		if (!h || h.reset <= now) {
+			this.hits.delete(key);
+			while (this.hits.size >= this.maxKeys) {
+				const oldest = this.hits.keys().next().value;
+				if (oldest === undefined) break;
+				this.hits.delete(oldest);
+			}
 			this.hits.set(key, { n: 1, reset: now + this.windowMs });
 			return 0;
 		}
@@ -157,16 +169,70 @@ export class RateLimiter {
 		return h.n > this.limit ? Math.ceil((h.reset - now) / 1000) : 0;
 	}
 }
+/** Anonymous /mcp and /mcp/public. */
 const anonLimiter = new RateLimiter(ANON_RPM);
+/** Browser-driven OAuth steps: GET/POST /authorize, /device-start, /device-token
+ * (the page polls every 5 s, i.e. 12/min). */
+const consentLimiter = new RateLimiter(60);
+/** Device flows started per IP: each one holds a pending slot in free-admin,
+ * which caps them per (our egress) IP. A person needs one or two. */
+const deviceStartLimiter = new RateLimiter(5, 10 * 60_000);
+/** /token is called from the MCP client's backend (claude.ai, ChatGPT), so one
+ * IP is many users: a generous ceiling against a single abuser. */
+const tokenIpLimiter = new RateLimiter(600);
+/** Each refresh calls free-admin's /me: bounds the fan-out of one token. */
+const refreshLimiter = new RateLimiter(6);
 
-function clientIp(req: IncomingMessage): string {
-	const fwd = (req.headers["x-forwarded-for"] as string) ?? "";
-	return (
-		fwd.split(",")[0].trim() ||
-		(req.headers["x-real-ip"] as string) ||
-		req.socket?.remoteAddress ||
-		"unknown"
-	);
+/**
+ * The rate-limit key for an address: IPv4 as is, IPv6 by its /64 (one host
+ * rotates freely within its /64), IPv4-mapped IPv6 as the IPv4.
+ */
+export function ipKey(ip: string): string {
+	const v = ip
+		.trim()
+		.toLowerCase()
+		.split("%")[0]
+		.replace(/^::ffff:(?=\d+\.\d+\.\d+\.\d+$)/, "");
+	if (!v.includes(":")) return v || "unknown";
+	const parts = v.split("::");
+	const head = parts[0] ? parts[0].split(":") : [];
+	const tail = parts.length > 1 && parts[1] ? parts[1].split(":") : [];
+	const groups =
+		parts.length > 1
+			? [
+					...head,
+					...Array(Math.max(0, 8 - head.length - tail.length)).fill("0"),
+					...tail,
+				]
+			: head;
+	return `${groups
+		.slice(0, 4)
+		.map((g) => g.replace(/^0+(?=.)/, "") || "0")
+		.join(":")}::/64`;
+}
+
+/**
+ * The client address. X-Forwarded-For is trusted only on Vercel, whose edge
+ * overwrites it; the standalone server (src/http.ts) may sit anywhere, and
+ * there a client-chosen header would mint a fresh rate-limit key per request.
+ */
+export function clientIp(req: IncomingMessage): string {
+	if (process.env.VERCEL) {
+		const fwd = ((req.headers["x-forwarded-for"] as string) ?? "")
+			.split(",")[0]
+			.trim();
+		const ip = fwd || (req.headers["x-real-ip"] as string | undefined);
+		if (ip) return ipKey(ip);
+	}
+	return ipKey(req.socket?.remoteAddress || "unknown");
+}
+
+function tooMany(res: ServerResponse, wait: number, body: object): void {
+	res.writeHead(429, {
+		"content-type": "application/json",
+		"retry-after": String(wait),
+	});
+	res.end(JSON.stringify({ ...body, retryAfter: wait }));
 }
 
 /**
@@ -242,9 +308,17 @@ export function asForm(body: unknown): URLSearchParams {
 	return params;
 }
 
+/** A request body that is not valid JSON: answered 400, never 500. */
+class BadJson extends Error {}
+
 /** Normalizes a JSON body that may arrive raw or already parsed. */
 function asJson(body: unknown): unknown {
-	return typeof body === "string" && body ? JSON.parse(body) : body;
+	if (typeof body !== "string" || !body) return body;
+	try {
+		return JSON.parse(body);
+	} catch {
+		throw new BadJson();
+	}
 }
 
 type KeyCheck =
@@ -254,8 +328,9 @@ type KeyCheck =
 
 /**
  * Validates an API key against free-admin (GET /api/v1/me) and reads its
- * scope. `unavailable` = free-admin did not answer (network, 5xx): not proof
- * the key is dead, so a refresh is told to retry rather than to sign in again.
+ * scope. `unavailable` = free-admin did not answer (network, 5xx) or asked us
+ * to back off (408, 429): not proof the key is dead, so a refresh is told to
+ * retry rather than to sign in again.
  */
 async function checkKey(
 	apiKey: string,
@@ -267,7 +342,8 @@ async function checkKey(
 			...(workspaceId ? { "X-Workspace-Id": workspaceId } : {}),
 		},
 	}).catch(() => null);
-	if (!r || r.status >= 500) return { status: "unavailable" };
+	if (!r || r.status >= 500 || r.status === 408 || r.status === 429)
+		return { status: "unavailable" };
 	if (!r.ok) return { status: "invalid" };
 	const me = (await r.json().catch(() => ({}))) as {
 		data?: { scope?: string };
@@ -305,7 +381,9 @@ function issueTokens(p: Sealed, clientId: string) {
 		k: p.k,
 		w: p.w,
 		...(p.s === "read" ? { s: "read" as const } : {}),
-		c: clientId || p.c,
+		// Bound once: a grant that carries a client keeps it (even ""); only a
+		// legacy one without any is bound to the client that presents it.
+		c: p.c ?? clientId,
 		ae,
 	};
 	return {
@@ -505,6 +583,8 @@ export async function handleHttp(
 			url.pathname === "/authorize" &&
 			!EXTERNAL_ISSUER
 		) {
+			const wait = consentLimiter.check(clientIp(req));
+			if (wait) return tooMany(res, wait, { error: "rate_limited" });
 			const redirect = checkRedirect(
 				url.searchParams.get("client_id") ?? "",
 				url.searchParams.get("redirect_uri") ?? "",
@@ -521,11 +601,47 @@ export async function handleHttp(
 					error: "invalid_request",
 					error_description: "PKCE requerido",
 				});
-			// Primary path: login with the free-admin session (device flow).
-			const device = await startDeviceFlow(
-				wantsReadOnly(url.searchParams.get("scope")),
-			);
-			return html(res, consentPage(url.searchParams, { device, redirect }));
+			// The device flow starts on the user's click (POST /device-start), not
+			// here: a GET is anonymous and cheap to repeat.
+			return html(res, consentPage(url.searchParams, { redirect }));
+		}
+
+		// Starts the device flow for the consent page, on the user's click.
+		if (
+			req.method === "POST" &&
+			url.pathname === "/device-start" &&
+			!EXTERNAL_ISSUER
+		) {
+			const ip = clientIp(req);
+			const wait = consentLimiter.check(ip) || deviceStartLimiter.check(ip);
+			if (wait)
+				return tooMany(res, wait, {
+					error: "Demasiados intentos. Espera unos minutos y reintenta.",
+				});
+			const body = (asJson(await readBody(req)) ?? {}) as {
+				client_id?: string;
+				redirect_uri?: string;
+				code_challenge?: string;
+				scope?: string;
+			};
+			// Same checks as GET /authorize: no device flow for a request that
+			// could never end in a code.
+			if (
+				!checkRedirect(
+					body.client_id ?? "",
+					body.redirect_uri ?? "",
+					TOKEN_SECRET,
+				).ok ||
+				!body.code_challenge
+			)
+				return json(res, 400, { error: "invalid_request" });
+			const device = await startDeviceFlow(wantsReadOnly(body.scope));
+			if (!device)
+				return json(res, 503, {
+					error:
+						"No se pudo iniciar sesión con FreeTicket. Reintenta en unos minutos o usa Opciones avanzadas.",
+				});
+			return json(res, 200, device);
 		}
 
 		// Device flow polling from the consent page. Stateless: the device_code
@@ -536,6 +652,9 @@ export async function handleHttp(
 			url.pathname === "/device-token" &&
 			!EXTERNAL_ISSUER
 		) {
+			const wait = consentLimiter.check(clientIp(req));
+			// The page backs off on `slow` and keeps polling.
+			if (wait) return tooMany(res, wait, { pending: true, slow: true });
 			const body = (asJson(await readBody(req)) ?? {}) as {
 				device_code?: string;
 				client_id?: string;
@@ -619,6 +738,8 @@ export async function handleHttp(
 			url.pathname === "/authorize" &&
 			!EXTERNAL_ISSUER
 		) {
+			const wait = consentLimiter.check(clientIp(req));
+			if (wait) return tooMany(res, wait, { error: "rate_limited" });
 			const form = asForm(await readBody(req));
 			const redirectUri = form.get("redirect_uri") ?? "";
 			const challenge = form.get("code_challenge") ?? "";
@@ -629,7 +750,7 @@ export async function handleHttp(
 			);
 			if (!redirect.ok || !challenge)
 				return json(res, 400, { error: "invalid_request" });
-			// The superadmin-cookie field is gone (0.23.0): a pasted session
+			// The superadmin-cookie field is gone (0.24.0): a pasted session
 			// cookie is a bearer secret with no scope and no revocation of its own.
 			// admin_* stays on stdio until free-admin issues admin credentials
 			// through a device flow.
@@ -675,6 +796,8 @@ export async function handleHttp(
 			url.pathname === "/token" &&
 			!EXTERNAL_ISSUER
 		) {
+			const ipWait = tokenIpLimiter.check(clientIp(req));
+			if (ipWait) return tooMany(res, ipWait, { error: "slow_down" });
 			const form = asForm(await readBody(req));
 			const grant = form.get("grant_type");
 			const clientId = form.get("client_id") ?? "";
@@ -691,17 +814,30 @@ export async function handleHttp(
 				)
 					sealed = p;
 			} else if (grant === "refresh_token") {
-				const p = open(
-					form.get("refresh_token") ?? "",
-					TOKEN_SECRET,
-					REFRESH_PREFIX,
-				);
-				// RFC 6749 §6: bound to the client it was issued to. Refresh tokens
-				// sealed before 0.23.0 carry no client and stay valid until exp.
-				if (p && (!p.c || clientId === p.c)) sealed = p;
+				const raw = form.get("refresh_token") ?? "";
+				const p = open(raw, TOKEN_SECRET, REFRESH_PREFIX);
+				const now = Date.now() / 1000;
+				// RFC 6749 §6: bound to the client it was issued to — "" included.
+				// Refresh tokens sealed before 0.24.0 carry no client: the first
+				// client to present one binds it (issueTokens).
+				if (p && (p.c === undefined || clientId === p.c)) sealed = p;
 				// No key (a legacy admin-only token) → nothing left to refresh.
 				if (sealed && !sealed.k) sealed = null;
+				if (sealed && sealed.ae === undefined)
+					// Legacy refresh (no absolute end): not a fresh 90 days on first
+					// use. From its issue time when known, else 30 days from now.
+					sealed = {
+						...sealed,
+						ae: sealed.iat
+							? sealed.iat + SESSION_TTL
+							: Math.min(sealed.exp, now + REFRESH_TTL),
+					};
+				if (sealed?.ae !== undefined && sealed.ae <= now) sealed = null;
 				if (sealed?.k) {
+					const wait = refreshLimiter.check(
+						createHash("sha256").update(raw).digest("base64url"),
+					);
+					if (wait) return tooMany(res, wait, { error: "slow_down" });
 					// The revocation point of a stateless design: a key revoked in
 					// free-admin stops refreshing here, within one access TTL. A
 					// key whose scope dropped to read narrows the connection.
@@ -776,14 +912,7 @@ export async function handleHttp(
 			return;
 		}
 		const wait = anonLimiter.check(clientIp(req));
-		if (wait) {
-			res.writeHead(429, {
-				"content-type": "application/json",
-				"retry-after": String(wait),
-			});
-			res.end(JSON.stringify({ error: "rate_limited", retryAfter: wait }));
-			return;
-		}
+		if (wait) return tooMany(res, wait, { error: "rate_limited" });
 		const anon =
 			auth.kind === "anonymous" && url.pathname === "/mcp"
 				? auth.creds
@@ -827,6 +956,21 @@ export async function handleHttp(
 		// /mcp/public: public B2C tools only (buyer agents, with no account).
 		await handleMcp(req, res, anon, body);
 	} catch (err) {
+		if (err instanceof BadJson) {
+			if (!res.headersSent)
+				json(
+					res,
+					400,
+					url.pathname.startsWith("/mcp")
+						? {
+								jsonrpc: "2.0",
+								id: null,
+								error: { code: -32700, message: "Parse error" },
+							}
+						: { error: "invalid_request" },
+				);
+			return;
+		}
 		process.stderr.write(`MCP HTTP error: ${String(err)}\n`);
 		if (!res.headersSent) res.writeHead(500).end();
 	}
