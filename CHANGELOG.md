@@ -5,6 +5,36 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-12
+
+Output token budget (Block MCP playbook). Measured on a realistic 100-row
+`sales_list` page: **138 768 chars before** (indented text 79 118 + the same
+rows again in `structuredContent` 59 650) → **24 737 chars of text after**
+(78 trimmed rows + truncation note; a 50-row page fits whole at 15 661).
+
+### Changed
+- `run()` returns **compact JSON** (no indentation) and no longer duplicates
+  the payload in `structuredContent`. Only the tools with an MCP Apps view get
+  it (added by `uiTool`, parsed back from the capped text), so the view keeps
+  working unchanged.
+- **Size cap** `MAX_TEXT_CHARS` = 25 000 chars: over it the largest list is cut
+  by whole items, with `truncated: { shown, total, field, hint }`. The hint
+  names `limit`/`cursor` when the response pages, the filters when it does not,
+  and a single `workspace` for global-mode aggregates. Never invalid JSON.
+- Trimmed views by default for `sales_list`, `sales_tickets`, `sales_attempts`,
+  `reports_export_buyers` and `reports_export_attendees` (ids, codes, status,
+  amounts, dates, buyer name/email; no phone, document, gateway refs or nulls).
+  `verbose: true` returns the full row. The `reports_*` lists are already flat
+  and only go through the cap.
+- **Actionable errors**: the API envelope is kept (`error.code`) and enriched
+  with `status`, `retryable`, `retryAfterSeconds` (from `Retry-After`) and a
+  `hint` per status — 401 re-authenticate, 403 scope/role + active workspace,
+  404 find the id with the `*_list` tool, 409 re-read state, 400/422 the field
+  errors echoed, 429 wait N s, 5xx/network retry. `settlements_document` and
+  `settlements_proof` use the same mapping instead of raw HTTP text.
+- `limit` is a **number** (1-100) on the B2B and superadmin lists; numeric
+  strings (`"20"`) are still accepted.
+
 ## [0.20.0] - 2026-11-03
 
 Brings the B2B contract to **1.36.0** (superadmin 1.8.0 and public 0.10.1

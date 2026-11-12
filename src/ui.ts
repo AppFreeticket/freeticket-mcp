@@ -21,6 +21,7 @@
  * bundled with tsup.
  */
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { withStructured } from "./api";
 import { BRAND, FAVICON_SVG } from "./brand";
 import { read } from "./tool-meta";
 
@@ -57,7 +58,8 @@ export function uiTool(
 			annotations: read(name),
 			_meta: UI_META,
 		},
-		cb,
+		// The view reads `structuredContent`; only these tools carry it (api.ts).
+		async (args: unknown) => withStructured(await cb(args)),
 	);
 }
 
