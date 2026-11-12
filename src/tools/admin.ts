@@ -33,9 +33,10 @@ import {
 	postWorkspacesIdSuspend,
 	putFeatureFlagsKey,
 } from "../admin-client/sdk.gen";
-import { run } from "../api";
+import { run, withStructured } from "../api";
 import { read, write } from "../tool-meta";
 import { UI_META, uiTool } from "../ui";
+import { limitParam } from "../views";
 
 const CONFIRM = " ⚠️ Sensitive cross-tenant action: confirm with the human.";
 const CRM_READ_ONLY =
@@ -64,7 +65,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		{
 			q: z.string().optional().describe("Buscar por nombre/slug"),
 			status: z.string().optional().describe("Filtrar por estado"),
-			limit: z.string().optional().describe("Resultados por página (1-100)"),
+			limit: limitParam,
 			cursor: z.string().optional().describe("Cursor de paginación"),
 		},
 		async (q) => run(getWorkspaces({ query: q, client })),
@@ -77,7 +78,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		{
 			q: z.string().optional().describe("Buscar por nombre/email"),
 			role: z.string().optional().describe("Filtrar por rol"),
-			limit: z.string().optional(),
+			limit: limitParam,
 			cursor: z.string().optional(),
 		},
 		async (q) => run(getUsers({ query: q, client })),
@@ -95,7 +96,8 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			annotations: read("admin_tokens"),
 			_meta: UI_META,
 		},
-		async () => run(getTokens({ client })),
+		// Registered by hand (not uiTool): the view needs structuredContent.
+		async () => withStructured(await run(getTokens({ client }))),
 	);
 
 	uiTool(
@@ -106,7 +108,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			action: z.string().optional().describe("Filter by action"),
 			from: z.string().optional().describe("Desde (ISO 8601)"),
 			to: z.string().optional().describe("Hasta (ISO 8601)"),
-			limit: z.string().optional(),
+			limit: limitParam,
 			cursor: z.string().optional(),
 		},
 		async (q) => run(getAuditLog({ query: q, client })),

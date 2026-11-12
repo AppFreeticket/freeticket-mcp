@@ -158,9 +158,10 @@ describe("tool registration", () => {
 		// profile, organization, ticket templates, master QRs) + the 8 from
 		// 1.33–1.36 (sales_transfer, sales_recipient_update, tickets_checkin_undo,
 		// events_viewers_add/delete, events_validators_add, staff_resend_invite,
-		// staff_access_set). Minus the 6 customer_* writes, which moved to
-		// the buyer layer (./customer.ts) in 0.24.0.
-		expect(t.length).toBe(107);
+		// staff_access_set) + the 3 merch_products_* writes from 1.37–1.42.
+		// The customer_* writes (6 + the 3 customer_addresses_*) live in the
+		// buyer layer (./customer.ts) since 0.24.0.
+		expect(t.length).toBe(110);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -184,9 +185,11 @@ describe("tool registration", () => {
 			"sales_transfer",
 			"tickets_checkin_undo",
 			"staff_access_set",
+			"merch_products_create",
 		]) {
 			expect(t).toContain(n);
 		}
+		expect(t.filter((n) => n.startsWith("customer_"))).toEqual([]);
 	});
 
 	it("reads and writes share no tool names", () => {

@@ -26,6 +26,13 @@ short-lived tokens, no secrets in plaintext, no tokens in the model context).
   `merch_orders_lookup`, `content_playback_token` and `waitlist_join`.
   `customer_membership` and `customer_subscription_cancel` now require
   `workspaceId` (it was implied by the enterprise key).
+  The 0.21.0 address book (`customer_addresses_list/create/update/delete`)
+  moves to the buyer layer the same way. `customer_merch_orders` needs the
+  enterprise key AND the session, so like `merch_orders_lookup` it stays a
+  B2B tool, sends both, and is registered only when the connection has both.
+- Server `instructions` describe the new layers: a read-scoped connection
+  does not list write tools at all, `customer_*` come from the session
+  header / `FT_CUSTOMER_SESSION`, and `admin_*` is stdio only.
 - `/mcp` without a token no longer answers 401 upfront (lazy auth, below).
   `MCP_REQUIRE_AUTH=1` restores the old behaviour.
 
@@ -76,6 +83,105 @@ short-lived tokens, no secrets in plaintext, no tokens in the model context).
   `invalid_grant`.
 - A request body that is not JSON answers 400 (JSON-RPC `-32700` on `/mcp`),
   not 500.
+
+## [0.23.0] - 2026-11-12
+
+Output token budget (Block MCP playbook). Measured on a realistic 100-row
+`sales_list` page: **138 768 chars before** (indented text 79 118 + the same
+rows again in `structuredContent` 59 650) → **24 737 chars of text after**
+(78 trimmed rows + truncation note; a 50-row page fits whole at 15 661).
+
+### Changed
+- `run()` returns **compact JSON** (no indentation) and no longer duplicates
+  the payload in `structuredContent`. Only the tools with an MCP Apps view get
+  it (added by `uiTool`, parsed back from the capped text), so the view keeps
+  working unchanged.
+- **Size cap** `MAX_TEXT_CHARS` = 25 000 chars: over it the largest list is cut
+  by whole items, with `truncated: { shown, total, field, hint }`. The hint
+  names `limit`/`cursor` when the response pages, the filters when it does not,
+  and a single `workspace` for global-mode aggregates. Never invalid JSON.
+  The cut prefers the primary list (top-level `data`, so the fan-out never
+  trims `errors` instead of the rows) and otherwise the heaviest array up to
+  4 levels deep (`{ data: { events: [...] } }`); the text preview fallback
+  cuts by code point (no split emoji) and accounts for JSON escaping.
+- **A cut page never skips rows**: the API's `page.nextCursor` points past the
+  end of the full page, so on a cut page it is set to `null` (with
+  `hasMore: true`) and the hint says to repeat the same call with the same
+  `cursor` and `limit: <shown>` — that response carries the exact cursor.
+- The tools with a view also get the note in `structuredContent.truncated`
+  (the view footer says "Mostrando N de M"); the preview fallback reaches the
+  view as text, not as an object.
+- Trimmed views by default for `sales_list`, `sales_tickets`, `sales_attempts`,
+  `reports_export_buyers` and `reports_export_attendees` (ids, codes, status,
+  amounts, dates, buyer name/email; no phone, document, gateway refs or nulls).
+  `verbose: true` returns the full row. The `reports_*` lists are already flat
+  and only go through the cap.
+- **Actionable errors**: the API envelope is kept (`error.code`) and enriched
+  with `status`, `retryable`, `retryAfterSeconds` (from `Retry-After`) and a
+  `hint` per status — 401 re-authenticate, 403 scope/role + active workspace,
+  404 find the id with the `*_list` tool, 409 re-read state, 400/422 the field
+  errors echoed, 429 wait N s, 5xx/network retry. `settlements_document` and
+  `settlements_proof` use the same mapping instead of raw HTTP text.
+- `limit` is a **number** (1-100) on the B2B and superadmin lists; numeric
+  strings (`"20"`) are still accepted.
+
+## [0.22.0] - 2026-11-12
+
+### Added
+- Server `instructions` (sent once in `initialize`, static text in Spanish):
+  the four credential layers, the usual call order (`whoami` → `events_list`
+  with `q` → id → sales and reports), single-workspace writes, COP integer
+  amounts, cursor pagination, ids vs slugs and confirming destructive tools.
+
+### Changed
+- **Breaking for callers that passed it:** `content_member_posts_reject` and
+  `content_member_posts_remove` no longer accept `banAuthor`; the request
+  always sends `banAuthor: false`. Moderating a post and banning its author
+  are now two separate calls: banning only happens through the destructive
+  `content_members_ban`, which the descriptions point to. The
+  `community-moderation` skill says so.
+
+### Docs
+- README: the local stdio setup builds from source (`node dist/index.js`)
+  instead of `npx -y @freeticket/mcp`, which is not published on npm.
+
+## [0.21.0] - 2026-11-12
+
+Brings the B2B contract to **1.45.0** (from 1.36.0), synced from production
+(`https://admin.appfreeticket.com/api/v1/openapi.json`). Superadmin 1.8.0 and
+public 0.10.1 are unchanged. Additive only: no operationId removed or renamed.
+**230 tools** (B2B 194 · superadmin 30 · public 6), 52 with a view.
+
+1.42.0 → 1.45.0 adds no operation: `Me.scope` (`read` | `write`, the scope of
+the key in use, now returned by `GET /me`) and length/range limits on ticket
+types (`name` 1–100 chars, `price` 0–9 999 999 999).
+
+### Changed
+- `ticket_types_create` / `ticket_types_update` validate `name` (1–100) and
+  `price` (0–9 999 999 999) like the contract, so an out-of-range value fails
+  in the tool instead of as a 422.
+- `whoami` mentions the key scope it now returns.
+- `merch_products_create` rejects a variant `price` / `compareAtPrice` that is
+  not an integer from 1 to 100 000 000 COP (the server's rule, answered as a
+  400 `BAD_REQUEST`; the OpenAPI only says integer). Negatives used to pass.
+
+### Added
+- Merch store catalog admin (ADMIN, SUPER_ADMIN or MERCH_MANAGER):
+  `merch_products_list` (view), `merch_products_create` (always DRAFT, full
+  variant matrix), `merch_products_set_status` (idempotent) and
+  `merch_products_set_images` (destructive: photos dropped from the list are
+  deleted from storage).
+- Buyer address book (headless SSO, shared across brands):
+  `customer_addresses_list` (view), `customer_addresses_create`,
+  `customer_addresses_update` and `customer_addresses_delete` (destructive).
+- `customer_merch_orders` (view): the session buyer's merch orders in the key's
+  store, cursor-paginated.
+
+### Not exposed (see `EXCLUDED` in `src/coverage.test.ts`)
+- `POST /merch/products/images/upload-url`: a signed URL for raw file bytes;
+  photos are uploaded with `ft merch products create`.
+- `POST /merch/discount-codes/preview`: a step of the landing merch checkout,
+  which is not a tool either.
 
 ## [0.20.0] - 2026-11-03
 

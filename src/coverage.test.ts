@@ -92,6 +92,17 @@ const EXCLUDED: Record<string, string> = {
 		"landing page merch checkout (buyer ID document, stock hold) — needs the browser",
 	postMerchOrdersCodePaymentCard:
 		"charges a Brick card token — card data never passes through an agent",
+	// Discount preview of that same landing merch checkout (contract 1.41): it
+	// only makes sense right before placing an order, which is not a tool, and
+	// it is not read-only (it releases the store's expired reservations).
+	postMerchDiscountCodesPreview:
+		"step of the landing merch checkout (postMerchOrders), which needs the browser",
+	// Merch photo upload (contract 1.37): returns a signed URL the caller must
+	// PUT the file bytes to. An MCP host has no file to send; the photos are
+	// uploaded with `ft merch products create`, and the resulting publicUrls
+	// are set with merch_products_create / merch_products_set_images.
+	postMerchProductsImagesUploadUrl:
+		"signed upload URL for raw file bytes — uploading from disk belongs to the CLI (`ft merch products`)",
 };
 
 /**

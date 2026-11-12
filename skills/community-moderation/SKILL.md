@@ -26,6 +26,9 @@ human approves item by item.
    `content_member_posts_reject` (pending) and `content_member_posts_remove`
    (published, `status: "PUBLISHED"`) are irreversible and notify the author;
    a `reason` is shown to them, so write it for the member, in Spanish.
+   Neither one bans the author. If the human also wants a ban, that is a
+   separate step: `content_members_ban`, confirmed on its own, starting from
+   one of the author's comments.
 3. **Bans.** `content_moderation_bans` lists them; `content_members_unban`
    lifts one, but hidden comments and cancelled RSVPs stay that way.
 4. **Meetup requests.** `content_meetups_list` for pending-request counts,

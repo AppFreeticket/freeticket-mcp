@@ -3,6 +3,8 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { run } from "../api";
 import {
+	deleteCustomerAddressesId,
+	getCustomerAddresses,
 	getCustomerMe,
 	getCustomerMembership,
 	getCustomerOrders,
@@ -10,7 +12,9 @@ import {
 	getCustomerProfile,
 	getCustomerTickets,
 	getCustomerTicketsId,
+	patchCustomerAddressesId,
 	patchCustomerProfile,
+	postCustomerAddresses,
 	postCustomerLogout,
 	postCustomerOrdersIdRelease,
 	postCustomerSubscriptions,
@@ -19,10 +23,19 @@ import {
 } from "../client/sdk.gen";
 import { read, write } from "../tool-meta";
 import { uiTool } from "../ui";
+import { limitParam } from "../views";
 
 const CONFIRM = " ⚠️ Irreversible: confirm with the human before running it.";
+/**
+ * The 1.39+ routes declare `X-Customer-Session` as a required header, so the
+ * generated types ask for it per call. The client already sends it
+ * (makeCustomerClient); this empty object only satisfies the type and never
+ * overrides the client's header.
+ */
+const SESSION = { headers: {} as { "X-Customer-Session": string } };
+
 const paging = {
-	limit: z.string().optional().describe("Results per page (1-100)"),
+	limit: limitParam,
 	cursor: z.string().optional().describe("Pagination cursor"),
 };
 
@@ -105,6 +118,17 @@ export function registerCustomerTools(server: McpServer, client: Client): void {
 		async ({ id }) => run(getCustomerOrdersId({ path: { id }, client })),
 	);
 
+	uiTool(
+		server,
+		"customer_addresses_list",
+		"The buyer's saved shipping addresses, at most 10, the default first " +
+			"(GET /customer/addresses). The address book belongs to the buyer's " +
+			"FreeTicket account and is shared across brands. Colombia only: " +
+			"department and city are DANE codes (Bogotá = `11` / `11001`).",
+		{},
+		async () => run(getCustomerAddresses({ ...SESSION, client })),
+	);
+
 	// ── Writes ───────────────────────────────────────────────────────────────
 	server.tool(
 		"customer_ticket_cancel",
@@ -166,5 +190,102 @@ export function registerCustomerTools(server: McpServer, client: Client): void {
 		{},
 		write("customer_logout", { destructive: false }),
 		async () => run(postCustomerLogout({ client })),
+	);
+
+	// ── Buyer address book (contract 1.39+) ──────────────────────────────────
+	// Shared across brands: it belongs to the buyer's FreeTicket account, so
+	// the buyer session alone edits the same book (no B2B key is sent).
+	const ADDRESS_NOTE =
+		" Colombia only: `departmentCode` is the 2-digit DANE department and " +
+		"`cityCode` the 5-digit DANE city that starts with it (Bogotá = `11` / " +
+		"`11001`); 422 when the city does not belong to the department. The buyer " +
+		"session comes from the connection.";
+	const addressFields = {
+		label: z
+			.string()
+			.max(60)
+			.nullish()
+			.describe("Short name, e.g. `Casa`; null or empty clears it"),
+		recipientName: z.string().min(2).max(120),
+		phone: z
+			.string()
+			.regex(/^\+?[0-9 -]{7,20}$/)
+			.nullish()
+			.describe("Recipient phone; null or empty clears it"),
+		departmentCode: z.string().regex(/^\d{2}$/),
+		cityCode: z.string().regex(/^\d{5}$/),
+		address: z.string().min(5).max(200),
+		addressExtra: z
+			.string()
+			.max(200)
+			.nullish()
+			.describe("Apartment, tower…; null or empty clears it"),
+	};
+	server.tool(
+		"customer_addresses_create",
+		"Saves a shipping address for the buyer (POST /customer/addresses). At " +
+			"most 10 per buyer (409 `ADDRESS_LIMIT`). The first address is always " +
+			"the default; `isDefault: true` makes the new one the default and " +
+			`clears the previous one.${ADDRESS_NOTE}`,
+		{
+			...addressFields,
+			isDefault: z.boolean().optional().describe("Make it the default address"),
+		},
+		write("customer_addresses_create", { destructive: false }),
+		async (body) =>
+			run(
+				postCustomerAddresses({
+					...SESSION,
+					body,
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_addresses_update",
+		"Partially updates one of the buyer's addresses; omitted fields are left " +
+			"untouched (PATCH /customer/addresses/{id}). `isDefault: false` on the " +
+			"default moves the default to the most recent other address. Another " +
+			`buyer's address answers 404 \`ADDRESS_NOT_FOUND\`.${ADDRESS_NOTE}`,
+		{
+			id: z.string().describe("Address id"),
+			label: addressFields.label,
+			recipientName: addressFields.recipientName.optional(),
+			phone: addressFields.phone,
+			departmentCode: addressFields.departmentCode.optional(),
+			cityCode: addressFields.cityCode.optional(),
+			address: addressFields.address.optional(),
+			addressExtra: addressFields.addressExtra,
+			isDefault: z
+				.boolean()
+				.optional()
+				.describe("true makes it the default; false hands the default on"),
+		},
+		write("customer_addresses_update", { destructive: false }),
+		async ({ id, ...body }) =>
+			run(
+				patchCustomerAddressesId({
+					...SESSION,
+					path: { id },
+					body,
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_addresses_delete",
+		"Deletes one of the buyer's addresses (DELETE /customer/addresses/{id}); " +
+			"deleting the default promotes the most recent remaining one. Another " +
+			`buyer's address answers 404 \`ADDRESS_NOT_FOUND\`.${CONFIRM}`,
+		{ id: z.string().describe("Address id") },
+		write("customer_addresses_delete", { destructive: true }),
+		async ({ id }) =>
+			run(
+				deleteCustomerAddressesId({
+					...SESSION,
+					path: { id },
+					client,
+				}),
+			),
 	);
 }
