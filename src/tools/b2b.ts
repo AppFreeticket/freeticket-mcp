@@ -23,8 +23,10 @@ import {
 	getContentPosts,
 	getContentSeries,
 	getContentVideos,
+	getCustomerAddresses,
 	getCustomerMe,
 	getCustomerMembership,
+	getCustomerMerchOrders,
 	getCustomerOrders,
 	getCustomerOrdersId,
 	getCustomerProfile,
@@ -45,6 +47,7 @@ import {
 	getMembershipPlansId,
 	getMembershipPlansIdSubscribers,
 	getMerchCatalog,
+	getMerchProducts,
 	getOrganizationProfile,
 	getPaymentIntents,
 	getProducts,
@@ -209,7 +212,7 @@ export function registerB2bTools(
 
 	server.tool(
 		"whoami",
-		"User and workspaces of the configured session (GET /me).",
+		"User, workspaces and API key scope (`read` or `write`) of the configured session (GET /me).",
 		read("whoami"),
 		async () => run(getMe({ client })),
 	);
@@ -1243,5 +1246,61 @@ export function registerB2bTools(
 					client,
 				}),
 			),
+	);
+
+	// ── Contract 1.37–1.42: merch admin catalog, buyer address book ──────────
+	uiTool(
+		server,
+		"customer_merch_orders",
+		"The session buyer's merch orders in the key's store only, newest first, " +
+			"20 per page (GET /customer/merch-orders). PENDING orders whose stock " +
+			"reservation expired are left out; each item has the same shape as " +
+			"`merch_orders_lookup`. Pass `nextCursor` back as `cursor`. Requires an " +
+			"enterprise service API key and the buyer session. 404 STORE_NOT_READY " +
+			"when the brand has no store.",
+		{
+			cursor: z
+				.string()
+				.optional()
+				.describe("Opaque `nextCursor` from the previous page"),
+			customerSession,
+		},
+		async ({ customerSession, ...q }) =>
+			run(
+				getCustomerMerchOrders({
+					query: q,
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	uiTool(
+		server,
+		"customer_addresses_list",
+		"The buyer's saved shipping addresses, at most 10, the default first " +
+			"(GET /customer/addresses). The address book belongs to the buyer's " +
+			"FreeTicket account and is shared across brands. Colombia only: " +
+			"department and city are DANE codes (Bogotá = `11` / `11001`). " +
+			"Requires the buyer session; the enterprise API key is optional.",
+		{ customerSession },
+		async ({ customerSession }) =>
+			run(
+				getCustomerAddresses({
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	uiTool(
+		server,
+		"merch_products_list",
+		"Every non-deleted product of the workspace's merch store, DRAFT and " +
+			"PUBLISHED, with its variants (active or not) in display order " +
+			"(GET /merch/products). Prices are COP integers, VAT included; " +
+			"`stock` is the units available now. Requires ADMIN, SUPER_ADMIN or " +
+			"MERCH_MANAGER. 403 MERCH_STORE_LOCKED without an active Legend plan; " +
+			"404 STORE_NOT_FOUND when the store was never created.",
+		{},
+		async () => run(getMerchProducts({ client })),
 	);
 }

@@ -9,6 +9,7 @@ import {
 	deleteContentPostsId,
 	deleteContentSeriesId,
 	deleteContentVideosId,
+	deleteCustomerAddressesId,
 	deleteDiscountsId,
 	deleteEventsId,
 	deleteEventsIdArtistInvitationsInvitationId,
@@ -33,12 +34,14 @@ import {
 	patchContentPostsId,
 	patchContentSeriesId,
 	patchContentVideosId,
+	patchCustomerAddressesId,
 	patchCustomerProfile,
 	patchDiscountsId,
 	patchEventsId,
 	patchEventsIdDatesDateId,
 	patchMasterQrsId,
 	patchMembershipPlansId,
+	patchMerchProductsIdStatus,
 	patchOrganization,
 	patchOrganizationAnalytics,
 	patchOrganizationProfile,
@@ -68,6 +71,7 @@ import {
 	postContentPlaybackToken,
 	postContentPosts,
 	postContentSeries,
+	postCustomerAddresses,
 	postCustomerLogout,
 	postCustomerOrdersIdRelease,
 	postCustomerSubscriptions,
@@ -85,6 +89,7 @@ import {
 	postEventsIdViewers,
 	postMasterQrs,
 	postMembershipPlans,
+	postMerchProducts,
 	postProducts,
 	postProductsIdStatus,
 	postSales,
@@ -113,6 +118,7 @@ import {
 	putContentVideosIdSeries,
 	putEventsIdArtists,
 	putMasterQrsIdActive,
+	putMerchProductsIdImages,
 	putStaffIdAccess,
 	putWebsite,
 	putWebsitePublished,
@@ -353,9 +359,13 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"Creates a ticket type for a date (POST /ticket-types).",
 		{
 			eventDateId: z.string().describe("Event date id"),
-			name: z.string(),
+			name: z.string().min(1).max(100),
 			description: z.string().optional(),
-			price: z.number().describe("Price in the given currency"),
+			price: z
+				.number()
+				.min(0)
+				.max(9999999999)
+				.describe("Price in the given currency"),
 			currency: z.enum(["COP"]).default("COP").describe("Only COP"),
 			capacity: z.number().int().describe("Stock total"),
 			maxPerOrder: z.number().int().describe("Máximo por orden"),
@@ -385,9 +395,9 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"Actualiza un tipo de ticket — precio, stock, visibilidad (PATCH /ticket-types/{id}).",
 		{
 			id: z.string().describe("Ticket type id"),
-			name: z.string().optional(),
+			name: z.string().min(1).max(100).optional(),
 			description: z.string().nullish(),
-			price: z.number().min(0).optional(),
+			price: z.number().min(0).max(9999999999).optional(),
 			currency: z.string().optional(),
 			capacity: z.number().int().positive().optional().describe("Stock total"),
 			maxPerOrder: z.number().int().positive().optional(),
@@ -1399,6 +1409,9 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 				postContentModerationCommentsIdIgnoreReports({ path: { id }, client }),
 			),
 	);
+	// Moderating a post never bans its author: the contract's `banAuthor` is
+	// always sent as false. Banning is its own destructive tool,
+	// `content_members_ban`, so it gets its own confirmation.
 	const decision = {
 		id: z.string().describe("Member post id"),
 		reason: z
@@ -1406,11 +1419,10 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			.max(1000)
 			.optional()
 			.describe("Shown to the author in their inbox"),
-		banAuthor: z
-			.boolean()
-			.default(false)
-			.describe("Also ban the author from the community (requires ADMIN)"),
 	};
+	const BAN_HINT =
+		" It never bans the author: banning is a separate, destructive call, " +
+		"`content_members_ban` (it starts from one of the author's comments).";
 	server.tool(
 		"content_member_posts_approve",
 		"Approves a pending member post: it is published at the top of the " +
@@ -1438,15 +1450,14 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"content_member_posts_reject",
 		"Rejects a pending member post: it never gets published, the author is " +
 			"notified in their inbox and the image is purged " +
-			"(POST /content/moderation/member-posts/{id}/reject). `banAuthor` " +
-			`also bans the author in the same transaction.${CONFIRM}`,
+			`(POST /content/moderation/member-posts/{id}/reject).${BAN_HINT}${CONFIRM}`,
 		decision,
 		write("content_member_posts_reject", { destructive: true }),
-		async ({ id, ...body }) =>
+		async ({ id, reason }) =>
 			run(
 				postContentModerationMemberPostsIdReject({
 					path: { id },
-					body,
+					body: { reason, banAuthor: false },
 					client,
 				}),
 			),
@@ -1455,15 +1466,14 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"content_member_posts_remove",
 		"Removes a published member post: soft-deleted, the author is notified " +
 			"in their inbox and the image is purged " +
-			"(POST /content/moderation/member-posts/{id}/remove). `banAuthor` " +
-			`also bans the author in the same transaction.${CONFIRM}`,
+			`(POST /content/moderation/member-posts/{id}/remove).${BAN_HINT}${CONFIRM}`,
 		decision,
 		write("content_member_posts_remove", { destructive: true }),
-		async ({ id, ...body }) =>
+		async ({ id, reason }) =>
 			run(
 				postContentModerationMemberPostsIdRemove({
 					path: { id },
-					body,
+					body: { reason, banAuthor: false },
 					client,
 				}),
 			),
@@ -2632,5 +2642,252 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		write("staff_access_set", { destructive: true, idempotent: true }),
 		async ({ id, ...body }) =>
 			run(putStaffIdAccess({ path: { id }, body, client })),
+	);
+
+	// ── Buyer address book (contract 1.39+) ──────────────────────────────────
+	// Shared across brands: it belongs to the buyer's FreeTicket account, so
+	// any key (or none) with the buyer session edits the same book.
+	const ADDRESS_NOTE =
+		" Colombia only: `departmentCode` is the 2-digit DANE department and " +
+		"`cityCode` the 5-digit DANE city that starts with it (Bogotá = `11` / " +
+		"`11001`); 422 when the city does not belong to the department. Requires " +
+		"the buyer session; the enterprise API key is optional.";
+	const addressFields = {
+		label: z
+			.string()
+			.max(60)
+			.nullish()
+			.describe("Short name, e.g. `Casa`; null or empty clears it"),
+		recipientName: z.string().min(2).max(120),
+		phone: z
+			.string()
+			.regex(/^\+?[0-9 -]{7,20}$/)
+			.nullish()
+			.describe("Recipient phone; null or empty clears it"),
+		departmentCode: z.string().regex(/^\d{2}$/),
+		cityCode: z.string().regex(/^\d{5}$/),
+		address: z.string().min(5).max(200),
+		addressExtra: z
+			.string()
+			.max(200)
+			.nullish()
+			.describe("Apartment, tower…; null or empty clears it"),
+	};
+	server.tool(
+		"customer_addresses_create",
+		"Saves a shipping address for the buyer (POST /customer/addresses). At " +
+			"most 10 per buyer (409 `ADDRESS_LIMIT`). The first address is always " +
+			"the default; `isDefault: true` makes the new one the default and " +
+			`clears the previous one.${ADDRESS_NOTE}`,
+		{
+			...addressFields,
+			isDefault: z.boolean().optional().describe("Make it the default address"),
+			customerSession,
+		},
+		write("customer_addresses_create", { destructive: false }),
+		async ({ customerSession, ...body }) =>
+			run(
+				postCustomerAddresses({
+					body,
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_addresses_update",
+		"Partially updates one of the buyer's addresses; omitted fields are left " +
+			"untouched (PATCH /customer/addresses/{id}). `isDefault: false` on the " +
+			"default moves the default to the most recent other address. Another " +
+			`buyer's address answers 404 \`ADDRESS_NOT_FOUND\`.${ADDRESS_NOTE}`,
+		{
+			id: z.string().describe("Address id"),
+			label: addressFields.label,
+			recipientName: addressFields.recipientName.optional(),
+			phone: addressFields.phone,
+			departmentCode: addressFields.departmentCode.optional(),
+			cityCode: addressFields.cityCode.optional(),
+			address: addressFields.address.optional(),
+			addressExtra: addressFields.addressExtra,
+			isDefault: z
+				.boolean()
+				.optional()
+				.describe("true makes it the default; false hands the default on"),
+			customerSession,
+		},
+		write("customer_addresses_update", { destructive: false }),
+		async ({ id, customerSession, ...body }) =>
+			run(
+				patchCustomerAddressesId({
+					path: { id },
+					body,
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+	server.tool(
+		"customer_addresses_delete",
+		"Deletes one of the buyer's addresses (DELETE /customer/addresses/{id}); " +
+			"deleting the default promotes the most recent remaining one. Another " +
+			"buyer's address answers 404 `ADDRESS_NOT_FOUND`. Requires the buyer " +
+			`session.${CONFIRM}`,
+		{ id: z.string().describe("Address id"), customerSession },
+		write("customer_addresses_delete", { destructive: true }),
+		async ({ id, customerSession }) =>
+			run(
+				deleteCustomerAddressesId({
+					path: { id },
+					headers: { "X-Customer-Session": customerSession },
+					client,
+				}),
+			),
+	);
+
+	// ── Merch store catalog admin (contract 1.37+) ───────────────────────────
+	// The store is always the workspace organization's. Roles: ADMIN,
+	// SUPER_ADMIN or MERCH_MANAGER. Uploading photo bytes is not a tool (see
+	// coverage.test.ts): `ft merch products create` does it from disk.
+	const MERCH_ERRORS =
+		" Requires ADMIN, SUPER_ADMIN or MERCH_MANAGER. 403 MERCH_STORE_LOCKED " +
+		"without an active Legend plan; 404 STORE_NOT_FOUND when the store was " +
+		"never created (it is created from the dashboard).";
+	const IMAGE_URLS =
+		"Each must be a `publicUrl` already uploaded for this organization " +
+		"(422 `INVALID_IMAGE_URL` otherwise); external URLs are never fetched";
+	server.tool(
+		"merch_products_create",
+		"Creates a merch product with its options and the FULL variant matrix " +
+			"in one transaction, always as DRAFT — publish it with " +
+			"`merch_products_set_status` (POST /merch/products). Variants must be " +
+			"exactly the combinations of the option values, each once; no options " +
+			"= one variant with empty `attributes`. 400 `BAD_REQUEST` when a " +
+			"dashboard rule fails (`error.message` says which), 409 `SLUG_TAKEN` / " +
+			`\`SKU_TAKEN\`.${MERCH_ERRORS}`,
+		{
+			name: z.string().min(1).max(120),
+			description: z.string().max(5000).nullish(),
+			slug: z
+				.string()
+				.max(60)
+				.optional()
+				.describe("Lowercase, digits and dashes; omitted = from the name"),
+			maxPerOrder: z
+				.number()
+				.int()
+				.min(1)
+				.max(100)
+				.describe("Maximum units of this product per order"),
+			maxPerCustomer: z
+				.number()
+				.int()
+				.min(1)
+				.max(1_000_000)
+				.nullish()
+				.describe(
+					"Soft limit of units per person across their orders; omitted/null = no limit",
+				),
+			membersOnly: z
+				.boolean()
+				.optional()
+				.describe("Only buyers with an active membership can order it"),
+			sortOrder: z.number().int().optional(),
+			options: z
+				.array(
+					z.object({
+						name: z.string().min(1).max(40).describe("e.g. `Talla`"),
+						values: z
+							.array(z.string().min(1).max(60))
+							.min(1)
+							.max(30)
+							.describe('Values in display order, e.g. `["S", "M"]`'),
+					}),
+				)
+				.max(3)
+				.optional()
+				.describe("Up to 3 options"),
+			variants: z
+				.array(
+					z.object({
+						attributes: z
+							.record(z.string(), z.string())
+							.optional()
+							.describe('One value per option: `{ "Talla": "M" }`'),
+						sku: z
+							.string()
+							.min(1)
+							.max(64)
+							.describe("Unique in the store; letters, digits, `.`, `-`, `_`"),
+						// The OpenAPI only says integer; the server's dashboard rule
+						// (free-admin tienda/rules.ts) answers 400 outside 1..100M.
+						price: z
+							.number()
+							.int()
+							.positive()
+							.max(100_000_000)
+							.describe("COP, integer, VAT included, 1 to 100,000,000"),
+						compareAtPrice: z
+							.number()
+							.int()
+							.positive()
+							.max(100_000_000)
+							.nullish()
+							.describe("Strikethrough price, greater than `price`"),
+						stock: z.number().int().min(0),
+						isActive: z.boolean().optional(),
+					}),
+				)
+				.min(1)
+				.max(100),
+			imageUrls: z
+				.array(z.string())
+				.max(10)
+				.optional()
+				.describe(`Ordered photos, the first is the cover. ${IMAGE_URLS}`),
+		},
+		write("merch_products_create", { destructive: false }),
+		async (body) => run(postMerchProducts({ body, client })),
+	);
+	server.tool(
+		"merch_products_set_status",
+		"Publishes (PUBLISHED) or hides (DRAFT) a merch product; sending the " +
+			"current status is a no-op (PATCH /merch/products/{id}/status). " +
+			"Publishing needs the store onboarding done (409 " +
+			"`STORE_NOT_ONBOARDED`), a connected Mercado Pago account (409 " +
+			"`STORE_PAYMENTS_NOT_CONNECTED`) and an active variant (409 " +
+			"`NO_ACTIVE_VARIANT`). DRAFT keeps existing orders." +
+			MERCH_ERRORS,
+		{
+			id: z.string().describe("Merch product id"),
+			status: z.enum(["DRAFT", "PUBLISHED"]),
+		},
+		write("merch_products_set_status", {
+			destructive: false,
+			idempotent: true,
+		}),
+		async ({ id, status }) =>
+			run(
+				patchMerchProductsIdStatus({ path: { id }, body: { status }, client }),
+			),
+	);
+	server.tool(
+		"merch_products_set_images",
+		"Replaces the ordered photos of a merch product; the first is the cover, " +
+			"max 10, no repeats (PUT /merch/products/{id}/images). Photos that " +
+			"leave the list are DELETED from storage; `[]` clears them all. " +
+			`${IMAGE_URLS}, or one the product already has.${MERCH_ERRORS}${CONFIRM}`,
+		{
+			id: z.string().describe("Merch product id"),
+			imageUrls: z
+				.array(z.string())
+				.max(10)
+				.describe("FULL ordered list; replaces the current one"),
+		},
+		// destructive: photos left out of the list are deleted from storage.
+		write("merch_products_set_images", { destructive: true, idempotent: true }),
+		async ({ id, imageUrls }) =>
+			run(
+				putMerchProductsIdImages({ path: { id }, body: { imageUrls }, client }),
+			),
 	);
 }

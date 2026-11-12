@@ -46,6 +46,64 @@ rows again in `structuredContent` 59 650) → **24 737 chars of text after**
 - `limit` is a **number** (1-100) on the B2B and superadmin lists; numeric
   strings (`"20"`) are still accepted.
 
+## [0.22.0] - 2026-11-12
+
+### Added
+- Server `instructions` (sent once in `initialize`, static text in Spanish):
+  the four credential layers, the usual call order (`whoami` → `events_list`
+  with `q` → id → sales and reports), single-workspace writes, COP integer
+  amounts, cursor pagination, ids vs slugs and confirming destructive tools.
+
+### Changed
+- **Breaking for callers that passed it:** `content_member_posts_reject` and
+  `content_member_posts_remove` no longer accept `banAuthor`; the request
+  always sends `banAuthor: false`. Moderating a post and banning its author
+  are now two separate calls: banning only happens through the destructive
+  `content_members_ban`, which the descriptions point to. The
+  `community-moderation` skill says so.
+
+### Docs
+- README: the local stdio setup builds from source (`node dist/index.js`)
+  instead of `npx -y @freeticket/mcp`, which is not published on npm.
+
+## [0.21.0] - 2026-11-12
+
+Brings the B2B contract to **1.45.0** (from 1.36.0), synced from production
+(`https://admin.appfreeticket.com/api/v1/openapi.json`). Superadmin 1.8.0 and
+public 0.10.1 are unchanged. Additive only: no operationId removed or renamed.
+**230 tools** (B2B 194 · superadmin 30 · public 6), 52 with a view.
+
+1.42.0 → 1.45.0 adds no operation: `Me.scope` (`read` | `write`, the scope of
+the key in use, now returned by `GET /me`) and length/range limits on ticket
+types (`name` 1–100 chars, `price` 0–9 999 999 999).
+
+### Changed
+- `ticket_types_create` / `ticket_types_update` validate `name` (1–100) and
+  `price` (0–9 999 999 999) like the contract, so an out-of-range value fails
+  in the tool instead of as a 422.
+- `whoami` mentions the key scope it now returns.
+- `merch_products_create` rejects a variant `price` / `compareAtPrice` that is
+  not an integer from 1 to 100 000 000 COP (the server's rule, answered as a
+  400 `BAD_REQUEST`; the OpenAPI only says integer). Negatives used to pass.
+
+### Added
+- Merch store catalog admin (ADMIN, SUPER_ADMIN or MERCH_MANAGER):
+  `merch_products_list` (view), `merch_products_create` (always DRAFT, full
+  variant matrix), `merch_products_set_status` (idempotent) and
+  `merch_products_set_images` (destructive: photos dropped from the list are
+  deleted from storage).
+- Buyer address book (headless SSO, shared across brands):
+  `customer_addresses_list` (view), `customer_addresses_create`,
+  `customer_addresses_update` and `customer_addresses_delete` (destructive).
+- `customer_merch_orders` (view): the session buyer's merch orders in the key's
+  store, cursor-paginated.
+
+### Not exposed (see `EXCLUDED` in `src/coverage.test.ts`)
+- `POST /merch/products/images/upload-url`: a signed URL for raw file bytes;
+  photos are uploaded with `ft merch products create`.
+- `POST /merch/discount-codes/preview`: a step of the landing merch checkout,
+  which is not a tool either.
+
 ## [0.20.0] - 2026-11-03
 
 Brings the B2B contract to **1.36.0** (superadmin 1.8.0 and public 0.10.1
