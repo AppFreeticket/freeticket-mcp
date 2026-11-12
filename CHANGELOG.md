@@ -5,6 +5,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+### Fixed
+- `tickets_reassign` and `webhooks_update` are now `destructiveHint: true`:
+  reassigning voids the previous holder's QR and repointing a webhook
+  redirects every future event. Flagged by the ChatGPT plugin review.
+
 ## [0.24.0] - 2026-11-12
 
 Auth hardening against Block's MCP playbook (OAuth, minimum scopes,

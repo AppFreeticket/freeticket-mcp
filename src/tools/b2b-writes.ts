@@ -509,7 +509,7 @@ export function registerB2bWriteTools(
 				.optional()
 				.describe("Target seat (numbered events)"),
 		},
-		write("tickets_reassign", { destructive: false }),
+		write("tickets_reassign", { destructive: true }),
 		async ({ code, ...body }) =>
 			run(patchTicketsTicketCode({ path: { ticketCode: code }, body, client })),
 	);
@@ -730,7 +730,7 @@ export function registerB2bWriteTools(
 				.optional(),
 			active: z.boolean().optional(),
 		},
-		write("webhooks_update", { destructive: false }),
+		write("webhooks_update", { destructive: true }),
 		async ({ id, ...body }) =>
 			run(patchWebhooksId({ path: { id }, body, client })),
 	);

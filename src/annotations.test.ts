@@ -102,8 +102,10 @@ const DESTRUCTIVE = [
 	"ticket_templates_delete",
 	"ticket_types_delete",
 	"tickets_checkin_undo",
+	"tickets_reassign",
 	"venues_delete",
 	"webhooks_delete",
+	"webhooks_update",
 	"website_put",
 ];
 
