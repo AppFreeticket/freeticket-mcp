@@ -306,7 +306,7 @@ pnpm dev          # runs the server over stdio
 pnpm typecheck && pnpm test
 ```
 
-Contracts this build targets: B2B **1.36.0**, superadmin **1.8.0**, public
+Contracts this build targets: B2B **1.45.0**, superadmin **1.8.0**, public
 **0.10.1**. All three are served by `free-admin` and are the only source of
 truth, on separate semver lineages. To propagate a backend change, use the
 `contract-sync` agent from the

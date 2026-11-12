@@ -359,9 +359,13 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"Creates a ticket type for a date (POST /ticket-types).",
 		{
 			eventDateId: z.string().describe("Event date id"),
-			name: z.string(),
+			name: z.string().min(1).max(100),
 			description: z.string().optional(),
-			price: z.number().describe("Price in the given currency"),
+			price: z
+				.number()
+				.min(0)
+				.max(9999999999)
+				.describe("Price in the given currency"),
 			currency: z.enum(["COP"]).default("COP").describe("Only COP"),
 			capacity: z.number().int().describe("Stock total"),
 			maxPerOrder: z.number().int().describe("Máximo por orden"),
@@ -391,9 +395,9 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"Actualiza un tipo de ticket — precio, stock, visibilidad (PATCH /ticket-types/{id}).",
 		{
 			id: z.string().describe("Ticket type id"),
-			name: z.string().optional(),
+			name: z.string().min(1).max(100).optional(),
 			description: z.string().nullish(),
-			price: z.number().min(0).optional(),
+			price: z.number().min(0).max(9999999999).optional(),
 			currency: z.string().optional(),
 			capacity: z.number().int().positive().optional().describe("Stock total"),
 			maxPerOrder: z.number().int().positive().optional(),

@@ -69,6 +69,10 @@ export type Me = {
 		| "MERCH_MANAGER";
 	activeWorkspaceId: string | null;
 	workspaces: Array<WorkspaceAccess>;
+	/**
+	 * Scope of the API key in use. `read` = only GET/HEAD; any mutating method answers 403.
+	 */
+	scope: "read" | "write";
 };
 
 export type SignupRequest = {
@@ -723,276 +727,6 @@ export type ExportSubscriber = {
 	expiresAt: string | null;
 };
 
-export type MerchOrderCreate = {
-	buyer: {
-		name: string;
-		phone: string;
-		documentType: "CC" | "CE" | "PP" | "NIT" | "TI" | "PEP";
-		document: string;
-	};
-	delivery:
-		| {
-				kind: "SHIPPING";
-				departmentCode: string;
-				department: string;
-				cityCode: string;
-				city: string;
-				address: string;
-				addressExtra?: string | null;
-		  }
-		| {
-				kind: "PICKUP";
-				pickupPointId: string;
-		  };
-	items: Array<{
-		variantId: string;
-		quantity: number;
-	}>;
-	/**
-	 * Optional discount code of this store (case-insensitive). It applies to products only, never to shipping.
-	 */
-	discountCode?: string | null;
-};
-
-export type MerchDiscountPreview = {
-	discountCode: string;
-	items: Array<{
-		variantId: string;
-		quantity: number;
-	}>;
-	delivery:
-		| {
-				kind: "SHIPPING";
-				cityCode: string;
-		  }
-		| {
-				kind: "PICKUP";
-		  };
-};
-
-export type MerchDiscountPreviewResult = {
-	/**
-	 * The code as the store saved it.
-	 */
-	discountCode: string;
-	/**
-	 * Products before the discount.
-	 */
-	subtotal: number;
-	discountAmount: number;
-	shippingFee: number;
-	/**
-	 * `total = subtotal - discountAmount + shippingFee`.
-	 */
-	total: number;
-};
-
-export type MerchOrderLookup = {
-	code: string;
-};
-
-export type MerchCardPayment = {
-	/**
-	 * Card token returned by the Payment Brick when tokenizing.
-	 */
-	token: string;
-	/**
-	 * `payment_method_id` returned by the Brick (e.g. `visa`, `debmaster`).
-	 */
-	paymentMethodId: string;
-	installments: number;
-	/**
-	 * `issuer_id` returned by the Brick (card issuer). Optional: forwarded to MercadoPago as is when present.
-	 */
-	issuerId?: string;
-	payer?: {
-		identification?: {
-			type: string;
-			number: string;
-		};
-	};
-};
-
-export type MerchCardPaymentResult = {
-	/**
-	 * `pending` is normal (bank authentication): the order is confirmed by webhook, poll the lookup. `rejected` is a business decline: the order stays pending until its reservation expires and the buyer can retry with another card.
-	 */
-	status: "approved" | "pending" | "rejected";
-	code: string;
-	/**
-	 * Human-readable message. Only present with `rejected`.
-	 */
-	message?: string;
-};
-
-export type MerchOrder = {
-	code: string;
-	status:
-		| "PENDING"
-		| "PAID"
-		| "PREPARING"
-		| "SHIPPED"
-		| "DELIVERED"
-		| "READY_FOR_PICKUP"
-		| "PICKED_UP"
-		| "CANCELLED"
-		| "REFUNDED";
-	currency: "COP";
-	reservedUntil: string | null;
-	createdAt: string;
-	paidAt: string | null;
-	buyer: {
-		email: string;
-		name: string;
-		phone: string;
-	};
-	fulfillment: "SHIPPING" | "PICKUP";
-	shipping: {
-		departmentCode: string | null;
-		department: string | null;
-		cityCode: string | null;
-		city: string | null;
-		address: string | null;
-		addressExtra: string | null;
-	} | null;
-	pickupPoint: {
-		id: string;
-		name: string;
-		address: string;
-		city: string | null;
-		schedule: string | null;
-	} | null;
-	items: Array<{
-		variantId: string;
-		productName: string;
-		variantLabel: string;
-		sku: string;
-		quantity: number;
-		unitPrice: number;
-		/**
-		 * First image of the variant's product at read time; null if the product has no image or was deleted.
-		 */
-		imageUrl: string | null;
-	}>;
-	/**
-	 * Products before the discount, in COP.
-	 */
-	subtotal: number;
-	/**
-	 * Discount code frozen on the order; null if none was used.
-	 */
-	discountCode: string | null;
-	/**
-	 * COP taken off the products: `total = subtotal - discountAmount + shippingFee`.
-	 */
-	discountAmount: number;
-	shippingFee: number;
-	total: number;
-	tracking: {
-		carrier: string | null;
-		carrierName: string | null;
-		carrierLabel: string | null;
-		trackingNumber: string | null;
-		trackingUrl: string | null;
-	} | null;
-	statusDates: {
-		paidAt: string | null;
-		preparingAt: string | null;
-		shippedAt: string | null;
-		deliveredAt: string | null;
-		readyForPickupAt: string | null;
-		pickedUpAt: string | null;
-		cancelledAt: string | null;
-		refundedAt: string | null;
-	};
-	/**
-	 * Public key of the brand's own MercadoPago account, for the Payment Brick. null when the store has no connected account.
-	 */
-	mpPublicKey: string | null;
-};
-
-export type MerchCatalog = {
-	store: {
-		brandName: string;
-		brandLogoUrl: string | null;
-		landingUrl: string | null;
-		support: {
-			phone: string | null;
-			isWhatsapp: boolean;
-			email: string | null;
-		};
-		shipping: {
-			enabled: boolean;
-			feeBogota: number;
-			feeNational: number;
-			freeShippingThreshold: number | null;
-		};
-		pickupEnabled: boolean;
-	};
-	products: Array<{
-		id: string;
-		slug: string;
-		name: string;
-		description: string | null;
-		imageUrls: Array<string>;
-		options: Array<{
-			name: string;
-			values: Array<string>;
-		}>;
-		maxPerOrder: number;
-		/**
-		 * Only a buyer with an active membership in this organization can order it; anyone else gets 403 `MEMBERS_ONLY`. Show a lock.
-		 */
-		membersOnly: boolean;
-		/**
-		 * `DRAFT` only appears in preview responses (valid `X-Merch-Preview`). Drafts cannot be ordered.
-		 */
-		status: "PUBLISHED" | "DRAFT";
-		variants: Array<{
-			id: string;
-			sku: string;
-			label: string;
-			attributes: {};
-			price: number;
-			compareAtPrice: number | null;
-			stock: number;
-		}>;
-	}>;
-	pickupPoints: Array<{
-		id: string;
-		name: string;
-		address: string;
-		city: string | null;
-		schedule: string | null;
-	}>;
-	currency: "COP";
-	/**
-	 * Public key of the brand's own MercadoPago account, for the Payment Brick. null in a preview when the store has no connected account yet.
-	 */
-	mpPublicKey: string | null;
-	/**
-	 * `true` when the response honored a valid `X-Merch-Preview` token: it includes DRAFT products and the landing must not allow checkout.
-	 */
-	preview: boolean;
-};
-
-export type ContentVideo = {
-	id: string;
-	title: string;
-	description: string | null;
-	durationSeconds: number | null;
-	posterUrl: string | null;
-	series: {
-		id: string;
-		title: string;
-	} | null;
-	/**
-	 * true = only current members of the organization can play it.
-	 */
-	memberOnly: boolean;
-	publishedAt: string | null;
-};
-
 export type EventArtistsReplace = {
 	artistIds: Array<string>;
 	inviteEmails?: Array<string>;
@@ -1591,6 +1325,259 @@ export type CustomerProfileUpdate = {
 	phone?: string | null;
 };
 
+export type MerchOrderCreate = {
+	buyer: {
+		name: string;
+		phone: string;
+		documentType: "CC" | "CE" | "PP" | "NIT" | "TI" | "PEP";
+		document: string;
+	};
+	delivery:
+		| {
+				kind: "SHIPPING";
+				departmentCode: string;
+				department: string;
+				cityCode: string;
+				city: string;
+				address: string;
+				addressExtra?: string | null;
+		  }
+		| {
+				kind: "PICKUP";
+				pickupPointId: string;
+		  };
+	items: Array<{
+		variantId: string;
+		quantity: number;
+	}>;
+	/**
+	 * Optional discount code of this store (case-insensitive). It applies to products only, never to shipping.
+	 */
+	discountCode?: string | null;
+};
+
+export type MerchDiscountPreview = {
+	discountCode: string;
+	items: Array<{
+		variantId: string;
+		quantity: number;
+	}>;
+	delivery:
+		| {
+				kind: "SHIPPING";
+				cityCode: string;
+		  }
+		| {
+				kind: "PICKUP";
+		  };
+};
+
+export type MerchDiscountPreviewResult = {
+	/**
+	 * The code as the store saved it.
+	 */
+	discountCode: string;
+	/**
+	 * Products before the discount.
+	 */
+	subtotal: number;
+	discountAmount: number;
+	shippingFee: number;
+	/**
+	 * `total = subtotal - discountAmount + shippingFee`.
+	 */
+	total: number;
+};
+
+export type MerchOrderLookup = {
+	code: string;
+};
+
+export type MerchCardPayment = {
+	/**
+	 * Card token returned by the Payment Brick when tokenizing.
+	 */
+	token: string;
+	/**
+	 * `payment_method_id` returned by the Brick (e.g. `visa`, `debmaster`).
+	 */
+	paymentMethodId: string;
+	installments: number;
+	/**
+	 * `issuer_id` returned by the Brick (card issuer). Optional: forwarded to MercadoPago as is when present.
+	 */
+	issuerId?: string;
+	payer?: {
+		identification?: {
+			type: string;
+			number: string;
+		};
+	};
+};
+
+export type MerchCardPaymentResult = {
+	/**
+	 * `pending` is normal (bank authentication): the order is confirmed by webhook, poll the lookup. `rejected` is a business decline: the order stays pending until its reservation expires and the buyer can retry with another card.
+	 */
+	status: "approved" | "pending" | "rejected";
+	code: string;
+	/**
+	 * Human-readable message. Only present with `rejected`.
+	 */
+	message?: string;
+};
+
+export type MerchOrder = {
+	code: string;
+	status:
+		| "PENDING"
+		| "PAID"
+		| "PREPARING"
+		| "SHIPPED"
+		| "DELIVERED"
+		| "READY_FOR_PICKUP"
+		| "PICKED_UP"
+		| "CANCELLED"
+		| "REFUNDED";
+	currency: "COP";
+	reservedUntil: string | null;
+	createdAt: string;
+	paidAt: string | null;
+	buyer: {
+		email: string;
+		name: string;
+		phone: string;
+	};
+	fulfillment: "SHIPPING" | "PICKUP";
+	shipping: {
+		departmentCode: string | null;
+		department: string | null;
+		cityCode: string | null;
+		city: string | null;
+		address: string | null;
+		addressExtra: string | null;
+	} | null;
+	pickupPoint: {
+		id: string;
+		name: string;
+		address: string;
+		city: string | null;
+		schedule: string | null;
+	} | null;
+	items: Array<{
+		variantId: string;
+		productName: string;
+		variantLabel: string;
+		sku: string;
+		quantity: number;
+		unitPrice: number;
+		/**
+		 * First image of the variant's product at read time; null if the product has no image or was deleted.
+		 */
+		imageUrl: string | null;
+	}>;
+	/**
+	 * Products before the discount, in COP.
+	 */
+	subtotal: number;
+	/**
+	 * Discount code frozen on the order; null if none was used.
+	 */
+	discountCode: string | null;
+	/**
+	 * COP taken off the products: `total = subtotal - discountAmount + shippingFee`.
+	 */
+	discountAmount: number;
+	shippingFee: number;
+	total: number;
+	tracking: {
+		carrier: string | null;
+		carrierName: string | null;
+		carrierLabel: string | null;
+		trackingNumber: string | null;
+		trackingUrl: string | null;
+	} | null;
+	statusDates: {
+		paidAt: string | null;
+		preparingAt: string | null;
+		shippedAt: string | null;
+		deliveredAt: string | null;
+		readyForPickupAt: string | null;
+		pickedUpAt: string | null;
+		cancelledAt: string | null;
+		refundedAt: string | null;
+	};
+	/**
+	 * Public key of the brand's own MercadoPago account, for the Payment Brick. null when the store has no connected account.
+	 */
+	mpPublicKey: string | null;
+};
+
+export type MerchCatalog = {
+	store: {
+		brandName: string;
+		brandLogoUrl: string | null;
+		landingUrl: string | null;
+		support: {
+			phone: string | null;
+			isWhatsapp: boolean;
+			email: string | null;
+		};
+		shipping: {
+			enabled: boolean;
+			feeBogota: number;
+			feeNational: number;
+			freeShippingThreshold: number | null;
+		};
+		pickupEnabled: boolean;
+	};
+	products: Array<{
+		id: string;
+		slug: string;
+		name: string;
+		description: string | null;
+		imageUrls: Array<string>;
+		options: Array<{
+			name: string;
+			values: Array<string>;
+		}>;
+		maxPerOrder: number;
+		/**
+		 * Only a buyer with an active membership in this organization can order it; anyone else gets 403 `MEMBERS_ONLY`. Show a lock.
+		 */
+		membersOnly: boolean;
+		/**
+		 * `DRAFT` only appears in preview responses (valid `X-Merch-Preview`). Drafts cannot be ordered.
+		 */
+		status: "PUBLISHED" | "DRAFT";
+		variants: Array<{
+			id: string;
+			sku: string;
+			label: string;
+			attributes: {};
+			price: number;
+			compareAtPrice: number | null;
+			stock: number;
+		}>;
+	}>;
+	pickupPoints: Array<{
+		id: string;
+		name: string;
+		address: string;
+		city: string | null;
+		schedule: string | null;
+	}>;
+	currency: "COP";
+	/**
+	 * Public key of the brand's own MercadoPago account, for the Payment Brick. null in a preview when the store has no connected account yet.
+	 */
+	mpPublicKey: string | null;
+	/**
+	 * `true` when the response honored a valid `X-Merch-Preview` token: it includes DRAFT products and the landing must not allow checkout.
+	 */
+	preview: boolean;
+};
+
 export type CustomerAddress = {
 	id: string;
 	label: string | null;
@@ -1879,6 +1866,23 @@ export type CustomerOrderStatus = {
 	 * Tickets with their `ticketCode`. ONLY present when `status` is `approved`; null in any other case. A code handed out before the payment settles would be a valid ticket with no money behind it.
 	 */
 	tickets: Array<CustomerTicketItem> | null;
+};
+
+export type ContentVideo = {
+	id: string;
+	title: string;
+	description: string | null;
+	durationSeconds: number | null;
+	posterUrl: string | null;
+	series: {
+		id: string;
+		title: string;
+	} | null;
+	/**
+	 * true = only current members of the organization can play it.
+	 */
+	memberOnly: boolean;
+	publishedAt: string | null;
 };
 
 export type ContentPostUpdate = {
@@ -3587,111 +3591,6 @@ export type PostEventsIdDatesResponses = {
 
 export type PostEventsIdDatesResponse =
 	PostEventsIdDatesResponses[keyof PostEventsIdDatesResponses];
-
-export type GetMerchCatalogData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-		/**
-		 * Optional preview token from the dashboard's 'Vista previa' link (`ft_preview` query param on the landing). Valid for this key's store: includes DRAFT products, no caching. Invalid or expired: ignored.
-		 */
-		"X-Merch-Preview"?: string;
-	};
-	path?: never;
-	query?: never;
-	url: "/merch/catalog";
-};
-
-export type GetMerchCatalogErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Operation error.
-	 */
-	403: _Error;
-	/**
-	 * Operation error.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetMerchCatalogError =
-	GetMerchCatalogErrors[keyof GetMerchCatalogErrors];
-
-export type GetMerchCatalogResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: MerchCatalog;
-	};
-};
-
-export type GetMerchCatalogResponse =
-	GetMerchCatalogResponses[keyof GetMerchCatalogResponses];
-
-export type GetContentVideosData = {
-	body?: never;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path?: never;
-	query?: {
-		/**
-		 * 1-100, default 20
-		 */
-		limit?: number;
-		cursor?: string;
-	};
-	url: "/content/videos";
-};
-
-export type GetContentVideosErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetContentVideosError =
-	GetContentVideosErrors[keyof GetContentVideosErrors];
-
-export type GetContentVideosResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: Array<ContentVideo>;
-		page: Page;
-	};
-};
-
-export type GetContentVideosResponse =
-	GetContentVideosResponses[keyof GetContentVideosResponses];
 
 export type PostAuthDeviceCodeData = {
 	body?: never;
@@ -9284,6 +9183,60 @@ export type PostCustomerPurchaseSessionsIdReleaseResponses = {
 export type PostCustomerPurchaseSessionsIdReleaseResponse =
 	PostCustomerPurchaseSessionsIdReleaseResponses[keyof PostCustomerPurchaseSessionsIdReleaseResponses];
 
+export type GetContentVideosData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * 1-100, default 20
+		 */
+		limit?: number;
+		cursor?: string;
+	};
+	url: "/content/videos";
+};
+
+export type GetContentVideosErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetContentVideosError =
+	GetContentVideosErrors[keyof GetContentVideosErrors];
+
+export type GetContentVideosResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<ContentVideo>;
+		page: Page;
+	};
+};
+
+export type GetContentVideosResponse =
+	GetContentVideosResponses[keyof GetContentVideosResponses];
+
 export type GetContentPostsData = {
 	body?: never;
 	headers?: {
@@ -13590,6 +13543,57 @@ export type PutMasterQrsIdActiveResponses = {
 
 export type PutMasterQrsIdActiveResponse =
 	PutMasterQrsIdActiveResponses[keyof PutMasterQrsIdActiveResponses];
+
+export type GetMerchCatalogData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * Optional preview token from the dashboard's 'Vista previa' link (`ft_preview` query param on the landing). Valid for this key's store: includes DRAFT products, no caching. Invalid or expired: ignored.
+		 */
+		"X-Merch-Preview"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/merch/catalog";
+};
+
+export type GetMerchCatalogErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Operation error.
+	 */
+	403: _Error;
+	/**
+	 * Operation error.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetMerchCatalogError =
+	GetMerchCatalogErrors[keyof GetMerchCatalogErrors];
+
+export type GetMerchCatalogResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: MerchCatalog;
+	};
+};
+
+export type GetMerchCatalogResponse =
+	GetMerchCatalogResponses[keyof GetMerchCatalogResponses];
 
 export type PostMerchDiscountCodesPreviewData = {
 	body: MerchDiscountPreview;

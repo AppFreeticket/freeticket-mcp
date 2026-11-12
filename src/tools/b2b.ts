@@ -209,7 +209,7 @@ export function registerB2bTools(
 
 	server.tool(
 		"whoami",
-		"User and workspaces of the configured session (GET /me).",
+		"User, workspaces and API key scope (`read` or `write`) of the configured session (GET /me).",
 		read("whoami"),
 		async () => run(getMe({ client })),
 	);

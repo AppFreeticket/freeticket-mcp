@@ -721,60 +721,6 @@ export const postEventsIdDates = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Merch store catalog of the key's brand
- * Requires an enterprise service API key (Legend headless landing, called server-side); the store is ALWAYS the one of the key's organization. Returns the store settings (brand, support, shipping fees by zone — Bogotá is DANE 11001 —, free-shipping threshold, delivery modes), the PUBLISHED products with their active variants and `stock` (units available right now, already net of open 15-minute reservations), the active pickup points (only when pickup is enabled) and the public key of the brand's own MercadoPago account for the Payment Brick. Prices are COP integers, VAT included; the buyer pays no service fee. Preview: with a valid `X-Merch-Preview` token (issued by the dashboard for this key's store, 1 hour) the response also includes DRAFT products (each product carries `status`), answers even while the store onboarding is pending, sets `preview: true` and `Cache-Control: private, no-store`; an invalid or expired token silently returns the public catalog. Preview never enables ordering: `POST /merch/orders` only sells PUBLISHED products. 403 `MERCH_STORE_LOCKED` when the brand's Legend plan is not active; 404 `STORE_NOT_READY` when the brand has no store, its onboarding is incomplete or it has no connected MercadoPago account (a valid preview token is exempt). `mpPublicKey` is the public key of the brand's own MercadoPago account.
- */
-export const getMerchCatalog = <ThrowOnError extends boolean = false>(
-	options?: Options<GetMerchCatalogData, ThrowOnError>,
-) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetMerchCatalogResponse,
-		GetMerchCatalogError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/merch/catalog",
-		...options,
-	});
-};
-
-/**
- * List the organization's published videos
- * Only published videos that have finished processing (READY) in the active workspace. Does not include the playback id: to play one, request a token from `POST /content/playback-token`.
- */
-export const getContentVideos = <ThrowOnError extends boolean = false>(
-	options?: Options<GetContentVideosData, ThrowOnError>,
-) => {
-	return (options?.client ?? _heyApiClient).get<
-		GetContentVideosResponse,
-		GetContentVideosError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/content/videos",
-		...options,
-	});
-};
-
-/**
  * Start the Device Authorization Grant (RFC 8628)
  * Public endpoint (no auth): credential bootstrap for the Device Authorization Grant (RFC 8628).
  */
@@ -3849,6 +3795,33 @@ export const postCustomerPurchaseSessionsIdRelease = <
 };
 
 /**
+ * List the organization's published videos
+ * Only published videos that have finished processing (READY) in the active workspace. Does not include the playback id: to play one, request a token from `POST /content/playback-token`.
+ */
+export const getContentVideos = <ThrowOnError extends boolean = false>(
+	options?: Options<GetContentVideosData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetContentVideosResponse,
+		GetContentVideosError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/content/videos",
+		...options,
+	});
+};
+
+/**
  * List the organization's community feed
  * Posts from the active workspace, newest first, excluding deleted posts and posts scheduled for the future. A post with `locked: true` arrives redacted (`content`, `imageUrl`, `videoId`, `eventId` and `link` set to null, `commentsCount` set to 0): it is members-only content and the key does not represent a buyer with a current membership. Does not include `likes_count` (only visible to the workspace owner) or the post's internal author.
  */
@@ -6778,6 +6751,33 @@ export const putMasterQrsIdActive = <ThrowOnError extends boolean = false>(
 			"Content-Type": "application/json",
 			...options?.headers,
 		},
+	});
+};
+
+/**
+ * Merch store catalog of the key's brand
+ * Requires an enterprise service API key (Legend headless landing, called server-side); the store is ALWAYS the one of the key's organization. Returns the store settings (brand, support, shipping fees by zone — Bogotá is DANE 11001 —, free-shipping threshold, delivery modes), the PUBLISHED products with their active variants and `stock` (units available right now, already net of open 15-minute reservations), the active pickup points (only when pickup is enabled) and the public key of the brand's own MercadoPago account for the Payment Brick. Prices are COP integers, VAT included; the buyer pays no service fee. Preview: with a valid `X-Merch-Preview` token (issued by the dashboard for this key's store, 1 hour) the response also includes DRAFT products (each product carries `status`), answers even while the store onboarding is pending, sets `preview: true` and `Cache-Control: private, no-store`; an invalid or expired token silently returns the public catalog. Preview never enables ordering: `POST /merch/orders` only sells PUBLISHED products. 403 `MERCH_STORE_LOCKED` when the brand's Legend plan is not active; 404 `STORE_NOT_READY` when the brand has no store, its onboarding is incomplete or it has no connected MercadoPago account (a valid preview token is exempt). `mpPublicKey` is the public key of the brand's own MercadoPago account.
+ */
+export const getMerchCatalog = <ThrowOnError extends boolean = false>(
+	options?: Options<GetMerchCatalogData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetMerchCatalogResponse,
+		GetMerchCatalogError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/merch/catalog",
+		...options,
 	});
 };
 
