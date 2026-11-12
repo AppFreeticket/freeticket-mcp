@@ -12,6 +12,7 @@ const server = buildServer({
 	apiUrl: "http://127.0.0.1:9",
 	apiKey: "ft_test",
 	adminSession: "test",
+	customerSession: "test",
 });
 const tools = Object.entries(
 	(

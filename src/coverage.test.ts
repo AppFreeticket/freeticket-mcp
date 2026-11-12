@@ -113,7 +113,12 @@ const EXCLUDED: Record<string, string> = {
  * the coverage rule, checked across every tool file at the end of this file.
  */
 describe.each([
-	["B2B /api/v1", "openapi.json", ["b2b.ts", "b2b-writes.ts"], 200],
+	[
+		"B2B /api/v1",
+		"openapi.json",
+		["b2b.ts", "b2b-writes.ts", "customer.ts"],
+		200,
+	],
 	["superadmin /api/admin", "admin-openapi.json", ["admin.ts"], 36],
 	["public /api/public", "public-openapi.json", ["public.ts"], 6],
 ])("contract %s", (_label, file, files, minOps) => {

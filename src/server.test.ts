@@ -3,24 +3,39 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
 import { buildServer, INSTRUCTIONS } from "./server";
 
-async function connect(creds: Parameters<typeof buildServer>[0]) {
+async function connect(
+	creds: Parameters<typeof buildServer>[0],
+	opts?: Parameters<typeof buildServer>[1],
+) {
 	const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
-	await buildServer(creds).connect(serverSide);
+	await buildServer(creds, opts).connect(serverSide);
 	const client = new Client({ name: "test", version: "0.0.0" });
 	await client.connect(clientSide);
 	return client;
 }
 
 describe("server instructions", () => {
-	it("are sent in initialize, for every credential layer", async () => {
-		for (const creds of [
-			{ apiUrl: "https://api.test" },
-			{ apiUrl: "https://api.test", apiKey: "ft_test" },
-		]) {
-			const client = await connect(creds);
-			expect(client.getInstructions()).toBe(INSTRUCTIONS);
-			await client.close();
-		}
+	const api = "https://api.test";
+	const layers: [
+		string,
+		Parameters<typeof buildServer>[0],
+		{ listProtected?: boolean }?,
+	][] = [
+		["public", { apiUrl: api }],
+		["lazy auth (listProtected)", { apiUrl: api }, { listProtected: true }],
+		["b2b", { apiUrl: api, apiKey: "ft_test" }],
+		["b2b read-only", { apiUrl: api, apiKey: "ft_test", readOnly: true }],
+		["customer", { apiUrl: api, customerSession: "sess_buyer" }],
+		[
+			"b2b + customer",
+			{ apiUrl: api, apiKey: "ft_test", customerSession: "sess_buyer" },
+		],
+	];
+
+	it.each(layers)("are sent in initialize: %s", async (_, creds, opts) => {
+		const client = await connect(creds, opts);
+		expect(client.getInstructions()).toBe(INSTRUCTIONS);
+		await client.close();
 	});
 
 	it("are static: no dates, times or version numbers", () => {
@@ -44,15 +59,17 @@ describe("server instructions", () => {
 			expect(INSTRUCTIONS).toContain(needle);
 	});
 
-	it("only name tools that exist", async () => {
-		const client = await connect({
-			apiUrl: "https://api.test",
-			apiKey: "ft_test",
-		});
+	// Every layer that lists the B2B tools (read-only included: the
+	// instructions only name reads) must have each tool they name.
+	it.each(
+		layers.filter(([, c, o]) => c.apiKey || o?.listProtected),
+	)("only name tools that exist: %s", async (_, creds, opts) => {
+		const client = await connect(creds, opts);
 		const { tools } = await client.listTools();
 		await client.close();
 		const names = new Set(tools.map((t) => t.name));
 		const mentioned = INSTRUCTIONS.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? [];
+		expect(mentioned.length).toBeGreaterThan(0);
 		for (const name of mentioned) expect(names, name).toContain(name);
 	});
 });

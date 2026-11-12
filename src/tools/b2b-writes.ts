@@ -1,7 +1,7 @@
 import type { Client } from "@hey-api/client-fetch";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { run } from "../api";
+import { type Creds, run } from "../api";
 import {
 	deleteContentCommentsId,
 	deleteContentLivesId,
@@ -9,7 +9,6 @@ import {
 	deleteContentPostsId,
 	deleteContentSeriesId,
 	deleteContentVideosId,
-	deleteCustomerAddressesId,
 	deleteDiscountsId,
 	deleteEventsId,
 	deleteEventsIdArtistInvitationsInvitationId,
@@ -34,8 +33,6 @@ import {
 	patchContentPostsId,
 	patchContentSeriesId,
 	patchContentVideosId,
-	patchCustomerAddressesId,
-	patchCustomerProfile,
 	patchDiscountsId,
 	patchEventsId,
 	patchEventsIdDatesDateId,
@@ -71,12 +68,6 @@ import {
 	postContentPlaybackToken,
 	postContentPosts,
 	postContentSeries,
-	postCustomerAddresses,
-	postCustomerLogout,
-	postCustomerOrdersIdRelease,
-	postCustomerSubscriptions,
-	postCustomerSubscriptionsCancel,
-	postCustomerTicketsIdCancel,
 	postDiscounts,
 	postEventDatesIdAccessClose,
 	postEvents,
@@ -135,7 +126,11 @@ const CONFIRM = " ⚠️ Irreversible: confirm with the human before running it.
  * ticket_types_update, plans_update, venues_update) now declare a requestBody
  * in the spec, so their schemas come from the contract and not from guesswork.
  */
-export function registerB2bWriteTools(server: McpServer, client: Client): void {
+export function registerB2bWriteTools(
+	server: McpServer,
+	client: Client,
+	creds: Pick<Creds, "customerSession"> = {},
+): void {
 	// ── Events ───────────────────────────────────────────────────────────────
 	server.tool(
 		"events_create",
@@ -747,146 +742,27 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		async ({ id }) => run(deleteWebhooksId({ path: { id }, client })),
 	);
 
-	// ── Área de socios y contenido (contrato 1.7.0) ──────────────────────────
-	// These speak on behalf of the buyer: an enterprise API key plus their
-	// session token (X-Customer-Session). With them the agent closes the members
-	// area loop: subscribing and cancelling, profile, and cancelling own purchase.
-	const customerSession = z
-		.string()
-		.describe("Buyer session token (X-Customer-Session header)");
-
-	server.tool(
-		"customer_ticket_cancel",
-		`Cancels a purchase made by the buyer, only while it is still unpaid (POST /customer/tickets/{id}/cancel).${CONFIRM}`,
-		{ id: z.string().describe("Ticket id"), customerSession },
-		write("customer_ticket_cancel", { destructive: true }),
-		async ({ id, customerSession }) =>
-			run(
-				postCustomerTicketsIdCancel({
-					path: { id },
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	server.tool(
-		"customer_subscribe",
-		"Starts a membership subscription and returns the payment URL — the agent " +
-			"never handles the charge (POST /customer/subscriptions).",
-		{
-			planId: z.string().describe("Id of an active membership plan"),
-			customerSession,
-		},
-		write("customer_subscribe", { destructive: false }),
-		async ({ customerSession, ...body }) =>
-			run(
-				postCustomerSubscriptions({
-					body,
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	server.tool(
-		"customer_subscription_cancel",
-		`Cancels the membership held by the buyer (POST /customer/subscriptions/cancel).${CONFIRM}`,
-		{
-			workspaceId: z
-				.string()
-				.min(1)
-				.optional()
-				.describe(
-					"Which membership to cancel — only without an enterprise key; with one it is ignored",
-				),
-			customerSession,
-		},
-		// openWorld: cancels the recurring charge in Stripe / Mercado Pago.
-		write("customer_subscription_cancel", {
-			destructive: true,
-			openWorld: true,
-		}),
-		async ({ customerSession, ...body }) =>
-			run(
-				postCustomerSubscriptionsCancel({
-					body,
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	server.tool(
-		"customer_order_release",
-		"Abandons the buyer's PENDING order and returns its stock and seats, so " +
-			"they can start over (POST /customer/orders/{id}/release). Refuses with " +
-			`409 \`payment_in_flight\` if a payment was already started.${CONFIRM}`,
-		{
-			id: z.string().describe("Sale id or reference (FT-…)"),
-			customerSession,
-		},
-		write("customer_order_release", { destructive: true }),
-		async ({ id, customerSession }) =>
-			run(
-				postCustomerOrdersIdRelease({
-					path: { id },
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	server.tool(
-		"customer_profile_update",
-		"Edits the buyer profile: name and phone (PATCH /customer/profile). " +
-			"A null or empty phone clears it.",
-		{
-			name: z.string().min(1).max(120).optional(),
-			phone: z.string().max(30).nullish(),
-			customerSession,
-		},
-		write("customer_profile_update", { destructive: false }),
-		async ({ customerSession, ...body }) =>
-			run(
-				patchCustomerProfile({
-					body,
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	server.tool(
-		"customer_logout",
-		"Closes the headless SSO buyer session (POST /customer/logout).",
-		{ customerSession },
-		write("customer_logout", { destructive: false }),
-		async ({ customerSession }) =>
-			run(
-				postCustomerLogout({
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
+	// ── Contenido (contrato 1.7.0) ───────────────────────────────────────────
+	// customer_* writes live in ./customer.ts (buyer session = credential).
 	server.tool(
 		"content_playback_token",
 		"Signed token to play a video (1 h) or a live stream (30 min) " +
 			"(POST /content/playback-token). `memberOnly` content additionally " +
-			"requires the session token of a buyer with an active membership.",
+			"requires the connection to carry the session of a buyer with an active " +
+			"membership (X-Customer-Session).",
 		{
 			kind: z.enum(["video", "live"]).describe("Content kind"),
 			id: z.string().describe("Video or live stream id"),
-			customerSession: z
-				.string()
-				.optional()
-				.describe(
-					"Buyer session token — required when the content is memberOnly",
-				),
 		},
 		write("content_playback_token", { destructive: false }),
-		async ({ customerSession, ...body }) =>
+		async (body) =>
 			run(
 				postContentPlaybackToken({
 					body,
-					...(customerSession
-						? { headers: { "X-Customer-Session": customerSession } }
+					// The buyer session is a connection credential, never an
+					// argument: memberOnly content plays only when it is there.
+					...(creds.customerSession
+						? { headers: { "X-Customer-Session": creds.customerSession } }
 						: {}),
 					client,
 				}),
@@ -1143,18 +1019,16 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 				.max(40)
 				.optional()
 				.describe("Where the lead came from"),
-			customerSession: z
-				.string()
-				.optional()
-				.describe("Buyer session token — links the entry to that buyer"),
 		},
 		write("waitlist_join", { destructive: false, idempotent: true }),
-		async ({ customerSession, ...body }) =>
+		async (body) =>
 			run(
 				postWaitlist({
 					body,
-					...(customerSession
-						? { headers: { "X-Customer-Session": customerSession } }
+					// Links the entry to the buyer when the connection carries a
+					// buyer session (a credential, never an argument).
+					...(creds.customerSession
+						? { headers: { "X-Customer-Session": creds.customerSession } }
 						: {}),
 					client,
 				}),
@@ -2642,106 +2516,6 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		write("staff_access_set", { destructive: true, idempotent: true }),
 		async ({ id, ...body }) =>
 			run(putStaffIdAccess({ path: { id }, body, client })),
-	);
-
-	// ── Buyer address book (contract 1.39+) ──────────────────────────────────
-	// Shared across brands: it belongs to the buyer's FreeTicket account, so
-	// any key (or none) with the buyer session edits the same book.
-	const ADDRESS_NOTE =
-		" Colombia only: `departmentCode` is the 2-digit DANE department and " +
-		"`cityCode` the 5-digit DANE city that starts with it (Bogotá = `11` / " +
-		"`11001`); 422 when the city does not belong to the department. Requires " +
-		"the buyer session; the enterprise API key is optional.";
-	const addressFields = {
-		label: z
-			.string()
-			.max(60)
-			.nullish()
-			.describe("Short name, e.g. `Casa`; null or empty clears it"),
-		recipientName: z.string().min(2).max(120),
-		phone: z
-			.string()
-			.regex(/^\+?[0-9 -]{7,20}$/)
-			.nullish()
-			.describe("Recipient phone; null or empty clears it"),
-		departmentCode: z.string().regex(/^\d{2}$/),
-		cityCode: z.string().regex(/^\d{5}$/),
-		address: z.string().min(5).max(200),
-		addressExtra: z
-			.string()
-			.max(200)
-			.nullish()
-			.describe("Apartment, tower…; null or empty clears it"),
-	};
-	server.tool(
-		"customer_addresses_create",
-		"Saves a shipping address for the buyer (POST /customer/addresses). At " +
-			"most 10 per buyer (409 `ADDRESS_LIMIT`). The first address is always " +
-			"the default; `isDefault: true` makes the new one the default and " +
-			`clears the previous one.${ADDRESS_NOTE}`,
-		{
-			...addressFields,
-			isDefault: z.boolean().optional().describe("Make it the default address"),
-			customerSession,
-		},
-		write("customer_addresses_create", { destructive: false }),
-		async ({ customerSession, ...body }) =>
-			run(
-				postCustomerAddresses({
-					body,
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	server.tool(
-		"customer_addresses_update",
-		"Partially updates one of the buyer's addresses; omitted fields are left " +
-			"untouched (PATCH /customer/addresses/{id}). `isDefault: false` on the " +
-			"default moves the default to the most recent other address. Another " +
-			`buyer's address answers 404 \`ADDRESS_NOT_FOUND\`.${ADDRESS_NOTE}`,
-		{
-			id: z.string().describe("Address id"),
-			label: addressFields.label,
-			recipientName: addressFields.recipientName.optional(),
-			phone: addressFields.phone,
-			departmentCode: addressFields.departmentCode.optional(),
-			cityCode: addressFields.cityCode.optional(),
-			address: addressFields.address.optional(),
-			addressExtra: addressFields.addressExtra,
-			isDefault: z
-				.boolean()
-				.optional()
-				.describe("true makes it the default; false hands the default on"),
-			customerSession,
-		},
-		write("customer_addresses_update", { destructive: false }),
-		async ({ id, customerSession, ...body }) =>
-			run(
-				patchCustomerAddressesId({
-					path: { id },
-					body,
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	server.tool(
-		"customer_addresses_delete",
-		"Deletes one of the buyer's addresses (DELETE /customer/addresses/{id}); " +
-			"deleting the default promotes the most recent remaining one. Another " +
-			"buyer's address answers 404 `ADDRESS_NOT_FOUND`. Requires the buyer " +
-			`session.${CONFIRM}`,
-		{ id: z.string().describe("Address id"), customerSession },
-		write("customer_addresses_delete", { destructive: true }),
-		async ({ id, customerSession }) =>
-			run(
-				deleteCustomerAddressesId({
-					path: { id },
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
 	);
 
 	// ── Merch store catalog admin (contract 1.37+) ───────────────────────────

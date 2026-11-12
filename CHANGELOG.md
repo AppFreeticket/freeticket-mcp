@@ -5,6 +5,85 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-12
+
+Auth hardening against Block's MCP playbook (OAuth, minimum scopes,
+short-lived tokens, no secrets in plaintext, no tokens in the model context).
+
+### ⚠️ Breaking
+- **Raw API keys are no longer accepted as Bearer on `/mcp`** (nor the
+  `X-Workspace-Id` / `X-Admin-Session` headers that rode with them). They get
+  401 `invalid_token`. Use OAuth, or stdio with `FT_API_KEY`. No consumer was
+  found in the repos (README curl example only).
+- **The superadmin cookie field is gone from the consent page**, and admin
+  cookies sealed by earlier tokens are ignored: `admin_*` is no longer
+  reachable over the hosted server. Use stdio with `FT_ADMIN_SESSION` until
+  free-admin issues admin credentials through a device flow.
+- **`customer_*` no longer take `customerSession` as an argument.** The buyer
+  session is a connection credential: `X-Customer-Session` header (HTTP) or
+  `FT_CUSTOMER_SESSION` (stdio). The tools are registered only when it is
+  present and send only that header (never the B2B key). Same for
+  `merch_orders_lookup`, `content_playback_token` and `waitlist_join`.
+  `customer_membership` and `customer_subscription_cancel` now require
+  `workspaceId` (it was implied by the enterprise key).
+  The 0.21.0 address book (`customer_addresses_list/create/update/delete`)
+  moves to the buyer layer the same way. `customer_merch_orders` needs the
+  enterprise key AND the session, so like `merch_orders_lookup` it stays a
+  B2B tool, sends both, and is registered only when the connection has both.
+- Server `instructions` describe the new layers: a read-scoped connection
+  does not list write tools at all, `customer_*` come from the session
+  header / `FT_CUSTOMER_SESSION`, and `admin_*` is stdio only.
+- `/mcp` without a token no longer answers 401 upfront (lazy auth, below).
+  `MCP_REQUIRE_AUTH=1` restores the old behaviour.
+
+### Changed
+- Access tokens live **1 h** (were 30 days); refresh tokens 30 days (were 90),
+  rotated on every use, bound to their `client_id`, and never past a 90-day
+  absolute session cap. Every refresh re-validates the API key with
+  free-admin (`GET /api/v1/me`): a revoked key stops refreshing
+  (`invalid_grant`); free-admin down answers 503 `temporarily_unavailable`
+  instead of forcing a sign-in. Stateless trade-off: a used refresh token
+  cannot be invalidated, so replay is not detected (needs a store).
+- An expired or unknown Bearer is a 401 `invalid_token` (it used to be served
+  as if it were a raw API key, so the client never refreshed).
+- stdio reads the ft CLI's multi-account config (`accounts` +
+  `activeAccount`), not only the legacy top-level `apiKey`.
+
+### Added
+- OAuth scope **`read`**: a read-only connection registers only the tools
+  annotated `readOnlyHint` (fail-closed: no annotation = write). Requested
+  with `scope=read` (pre-ticks "Solo lectura" on free-admin's `/device`), the
+  manual form's checkbox, or implied by a read-scoped API key. Advertised
+  scopes: `b2b`, `read` (`admin` removed). stdio: `FT_READ_ONLY=1`.
+- Lazy auth on `/mcp`: without a token it serves `public_*` and lists the B2B
+  tools; calling one answers 401 + `WWW-Authenticate` (`scope="b2b"`) before
+  the SDK runs, which is what makes Claude show its Connect card.
+- Per-IP rate limit for anonymous traffic (`MCP_ANON_RPM`, default 120/min,
+  in memory per instance) with 429 + `Retry-After`. Anonymous `GET /mcp`
+  answers 405 (no SSE stream, see #29).
+
+### Security (review of #45)
+- The consent page warns about any destination that is not **exactly** a known
+  callback URL (it compared hosts: `https://claude.ai/<other path>`, which
+  `/register` accepts, showed no warning). For those, the registered
+  `client_name` is quoted as unverified and the full URL is shown.
+- The device flow starts on the user's click (`POST /device-start`), not on
+  every `GET /authorize`: free-admin caps pending device flows per IP and sees
+  this server's single egress IP, so ~10 anonymous page loads locked everyone
+  out. Per-IP limits on `/authorize`, `/device-start` (5 per 10 min),
+  `/device-token` and `/token`, plus 6 refreshes/min per refresh token.
+- 429 and 408 from free-admin's `/me` on refresh are 503
+  `temporarily_unavailable`, not `invalid_grant` (no forced sign-in).
+- Rate limiter: IPv6 keyed by /64, at most 10k counters (oldest evicted),
+  `X-Forwarded-For` trusted only on Vercel.
+- A grant bound to `client_id` `""` only redeems for `""`; a token's client is
+  never rebound.
+- Legacy refresh tokens (no absolute end) get at most 30 more days (or 90 d
+  from their `iat`), not a fresh 90 days. A refresh past its absolute end is
+  `invalid_grant`.
+- A request body that is not JSON answers 400 (JSON-RPC `-32700` on `/mcp`),
+  not 500.
+
 ## [0.23.0] - 2026-11-12
 
 Output token budget (Block MCP playbook). Measured on a realistic 100-row

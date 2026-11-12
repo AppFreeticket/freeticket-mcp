@@ -23,15 +23,7 @@ import {
 	getContentPosts,
 	getContentSeries,
 	getContentVideos,
-	getCustomerAddresses,
-	getCustomerMe,
-	getCustomerMembership,
 	getCustomerMerchOrders,
-	getCustomerOrders,
-	getCustomerOrdersId,
-	getCustomerProfile,
-	getCustomerTickets,
-	getCustomerTicketsId,
 	getDiscounts,
 	getEventDatesIdAccessClose,
 	getEventDatesIdCourtesySeats,
@@ -664,48 +656,8 @@ export function registerB2bTools(
 		async (q) => run(getApiKeys({ query: q, client })),
 	);
 
-	// ── Headless SSO (enterprise integrations) ───────────────────────────────
-	// These two speak on behalf of a buyer, not of the workspace: they demand an
-	// enterprise service API key AND the session token the exchange returned
-	// (POST /api/customer-auth/enterprise-exchange). The exchange is NOT exposed
-	// as a tool: it mints third-party sessions — the same policy as api_keys and
-	// admin tokens. With a normal key the API answers 403 and the agent sees it.
-	const customerSession = z
-		.string()
-		.describe(
-			"The buyer's session token (X-Customer-Session header), obtained from the " +
-				"headless SSO exchange. Without it the API answers 401.",
-		);
-	server.tool(
-		"customer_me",
-		"Identity of the buyer authenticated through headless SSO (GET /customer/me). " +
-			"Requires an enterprise service API key plus the buyer's session token.",
-		{ customerSession },
-		read("customer_me"),
-		async ({ customerSession }) =>
-			run(
-				getCustomerMe({
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	uiTool(
-		server,
-		"customer_tickets",
-		"The buyer's tickets within the key's scope (GET /customer/tickets). Only " +
-			"CONFIRMED sales of events the pinned workspace can read. Requires an " +
-			"enterprise service API key plus the buyer's session token.",
-		{ customerSession, ...paging },
-		async ({ customerSession, ...q }) =>
-			run(
-				getCustomerTickets({
-					query: q,
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
+	// customer_* (the buyer layer) live in ./customer.ts: they carry the
+	// buyer session as a credential, not as a tool argument.
 
 	server.tool(
 		"reports_export_buyers",
@@ -758,93 +710,6 @@ export function registerB2bTools(
 		},
 		read("reports_export_reconciliation"),
 		async (q) => run(getReportsExportsReconciliation({ query: q, client })),
-	);
-
-	// ── Members area (contract 1.7.0) ────────────────────────────────────────
-	// The same double credential as customer_me: an enterprise API key plus the
-	// session of the buyer. With these the agent covers the members area of the
-	// website: tickets, membership and profile.
-	server.tool(
-		"customer_ticket_get",
-		"Detail of one ticket held by the buyer — a deep link from the list " +
-			"(GET /customer/tickets/{id}).",
-		{ id, customerSession },
-		read("customer_ticket_get"),
-		async ({ id, customerSession }) =>
-			run(
-				getCustomerTicketsId({
-					path: { id },
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	uiTool(
-		server,
-		"customer_membership",
-		"Membership status of the buyer in the workspace of the key: plan, " +
-			"validity, and whether members-only content is visible " +
-			"(GET /customer/membership).",
-		{ customerSession },
-		async ({ customerSession }) =>
-			run(
-				getCustomerMembership({
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	server.tool(
-		"customer_profile",
-		"Profile of the buyer — name and phone (GET /customer/profile).",
-		{ customerSession },
-		read("customer_profile"),
-		async ({ customerSession }) =>
-			run(
-				getCustomerProfile({
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-
-	server.tool(
-		"customer_order_pending",
-		"The buyer's PENDING order whose hold is still alive — seats, total and " +
-			"expiry — or `order: null` (GET /customer/orders). Lets a purchase be " +
-			"resumed instead of started over.",
-		{
-			eventDateId: z.string().optional().describe("Filter by event date"),
-			customerSession,
-		},
-		read("customer_order_pending"),
-		async ({ customerSession, ...q }) =>
-			run(
-				getCustomerOrders({
-					query: q,
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	server.tool(
-		"customer_order_get",
-		"Status of one of the buyer's orders: `approved`, `pending` (normal for " +
-			"async payments, retry later) or `rejected`; `tickets` only when " +
-			"approved (GET /customer/orders/{id}).",
-		{
-			id: z.string().describe("Sale id or reference (FT-…)"),
-			customerSession,
-		},
-		read("customer_order_get"),
-		async ({ id, customerSession }) =>
-			run(
-				getCustomerOrdersId({
-					path: { id },
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
 	);
 
 	// ── Organization content (contract 1.7.0) ────────────────────────────────
@@ -1226,71 +1091,59 @@ export function registerB2bTools(
 		read("merch_catalog"),
 		async () => run(getMerchCatalog({ client })),
 	);
-	server.tool(
-		"merch_orders_lookup",
-		"Status of one of the session buyer's merch orders by its public code, " +
-			"e.g. `M-7K3Q9ZTA` (POST /merch/orders/lookup — a POST, but it only " +
-			"reads). Requires an enterprise service API key and the buyer session. " +
-			"Unknown code, another brand's or another buyer's order: all 404 " +
-			"ORDER_NOT_FOUND. The buyer document is never returned.",
-		{
-			code: z.string().min(3).max(20).describe("Public order code"),
-			customerSession,
-		},
-		read("merch_orders_lookup"),
-		async ({ code, customerSession }) =>
-			run(
-				postMerchOrdersLookup({
-					body: { code },
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
+	// Double credential by contract: enterprise key AND buyer session. Only
+	// registered when the connection carries both.
+	const customerSession = creds.customerSession;
+	if (customerSession) {
+		server.tool(
+			"merch_orders_lookup",
+			"Status of one of the session buyer's merch orders by its public code, " +
+				"e.g. `M-7K3Q9ZTA` (POST /merch/orders/lookup — a POST, but it only " +
+				"reads). Needs an enterprise service API key plus the buyer session the " +
+				"connection carries (X-Customer-Session; never a tool argument). " +
+				"Unknown code, another brand's or another buyer's order: all 404 " +
+				"ORDER_NOT_FOUND. The buyer document is never returned.",
+			{
+				code: z.string().min(3).max(20).describe("Public order code"),
+			},
+			read("merch_orders_lookup"),
+			async ({ code }) =>
+				run(
+					postMerchOrdersLookup({
+						body: { code },
+						headers: { "X-Customer-Session": customerSession },
+						client,
+					}),
+				),
+		);
+		uiTool(
+			server,
+			"customer_merch_orders",
+			"The session buyer's merch orders in the key's store only, newest " +
+				"first, 20 per page (GET /customer/merch-orders). PENDING orders " +
+				"whose stock reservation expired are left out; each item has the " +
+				"same shape as `merch_orders_lookup`. Pass `nextCursor` back as " +
+				"`cursor`. Needs an enterprise service API key plus the buyer " +
+				"session the connection carries (X-Customer-Session; never a tool " +
+				"argument). 404 STORE_NOT_READY when the brand has no store.",
+			{
+				cursor: z
+					.string()
+					.optional()
+					.describe("Opaque `nextCursor` from the previous page"),
+			},
+			async (q) =>
+				run(
+					getCustomerMerchOrders({
+						query: q,
+						headers: { "X-Customer-Session": customerSession },
+						client,
+					}),
+				),
+		);
+	}
 
-	// ── Contract 1.37–1.42: merch admin catalog, buyer address book ──────────
-	uiTool(
-		server,
-		"customer_merch_orders",
-		"The session buyer's merch orders in the key's store only, newest first, " +
-			"20 per page (GET /customer/merch-orders). PENDING orders whose stock " +
-			"reservation expired are left out; each item has the same shape as " +
-			"`merch_orders_lookup`. Pass `nextCursor` back as `cursor`. Requires an " +
-			"enterprise service API key and the buyer session. 404 STORE_NOT_READY " +
-			"when the brand has no store.",
-		{
-			cursor: z
-				.string()
-				.optional()
-				.describe("Opaque `nextCursor` from the previous page"),
-			customerSession,
-		},
-		async ({ customerSession, ...q }) =>
-			run(
-				getCustomerMerchOrders({
-					query: q,
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
-	uiTool(
-		server,
-		"customer_addresses_list",
-		"The buyer's saved shipping addresses, at most 10, the default first " +
-			"(GET /customer/addresses). The address book belongs to the buyer's " +
-			"FreeTicket account and is shared across brands. Colombia only: " +
-			"department and city are DANE codes (Bogotá = `11` / `11001`). " +
-			"Requires the buyer session; the enterprise API key is optional.",
-		{ customerSession },
-		async ({ customerSession }) =>
-			run(
-				getCustomerAddresses({
-					headers: { "X-Customer-Session": customerSession },
-					client,
-				}),
-			),
-	);
+	// ── Contract 1.37–1.42: merch admin catalog ──────────────────────────────
 	uiTool(
 		server,
 		"merch_products_list",

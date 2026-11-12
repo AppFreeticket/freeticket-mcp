@@ -1,6 +1,7 @@
 import { createClient, createConfig } from "@hey-api/client-fetch";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildServer } from "../server";
 import { registerB2bTools } from "./b2b";
 import { registerB2bWriteTools } from "./b2b-writes";
 
@@ -45,11 +46,13 @@ function setup() {
 		}),
 	);
 	const server = new McpServer({ name: "t", version: "0.0.0" });
-	registerB2bTools(server, client, {
+	const creds = {
 		apiUrl: "https://api.test",
 		apiKey: "ft_test",
-	});
-	registerB2bWriteTools(server, client);
+		customerSession: "sess_buyer",
+	};
+	registerB2bTools(server, client, creds);
+	registerB2bWriteTools(server, client, creds);
 	const tools = (
 		server as unknown as {
 			_registeredTools: Record<
@@ -102,7 +105,8 @@ describe.each([
 	},
 	{
 		tool: "merch_orders_lookup",
-		args: { code: "M-7K3Q9ZTA", customerSession: "sess_buyer" },
+		// The buyer session is the connection's credential, not an argument.
+		args: { code: "M-7K3Q9ZTA" },
 		method: "POST",
 		url: "https://api.test/api/v1/merch/orders/lookup",
 		// The buyer session travels in a header, never in the body.
@@ -174,54 +178,9 @@ describe.each([
 	},
 	{
 		tool: "customer_merch_orders",
-		args: { cursor: "c_2", customerSession: "sess_buyer" },
+		args: { cursor: "c_2" },
 		method: "GET",
 		url: "https://api.test/api/v1/customer/merch-orders?cursor=c_2",
-		body: undefined,
-		headers: { "X-Customer-Session": "sess_buyer" },
-	},
-	{
-		tool: "customer_addresses_list",
-		args: { customerSession: "sess_buyer" },
-		method: "GET",
-		url: "https://api.test/api/v1/customer/addresses",
-		body: undefined,
-		headers: { "X-Customer-Session": "sess_buyer" },
-	},
-	{
-		tool: "customer_addresses_create",
-		args: {
-			recipientName: "María Muñoz",
-			departmentCode: "11",
-			cityCode: "11001",
-			address: "Calle 80 # 12-34",
-			isDefault: true,
-			customerSession: "sess_buyer",
-		},
-		method: "POST",
-		url: "https://api.test/api/v1/customer/addresses",
-		body: {
-			recipientName: "María Muñoz",
-			departmentCode: "11",
-			cityCode: "11001",
-			address: "Calle 80 # 12-34",
-			isDefault: true,
-		},
-		headers: { "X-Customer-Session": "sess_buyer" },
-	},
-	{
-		tool: "customer_addresses_update",
-		args: { id: "addr_1", cityCode: "05001", customerSession: "sess_buyer" },
-		method: "PATCH",
-		url: "https://api.test/api/v1/customer/addresses/addr_1",
-		body: { cityCode: "05001" },
-		headers: { "X-Customer-Session": "sess_buyer" },
-	},
-	{
-		tool: "customer_addresses_delete",
-		args: { id: "addr_1", customerSession: "sess_buyer" },
-		method: "DELETE",
-		url: "https://api.test/api/v1/customer/addresses/addr_1",
 		body: undefined,
 		headers: { "X-Customer-Session": "sess_buyer" },
 	},
@@ -245,20 +204,169 @@ describe.each([
 	});
 });
 
-describe("customer_addresses_update partial semantics", () => {
-	it("sends null to clear a field and omits the fields left undefined", async () => {
-		const { calls, tools } = setup();
-		await tools.customer_addresses_update.handler(
-			{
-				id: "addr_1",
-				label: null,
-				phone: undefined,
-				addressExtra: null,
-				customerSession: "sess_buyer",
+/**
+ * The buyer layer (customer_*): the session comes from the connection, never
+ * from the model. Boundary: the real buildServer and generated SDK, with a
+ * fake global fetch.
+ */
+describe("customer_* carry the buyer session as a credential", () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	const build = (creds: Record<string, string>) => {
+		const calls: Request[] = [];
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async (input: Request | string | URL, init?: RequestInit) => {
+				calls.push(new Request(input, init));
+				return new Response("{}", {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			}),
+		);
+		const server = buildServer({ apiUrl: "https://api.test", ...creds });
+		const tools = (
+			server as unknown as {
+				_registeredTools: Record<
+					string,
+					{
+						handler: (args: unknown, extra: unknown) => Promise<unknown>;
+						inputSchema?: { shape?: Record<string, unknown> };
+					}
+				>;
+			}
+		)._registeredTools;
+		return { calls, tools };
+	};
+
+	it("no tool takes the session as an argument", () => {
+		const { tools } = build({
+			apiKey: "ft_test",
+			customerSession: "sess_buyer",
+		});
+		for (const [name, t] of Object.entries(tools))
+			expect(
+				Object.keys(t.inputSchema?.shape ?? {}),
+				`${name} exposes the buyer session to the model`,
+			).not.toContain("customerSession");
+	});
+
+	it("sends X-Customer-Session from the credential and never the B2B key", async () => {
+		const { calls, tools } = build({
+			apiKey: "ft_test",
+			customerSession: "sess_buyer",
+		});
+		await tools.customer_tickets.handler({}, {});
+		expect(calls).toHaveLength(1);
+		expect(calls[0].url).toBe("https://api.test/api/v1/customer/tickets");
+		expect(calls[0].headers.get("X-Customer-Session")).toBe("sess_buyer");
+		expect(calls[0].headers.get("Authorization")).toBeNull();
+	});
+
+	it("registers the layer only with a buyer session", () => {
+		expect(build({ apiKey: "ft_test" }).tools.customer_me).toBeUndefined();
+		expect(build({ customerSession: "s" }).tools.customer_me).toBeDefined();
+		// merch_orders_lookup needs both credentials by contract.
+		expect(
+			build({ customerSession: "s" }).tools.merch_orders_lookup,
+		).toBeUndefined();
+		// customer_merch_orders too: enterprise key AND buyer session.
+		expect(
+			build({ customerSession: "s" }).tools.customer_merch_orders,
+		).toBeUndefined();
+		expect(
+			build({ apiKey: "ft_test" }).tools.customer_merch_orders,
+		).toBeUndefined();
+		expect(
+			build({ apiKey: "ft_test", customerSession: "s" }).tools
+				.customer_merch_orders,
+		).toBeDefined();
+	});
+
+	it("customer_merch_orders sends the enterprise key AND the buyer session", async () => {
+		const { calls, tools } = build({
+			apiKey: "ft_test",
+			customerSession: "sess_buyer",
+		});
+		await tools.customer_merch_orders.handler({ cursor: "c_2" }, {});
+		expect(calls).toHaveLength(1);
+		expect(calls[0].url).toBe(
+			"https://api.test/api/v1/customer/merch-orders?cursor=c_2",
+		);
+		expect(calls[0].headers.get("Authorization")).toBe("Bearer ft_test");
+		expect(calls[0].headers.get("X-Customer-Session")).toBe("sess_buyer");
+	});
+
+	it.each([
+		{
+			tool: "customer_addresses_list",
+			args: {},
+			method: "GET",
+			url: "https://api.test/api/v1/customer/addresses",
+			body: undefined,
+		},
+		{
+			tool: "customer_addresses_create",
+			args: {
+				recipientName: "María Muñoz",
+				departmentCode: "11",
+				cityCode: "11001",
+				address: "Calle 80 # 12-34",
+				isDefault: true,
 			},
+			method: "POST",
+			url: "https://api.test/api/v1/customer/addresses",
+			body: {
+				recipientName: "María Muñoz",
+				departmentCode: "11",
+				cityCode: "11001",
+				address: "Calle 80 # 12-34",
+				isDefault: true,
+			},
+		},
+		{
+			tool: "customer_addresses_update",
+			args: { id: "addr_1", cityCode: "05001" },
+			method: "PATCH",
+			url: "https://api.test/api/v1/customer/addresses/addr_1",
+			body: { cityCode: "05001" },
+		},
+		{
+			tool: "customer_addresses_delete",
+			args: { id: "addr_1" },
+			method: "DELETE",
+			url: "https://api.test/api/v1/customer/addresses/addr_1",
+			body: undefined,
+		},
+	])("$tool: buyer layer, session header only", async ({
+		tool,
+		args,
+		method,
+		url,
+		body,
+	}) => {
+		const { calls, tools } = build({
+			apiKey: "ft_test",
+			customerSession: "sess_buyer",
+		});
+		expect(tools[tool], `missing tool ${tool}`).toBeDefined();
+		await tools[tool].handler(args, {});
+		expect(calls).toHaveLength(1);
+		expect(calls[0].method).toBe(method);
+		expect(calls[0].url).toBe(url);
+		const text = await calls[0].text();
+		expect(text ? JSON.parse(text) : undefined).toEqual(body);
+		expect(calls[0].headers.get("X-Customer-Session")).toBe("sess_buyer");
+		expect(calls[0].headers.get("Authorization")).toBeNull();
+	});
+
+	it("customer_addresses_update sends null to clear a field and omits the undefined ones", async () => {
+		const { calls, tools } = build({ customerSession: "sess_buyer" });
+		await tools.customer_addresses_update.handler(
+			{ id: "addr_1", label: null, phone: undefined, addressExtra: null },
 			{},
 		);
-		const body = calls[0].body as Record<string, unknown>;
+		const body = JSON.parse(await calls[0].text()) as Record<string, unknown>;
 		// `null` clears it on the server; a missing key leaves it untouched.
 		expect(body).toStrictEqual({ label: null, addressExtra: null });
 		expect("phone" in body).toBe(false);

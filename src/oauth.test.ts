@@ -59,13 +59,24 @@ describe("pkce", () => {
 
 describe("sealedToCreds", () => {
 	it("maps sealed payload to session creds, dropping empties", () => {
-		const c = sealedToCreds({ k: "key", w: "", a: "adm", exp: 0 }, "https://x");
+		const c = sealedToCreds({ k: "key", w: "", exp: 0 }, "https://x");
 		expect(c).toEqual({
 			apiUrl: "https://x",
 			apiKey: "key",
 			workspaceId: undefined,
-			adminSession: "adm",
 		});
+	});
+
+	it("ignores a legacy sealed admin cookie (admin_* left hosted OAuth)", () => {
+		const c = sealedToCreds({ k: "key", a: "cookie", exp: 0 }, "https://x");
+		expect(c.adminSession).toBeUndefined();
+	});
+
+	it("carries the read scope", () => {
+		expect(sealedToCreds({ k: "key", s: "read", exp: 0 }, "x").readOnly).toBe(
+			true,
+		);
+		expect(sealedToCreds({ k: "key", exp: 0 }, "x").readOnly).toBeUndefined();
 	});
 });
 
@@ -134,17 +145,14 @@ describe("consentPage", () => {
 				state: "</script><script>alert(1)</script>",
 				redirect_uri: "https://claude.ai/cb",
 			}),
-			{
-				device: {
-					device_code: "dc",
-					user_code: "ABCD",
-					verification_uri_complete: "https://x/verify",
-					interval: 5,
-					expires_in: 600,
-				},
-			},
 		);
 		expect(page).not.toContain("<script>alert(1)");
+	});
+
+	it("starts no device flow by itself: the button calls /device-start", () => {
+		const page = consentPage(new URLSearchParams());
+		expect(page).toContain('"/device-start"');
+		expect(page).toContain('id="go"');
 	});
 
 	it("names the destination host and warns about unknown ones", () => {
