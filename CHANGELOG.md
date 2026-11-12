@@ -39,6 +39,9 @@ types (`name` 1–100 chars, `price` 0–9 999 999 999).
   `price` (0–9 999 999 999) like the contract, so an out-of-range value fails
   in the tool instead of as a 422.
 - `whoami` mentions the key scope it now returns.
+- `merch_products_create` rejects a variant `price` / `compareAtPrice` that is
+  not an integer from 1 to 100 000 000 COP (the server's rule, answered as a
+  400 `BAD_REQUEST`; the OpenAPI only says integer). Negatives used to pass.
 
 ### Added
 - Merch store catalog admin (ADMIN, SUPER_ADMIN or MERCH_MANAGER):
