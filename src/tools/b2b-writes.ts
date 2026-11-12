@@ -2818,10 +2818,19 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 							.min(1)
 							.max(64)
 							.describe("Unique in the store; letters, digits, `.`, `-`, `_`"),
-						price: z.number().int().describe("COP, integer, VAT included"),
+						// The OpenAPI only says integer; the server's dashboard rule
+						// (free-admin tienda/rules.ts) answers 400 outside 1..100M.
+						price: z
+							.number()
+							.int()
+							.positive()
+							.max(100_000_000)
+							.describe("COP, integer, VAT included, 1 to 100,000,000"),
 						compareAtPrice: z
 							.number()
 							.int()
+							.positive()
+							.max(100_000_000)
 							.nullish()
 							.describe("Strikethrough price, greater than `price`"),
 						stock: z.number().int().min(0),
