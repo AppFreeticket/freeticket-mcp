@@ -6,6 +6,7 @@ import {
 	CODE_PREFIX,
 	checkRedirect,
 	consentPage,
+	isKnownCallback,
 	open,
 	pkceMatches,
 	seal,
@@ -128,6 +129,50 @@ describe("checkRedirect", () => {
 		expect(checkRedirect("", "http://localhost/cb#frag", SECRET).ok).toBe(
 			false,
 		);
+	});
+
+	it("knows ChatGPT's per-connector callback, and only that exact shape", () => {
+		const cb = "https://chatgpt.com/connector/oauth/Woc5toSDiIJh";
+		expect(checkRedirect(client([cb]), cb, SECRET)).toMatchObject({
+			ok: true,
+			unknownHost: false,
+		});
+		expect(checkRedirect("ftmcp-0123", cb, SECRET).ok).toBe(true);
+		expect(isKnownCallback("https://chatgpt.com/connector/oauth/a_b-C9")).toBe(
+			true,
+		);
+		for (const bad of [
+			// extra segment, query, fragment, trailing slash
+			`${cb}/x`,
+			`${cb}?next=https://evil.example`,
+			`${cb}#x`,
+			`${cb}/`,
+			// other chatgpt.com paths
+			"https://chatgpt.com/connector/oauth/",
+			"https://chatgpt.com/connector/oauth/../../redirect",
+			"https://chatgpt.com/connector/other/Woc5toSDiIJh",
+			"https://chatgpt.com/Woc5toSDiIJh",
+			// id too long or with other characters
+			`https://chatgpt.com/connector/oauth/${"a".repeat(65)}`,
+			"https://chatgpt.com/connector/oauth/a.b",
+			"https://chatgpt.com/connector/oauth/a%2Fb",
+			// lookalike hosts, userinfo, port, scheme
+			"https://chatgpt.com.evil.example/connector/oauth/Woc5toSDiIJh",
+			"https://evilchatgpt.com/connector/oauth/Woc5toSDiIJh",
+			"https://chatgpt.com@evil.example/connector/oauth/Woc5toSDiIJh",
+			"https://chatgpt.com:8443/connector/oauth/Woc5toSDiIJh",
+			"http://chatgpt.com/connector/oauth/Woc5toSDiIJh",
+			"HTTPS://CHATGPT.COM/connector/oauth/Woc5toSDiIJh",
+		]) {
+			expect(isKnownCallback(bad), bad).toBe(false);
+			expect(checkRedirect("ftmcp-0123", bad, SECRET).ok, bad).toBe(false);
+		}
+		// Sealed with a lookalike: allowed (the client registered it) but flagged.
+		const look = "https://chatgpt.com.evil.example/connector/oauth/x";
+		expect(checkRedirect(client([look]), look, SECRET)).toMatchObject({
+			ok: true,
+			unknownHost: true,
+		});
 	});
 
 	it("flags destinations that are not a known client", () => {

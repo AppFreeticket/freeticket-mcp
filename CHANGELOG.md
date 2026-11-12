@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 ## [Unreleased]
 
 ### Fixed
+- ChatGPT custom MCP connectors ("Agregar servidor MCP personalizado")
+  redirect to a per-connector `https://chatgpt.com/connector/oauth/<id>`.
+  That exact shape (one `[A-Za-z0-9_-]{1,64}` segment, no query, fragment or
+  extra path) is now a known callback, so the consent page no longer shows
+  the "Ese destino no es un cliente conocido" warning for it. Any other
+  chatgpt.com path or lookalike host is still unknown.
 - `tickets_reassign` and `webhooks_update` are now `destructiveHint: true`:
   reassigning voids the previous holder's QR and repointing a webhook
   redirects every future event. Flagged by the ChatGPT plugin review.

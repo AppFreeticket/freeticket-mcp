@@ -97,6 +97,23 @@ export const KNOWN_CALLBACKS = [
 	"https://vscode.dev/redirect",
 	"https://insiders.vscode.dev/redirect",
 ];
+/**
+ * ChatGPT's custom MCP connectors ("Agregar servidor MCP personalizado") get a
+ * per-connector callback, https://chatgpt.com/connector/oauth/<id>. The one
+ * pattern among the known callbacks, matched on the raw string and anchored:
+ * one path segment of [A-Za-z0-9_-], no query, no fragment, no extra segment,
+ * so it cannot be bent into another chatgpt.com path.
+ */
+const CHATGPT_CONNECTOR_CALLBACK =
+	/^https:\/\/chatgpt\.com\/connector\/oauth\/[A-Za-z0-9_-]{1,64}$/;
+
+/** Exactly one of KNOWN_CALLBACKS, or a ChatGPT per-connector callback. */
+export function isKnownCallback(redirectUri: string): boolean {
+	return (
+		KNOWN_CALLBACKS.includes(redirectUri) ||
+		CHATGPT_CONNECTOR_CALLBACK.test(redirectUri)
+	);
+}
 const MAX_REDIRECT_LENGTH = 2048;
 
 export interface RedirectCheck {
@@ -141,7 +158,7 @@ export function checkRedirect(
 	const base = {
 		host: u.host,
 		uri: redirectUri,
-		unknownHost: !loopback && !KNOWN_CALLBACKS.includes(redirectUri),
+		unknownHost: !loopback && !isKnownCallback(redirectUri),
 	};
 	const client = open(clientId, secret, CLIENT_PREFIX);
 	if (client)
@@ -150,7 +167,7 @@ export function checkRedirect(
 			ok: loopback || (client.rus ?? []).includes(redirectUri),
 			clientName: client.n,
 		};
-	return { ...base, ok: loopback || KNOWN_CALLBACKS.includes(redirectUri) };
+	return { ...base, ok: loopback || isKnownCallback(redirectUri) };
 }
 
 /** Respuesta de POST /auth/device/code de free-admin (contrato B2B). */
