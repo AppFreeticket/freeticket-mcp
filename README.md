@@ -46,31 +46,35 @@ them with `claude plugin validate .`. None of them is published to npm
 build): add it yourself rather than through the plugin —
 
 ```bash
+git clone https://github.com/AppFreeticket/freeticket-mcp && cd freeticket-mcp
+pnpm install && pnpm build
 claude mcp add --env FT_API_KEY=ft_live_... --transport stdio freeticket \
-  -- npx -y @freeticket/mcp
+  -- node "$PWD/dist/index.js"
 ```
 
-(subject to the npm caveat below). If you also keep the plugin enabled, toggle
-its `freeticket` server off in `/mcp` so the tools are not listed twice.
+(`@freeticket/mcp` is not on npm, so build it from source as above). If you
+also keep the plugin enabled, toggle its `freeticket` server off in `/mcp` so
+the tools are not listed twice.
 
 ## Use (Claude Code / Claude Desktop)
+
+The simplest path is the remote server below (nothing to install). For a local
+stdio server, `@freeticket/mcp` is **not published on npm**: build it from
+source (`git clone`, `pnpm install && pnpm build`) and point the client at
+`dist/index.js` with an absolute path:
 
 ```jsonc
 {
   "mcpServers": {
     "freeticket": {
-      "command": "npx",
-      "args": ["-y", "@freeticket/mcp"]
+      "command": "node",
+      "args": ["/absolute/path/to/freeticket-mcp/dist/index.js"]
       // No env: uses the `ft login` session. For CI or headless:
       // "env": { "FT_API_KEY": "ft_live_...", "FT_WORKSPACE_ID": "ws_..." }
     }
   }
 }
 ```
-
-> ⚠️ `@freeticket/mcp` is **not published on npm yet**, so this stdio entry does
-> not work today — `npx` cannot resolve the package. Use the remote server
-> below until it ships.
 
 Config precedence: env > `~/.freeticket/config.json` > default. Variables:
 `FT_API_URL` (base, without `/api/v1`), `FT_API_KEY`, `FT_WORKSPACE_ID`,

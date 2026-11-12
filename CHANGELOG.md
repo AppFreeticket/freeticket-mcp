@@ -3,6 +3,26 @@
 All notable changes to `@freeticket/mcp` are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: semver.
 
+## [0.22.0] - 2026-11-12
+
+### Added
+- Server `instructions` (sent once in `initialize`, static text in Spanish):
+  the four credential layers, the usual call order (`whoami` → `events_list`
+  with `q` → id → sales and reports), single-workspace writes, COP integer
+  amounts, cursor pagination, ids vs slugs and confirming destructive tools.
+
+### Changed
+- **Breaking for callers that passed it:** `content_member_posts_reject` and
+  `content_member_posts_remove` no longer accept `banAuthor`; the request
+  always sends `banAuthor: false`. Moderating a post and banning its author
+  are now two separate calls: banning only happens through the destructive
+  `content_members_ban`, which the descriptions point to. The
+  `community-moderation` skill says so.
+
+### Docs
+- README: the local stdio setup builds from source (`node dist/index.js`)
+  instead of `npx -y @freeticket/mcp`, which is not published on npm.
+
 ## [0.21.0] - 2026-11-12
 
 Brings the B2B contract to **1.45.0** (from 1.36.0), synced from production

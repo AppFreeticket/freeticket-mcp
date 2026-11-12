@@ -1409,6 +1409,9 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 				postContentModerationCommentsIdIgnoreReports({ path: { id }, client }),
 			),
 	);
+	// Moderating a post never bans its author: the contract's `banAuthor` is
+	// always sent as false. Banning is its own destructive tool,
+	// `content_members_ban`, so it gets its own confirmation.
 	const decision = {
 		id: z.string().describe("Member post id"),
 		reason: z
@@ -1416,11 +1419,10 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 			.max(1000)
 			.optional()
 			.describe("Shown to the author in their inbox"),
-		banAuthor: z
-			.boolean()
-			.default(false)
-			.describe("Also ban the author from the community (requires ADMIN)"),
 	};
+	const BAN_HINT =
+		" It never bans the author: banning is a separate, destructive call, " +
+		"`content_members_ban` (it starts from one of the author's comments).";
 	server.tool(
 		"content_member_posts_approve",
 		"Approves a pending member post: it is published at the top of the " +
@@ -1448,15 +1450,14 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"content_member_posts_reject",
 		"Rejects a pending member post: it never gets published, the author is " +
 			"notified in their inbox and the image is purged " +
-			"(POST /content/moderation/member-posts/{id}/reject). `banAuthor` " +
-			`also bans the author in the same transaction.${CONFIRM}`,
+			`(POST /content/moderation/member-posts/{id}/reject).${BAN_HINT}${CONFIRM}`,
 		decision,
 		write("content_member_posts_reject", { destructive: true }),
-		async ({ id, ...body }) =>
+		async ({ id, reason }) =>
 			run(
 				postContentModerationMemberPostsIdReject({
 					path: { id },
-					body,
+					body: { reason, banAuthor: false },
 					client,
 				}),
 			),
@@ -1465,15 +1466,14 @@ export function registerB2bWriteTools(server: McpServer, client: Client): void {
 		"content_member_posts_remove",
 		"Removes a published member post: soft-deleted, the author is notified " +
 			"in their inbox and the image is purged " +
-			"(POST /content/moderation/member-posts/{id}/remove). `banAuthor` " +
-			`also bans the author in the same transaction.${CONFIRM}`,
+			`(POST /content/moderation/member-posts/{id}/remove).${BAN_HINT}${CONFIRM}`,
 		decision,
 		write("content_member_posts_remove", { destructive: true }),
-		async ({ id, ...body }) =>
+		async ({ id, reason }) =>
 			run(
 				postContentModerationMemberPostsIdRemove({
 					path: { id },
-					body,
+					body: { reason, banAuthor: false },
 					client,
 				}),
 			),
