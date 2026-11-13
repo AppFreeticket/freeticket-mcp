@@ -898,19 +898,19 @@ export async function handleHttp(
 			);
 			return;
 		}
+		// POST only, for everyone. In stateless mode the standalone SSE stream
+		// (GET) never emits and never closes, so Vercel kills it at maxDuration
+		// and the client reconnects every 60 s (#29); with no sessions, DELETE
+		// has nothing to end. 405 tells the client to stay on POST.
+		if (req.method !== "POST") {
+			res.writeHead(405, { allow: "POST, OPTIONS" }).end();
+			return;
+		}
 		if (url.pathname === "/mcp" && auth.kind === "ok") {
-			const body =
-				req.method === "POST" ? asJson(await readBody(req)) : undefined;
-			return await handleMcp(req, res, auth.creds, body);
+			return await handleMcp(req, res, auth.creds, asJson(await readBody(req)));
 		}
 
 		// Anonymous from here on: /mcp/public always, /mcp without a Bearer.
-		// No standalone SSE stream for anonymous sessions: in stateless mode it
-		// never closes (#29), and lazy auth must not open that path to anyone.
-		if (req.method === "GET") {
-			res.writeHead(405, { allow: "POST" }).end();
-			return;
-		}
 		const wait = anonLimiter.check(clientIp(req));
 		if (wait) return tooMany(res, wait, { error: "rate_limited" });
 		const anon =
@@ -927,8 +927,7 @@ export async function handleHttp(
 			return;
 		}
 
-		const body =
-			req.method === "POST" ? asJson(await readBody(req)) : undefined;
+		const body = asJson(await readBody(req));
 		if (url.pathname === "/mcp") {
 			// Lazy auth gate, BEFORE the SDK: a tool this anonymous session does
 			// not really have (B2B, listed so the model can pick it) answers 401
