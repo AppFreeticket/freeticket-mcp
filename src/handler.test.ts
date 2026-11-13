@@ -204,3 +204,49 @@ describe("OAuth redirect binding", () => {
 		expect(out.status).toBe(400);
 	});
 });
+
+describe("no standalone SSE stream on /mcp (#29)", () => {
+	const req = (method: string, pathname: string, bearer?: string) =>
+		({
+			method,
+			url: pathname,
+			headers: {
+				host: "mcp.appfreeticket.com",
+				accept: "text/event-stream",
+				...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
+			},
+		}) as unknown as IncomingMessage;
+
+	it.each([
+		["GET", "/mcp", false],
+		["GET", "/mcp", true],
+		["GET", "/mcp/public", false],
+		["DELETE", "/mcp", true],
+		["DELETE", "/mcp/public", false],
+	])("%s %s (bearer: %s) answers 405 at once", async (method, path, withBearer) => {
+		process.env.MCP_TOKEN_SECRET = "test-secret";
+		const handleHttp = await loadHandler();
+		const { ACCESS_PREFIX, seal } = await import("./oauth");
+		const token = withBearer
+			? seal(
+					{ k: "ftk_test", exp: Date.now() / 1000 + 60 },
+					"test-secret",
+					ACCESS_PREFIX,
+				)
+			: undefined;
+		const { res, out } = stubRes();
+		// A stream left open would never resolve: the await itself is the check.
+		await handleHttp(req(method, path, token), res);
+		expect(out.status).toBe(405);
+		expect(out.headers.allow).toBe("POST, OPTIONS");
+		delete process.env.MCP_TOKEN_SECRET;
+	});
+
+	it("an invalid Bearer still gets 401 first, so the client refreshes", async () => {
+		const handleHttp = await loadHandler();
+		const { res, out } = stubRes();
+		await handleHttp(req("GET", "/mcp", "ftmcp_garbage"), res);
+		expect(out.status).toBe(401);
+		expect(out.headers["www-authenticate"]).toContain("invalid_token");
+	});
+});
