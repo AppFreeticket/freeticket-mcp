@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket Admin API",
-		"version": "1.8.0",
+		"version": "1.9.0",
 		"description": "API REST de superadmin de FreeTicket (cross-tenant). Autenticación por sesión de plataforma (staff con rol SUPER_ADMIN) o por service token (PAT) vía `Authorization: Bearer <token>` — NO usa API key de tenant. Aislada del contrato B2B /api/v1."
 	},
 	"servers": [
@@ -3385,6 +3385,1790 @@
 					}
 				}
 			}
+		},
+		"/crm/suppressions": {
+			"get": {
+				"operationId": "getCrmSuppressions",
+				"tags": ["crm"],
+				"summary": "Listar las bajas del CRM",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. Las bajas más recientes primero. `scope=global` (por defecto): solo las globales (workspace de plataforma); `all`: también las de cada organización. Los correos van enmascarados; `query` busca por el correo completo o una parte.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "query",
+						"in": "query",
+						"required": false,
+						"description": "Parte del correo (hasta 254).",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "scope",
+						"in": "query",
+						"required": false,
+						"description": "`global` o `all`.",
+						"schema": {
+							"type": "string",
+							"enum": ["global", "all"],
+							"default": "global"
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"description": "1–500 (por defecto 100).",
+						"schema": {
+							"type": "integer",
+							"default": 100
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminCrmSuppression"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postCrmSuppressions",
+				"tags": ["crm"],
+				"summary": "Agregar una baja global (ESCRITURA)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: la persona deja de recibir campañas del CRM maestro (no frena las campañas propias de un organizador). Queda con motivo `admin`. Idempotente: si ya estaba dada de baja (por cualquier motivo) no cambia nada y responde igual. 429 con `Retry-After`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_suppression.add` (con el correo enmascarado).",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura del CRM maestro: dispara o frena envíos reales a clientes. Solo por el CLI (`ft admin crm`) o el panel, no por un agente MCP."
+				},
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminCrmSuppressionInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmSuppressionResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteCrmSuppressions",
+				"tags": ["crm"],
+				"summary": "Quitar una baja global que puso el equipo (ESCRITURA)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: la persona vuelve a recibir campañas del CRM. Exige `{ \"email\": …, \"confirm\": true }`; sin `confirm`, 422 `CONFIRMATION_REQUIRED` y no se quita nada. Solo las que puso el equipo (motivo `admin`): la que pidió la persona desde el enlace de baja, un rebote o una queja responden 404 y siguen vigentes. 429 con `Retry-After`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_suppression.remove`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura del CRM maestro: dispara o frena envíos reales a clientes. Solo por el CLI (`ft admin crm`) o el panel, no por un agente MCP."
+				},
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminCrmSuppressionRemoveInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmSuppressionResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/test-send": {
+			"post": {
+				"operationId": "postCrmTestSend",
+				"tags": ["crm"],
+				"summary": "Enviar una prueba de la campaña a uno mismo (ESCRITURA: envía)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: manda el mensaje armado tal como saldría, con asunto `[Prueba]`, a QUIEN LLAMA — su correo, o por WhatsApp el teléfono de su perfil de staff — nunca a un destino del body. Exige `{ \"confirm\": true }`; sin él, 422 `CONFIRMATION_REQUIRED` y no sale nada. Por WhatsApp consume 1 del cupo de Meta. Mismas reglas de canal y remitente que el lanzamiento (422 con `details[].path`). 429 `RATE_LIMITED` con `Retry-After` (5 cada 10 min por persona, compartido con el panel). 409 `WHATSAPP_BLOCKED` / 503 `WHATSAPP_UNAVAILABLE`; 502 `SEND_FAILED` si el proveedor rechazó el envío. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_campaign.test`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura del CRM maestro: dispara o frena envíos reales a clientes. Solo por el CLI (`ft admin crm`) o el panel, no por un agente MCP."
+				},
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminCrmTestSendInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminCrmTestSendResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "The external provider failed to complete the operation.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "Service unavailable: an external dependency is down or initialization failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/organizations": {
+			"get": {
+				"operationId": "getCrmOrganizations",
+				"tags": ["crm"],
+				"summary": "Buscar organizaciones para una campaña del CRM",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. Organizaciones activas (sin la de plataforma) por nombre o slug: hasta 10 con `query`, las primeras 20 por nombre sin ella. Sirven para `scope.level: \"orgs\"` del filtro o para `sender.workspaceId`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "query",
+						"in": "query",
+						"required": false,
+						"description": "Texto (hasta 120 caracteres).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminCrmOrganizationOption"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/crm/people/search": {
+			"post": {
+				"operationId": "postCrmPeopleSearch",
+				"tags": ["crm"],
+				"summary": "Buscar personas del alcance para una campaña del CRM",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. Lectura (POST porque el alcance es un objeto; no escribe nada). Personas del alcance —el mismo universo del resolver: a quien aparece le puede llegar— por correo o nombre, desde 2 caracteres. Devuelve el correo COMPLETO (es lo que lleva la condición `people` del filtro), del nombre solo la inicial y el teléfono enmascarado. Por eso no la expone el MCP (`x-ft-mcp`).",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Devuelve correos completos de compradores: solo por el CLI (`ft admin crm`) o el panel, no al contexto de un agente MCP."
+				},
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminCrmPeopleSearchInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminCrmPersonOption"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/settlements": {
+			"get": {
+				"operationId": "getSettlements",
+				"tags": ["settlements"],
+				"summary": "Listar liquidaciones (todas las organizaciones)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. Las liquidaciones de EVENTOS de todas las organizaciones, las más nuevas primero (las de membresías no se listan acá, igual que en el panel). Paginada por cursor (`limit`, `cursor`). Del reparto solo viajan los últimos 4 dígitos de cada cuenta.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "status",
+						"in": "query",
+						"required": false,
+						"description": "Solo las de ese estado.",
+						"schema": {
+							"type": "string",
+							"enum": [
+								"DRAFT",
+								"GENERATED",
+								"SENT",
+								"AWAITING_PAYMENT",
+								"PAID",
+								"REQUESTED",
+								"PENDING",
+								"REJECTED"
+							]
+						}
+					},
+					{
+						"name": "organizationId",
+						"in": "query",
+						"required": false,
+						"description": "Solo las de esa organización.",
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "limit",
+						"in": "query",
+						"required": false,
+						"description": "Tamaño de página (1–100, por defecto 20).",
+						"schema": {
+							"type": "integer"
+						}
+					},
+					{
+						"name": "cursor",
+						"in": "query",
+						"required": false,
+						"description": "`page.nextCursor` de la página anterior.",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/AdminSettlement"
+											}
+										},
+										"page": {
+											"$ref": "#/components/schemas/Page"
+										}
+									},
+									"required": ["data", "page"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postSettlements",
+				"tags": ["settlements"],
+				"summary": "Crear una liquidación, manual o automática (ESCRITURA: dinero)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`). `mode: manual` registra un PDF ya subido con `POST /settlements/files` y el monto digitado (máx. dos decimales); `mode: auto` calcula el borrador de la función y adjunta el PDF generado (monto = saldo final, puede ser negativo). Nace en `GENERATED` y NO notifica al organizador. 409 `DUPLICATE_SETTLEMENT` (con `details.existingId` cuando se conoce) si la función ya tiene una liquidación activa — reintentar con el mismo body no crea otra. 422 si el archivo no es de la organización, o el evento/función no le pertenecen. 503 `STORAGE_UNAVAILABLE` / 502 `UPLOAD_FAILED` / 500 `DRAFT_FAILED` en la automática. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.create` / `settlement.create_auto`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-destructive": true,
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura de liquidaciones (dinero de los organizadores): solo por el CLI (`ft admin settlements`) o el panel, no por un agente MCP."
+				},
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminSettlementCreateInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminSettlementCreateResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Operation error.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "The external provider failed to complete the operation.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "Service unavailable: an external dependency is down or initialization failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/settlements/files": {
+			"post": {
+				"operationId": "postSettlementsFiles",
+				"tags": ["settlements"],
+				"summary": "Subir el PDF de una liquidación o de un comprobante (ESCRITURA)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): sube un PDF (en `contentBase64`, máx. 3 MB decodificado; se verifican los bytes `%PDF`) al bucket privado de liquidaciones de la organización y devuelve su `storagePath`. No crea ni cambia ninguna liquidación: ese `storagePath` se usa en `POST /settlements` (`mode: manual`), `POST /settlements/{id}/proofs` y `POST /settlements/{id}/mark-paid`. Nunca devuelve una URL pública. 422 si no es un PDF o la organización no existe; 413 si pasa el tope; 503 `STORAGE_UNAVAILABLE` / 502 `UPLOAD_FAILED`. No expuesta por el MCP (`x-ft-mcp`).",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-destructive": true,
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura de liquidaciones (dinero de los organizadores): solo por el CLI (`ft admin settlements`) o el panel, no por un agente MCP."
+				},
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminSettlementFileUploadInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminSettlementFile"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "The external provider failed to complete the operation.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "Service unavailable: an external dependency is down or initialization failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/settlements/{id}": {
+			"get": {
+				"operationId": "getSettlementsId",
+				"tags": ["settlements"],
+				"summary": "Ver una liquidación",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminSettlement"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"delete": {
+				"operationId": "deleteSettlementsId",
+				"tags": ["settlements"],
+				"summary": "Borrar una liquidación (ESCRITURA: dinero, irreversible)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA IRREVERSIBLE (`x-ft-destructive`): exige `{ \"confirm\": true }` en el cuerpo; sin él responde 422 `CONFIRMATION_REQUIRED` y no borra nada. Igual que el panel, una liquidación de EVENTO se puede borrar en cualquier estado (incluida una `PAID`). Una de MEMBRESÍAS solo en `DRAFT` o `GENERATED`: al borrarla sus cobros vuelven a quedar pendientes, en la misma transacción; si ya se envió, 409 `INVALID_STATE` y no se toca nada. El estado previo completo queda en `GET /audit-log` como `settlement.delete`. El PDF queda en el bucket. 404 si no existe. No expuesta por el MCP (`x-ft-mcp`).",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-destructive": true,
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura de liquidaciones (dinero de los organizadores): solo por el CLI (`ft admin settlements`) o el panel, no por un agente MCP."
+				},
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminSettlementConfirmInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminSettlementDeleteResult"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/settlements/{id}/regenerate": {
+			"post": {
+				"operationId": "postSettlementsIdRegenerate",
+				"tags": ["settlements"],
+				"summary": "Regenerar el PDF con el reparto bancario (ESCRITURA: dinero)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): reemplaza el PDF de una liquidación en `AWAITING_PAYMENT` por el definitivo, con las cuentas y montos del reparto del organizador. Usa la misma comisión y costo fijo que la generación automática (`commissionRate` en %, `fixedFee` base sin IVA). No cambia el monto: si el saldo recalculado no coincide con él responde 409 `AMOUNT_MISMATCH` y no escribe nada (hay que generar la liquidación desde cero). 409 `INVALID_STATE` si no es de EVENTO (una de membresías no se regenera), no está esperando el pago, no tiene reparto o no está asociada a una función. 404 si no existe. 503 `STORAGE_UNAVAILABLE` / 502 `UPLOAD_FAILED` / 500 `DRAFT_FAILED`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.regenerate`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-destructive": true,
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura de liquidaciones (dinero de los organizadores): solo por el CLI (`ft admin settlements`) o el panel, no por un agente MCP."
+				},
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": false,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminSettlementRegenerateInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminSettlementTransition"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"500": {
+						"description": "Operation error.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"502": {
+						"description": "The external provider failed to complete the operation.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"503": {
+						"description": "Service unavailable: an external dependency is down or initialization failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/settlements/{id}/send": {
+			"post": {
+				"operationId": "postSettlementsIdSend",
+				"tags": ["settlements"],
+				"summary": "Enviar una liquidación al organizador (ESCRITURA: envía correo)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): `GENERATED` → `SENT`; desde acá el organizador la ve, puede repartir el pago y recibe un correo (best-effort: si el correo falla, el envío queda hecho). Exige `{ \"confirm\": true }`; sin él, 422 `CONFIRMATION_REQUIRED` y no pasa nada. 409 `INVALID_STATE` si no está en `GENERATED` (ya enviada, o en otro estado): reintentar no re-notifica. 404 si no existe. 429 con `Retry-After` (20 cada 10 min por usuario). No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.send`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-destructive": true,
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura de liquidaciones (dinero de los organizadores): solo por el CLI (`ft admin settlements`) o el panel, no por un agente MCP."
+				},
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminSettlementConfirmInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminSettlementTransition"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/settlements/{id}/mark-paid": {
+			"post": {
+				"operationId": "postSettlementsIdMarkPaid",
+				"tags": ["settlements"],
+				"summary": "Marcar una liquidación como pagada (ESCRITURA: dinero)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): `AWAITING_PAYMENT` → `PAID`, guarda los comprobantes de la transferencia (`proofs`, subidos antes con `POST /settlements/files`; cada `storagePath` tiene que ser de la organización de la liquidación, si no 422) y le manda un correo al organizador (best-effort). Exige `{ \"confirm\": true }`; sin él, 422 `CONFIRMATION_REQUIRED` y no se registra nada. 409 `INVALID_STATE` si no está esperando el pago (ya pagada incluida): reintentar no paga ni notifica dos veces. 404 si no existe. 429 con `Retry-After`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.mark_paid`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-destructive": true,
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura de liquidaciones (dinero de los organizadores): solo por el CLI (`ft admin settlements`) o el panel, no por un agente MCP."
+				},
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminSettlementMarkPaidInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminSettlementTransition"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"/settlements/{id}/proofs": {
+			"post": {
+				"operationId": "postSettlementsIdProofs",
+				"tags": ["settlements"],
+				"summary": "Adjuntar el PDF a una liquidación por enviar (ESCRITURA: dinero)",
+				"description": "Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): `DRAFT` → `GENERATED` con el PDF subido antes por `POST /settlements/files` (tiene que ser de la organización de la liquidación, si no 422) y, opcional, un monto nuevo (máx. dos decimales); con `amount` exige `{ \"confirm\": true }`, sin él 422 `CONFIRMATION_REQUIRED` y no se toca nada. Solo filas legado: lo que se crea hoy ya nace en `GENERATED`. No notifica al organizador. 409 `INVALID_STATE` si ya tiene comprobante. 404 si no existe. Los comprobantes de la TRANSFERENCIA van en `mark-paid`, no acá. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.attach_proof`.",
+				"security": [
+					{
+						"session": []
+					}
+				],
+				"x-ft-destructive": true,
+				"x-ft-mcp": {
+					"expose": false,
+					"reason": "Escritura de liquidaciones (dinero de los organizadores): solo por el CLI (`ft admin settlements`) o el panel, no por un agente MCP."
+				},
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/AdminSettlementAttachProofInput"
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/AdminSettlementTransition"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"413": {
+						"description": "Payload too large: the request body exceeds the maximum size.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"429": {
+						"description": "Too many requests: rate limit exceeded.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	},
 	"components": {
@@ -5491,6 +7275,707 @@
 					}
 				},
 				"required": ["id", "status"],
+				"additionalProperties": false
+			},
+			"AdminCrmTestSendInput": {
+				"type": "object",
+				"properties": {
+					"confirm": {
+						"type": "boolean",
+						"const": true,
+						"description": "Obligatorio y literal `true`: sin él, 422 `CONFIRMATION_REQUIRED` y no sale nada."
+					},
+					"channel": {
+						"$ref": "#/components/schemas/AdminCrmChannel"
+					},
+					"sender": {
+						"$ref": "#/components/schemas/AdminCrmSender"
+					},
+					"templateName": {
+						"description": "Plantilla de WhatsApp (obligatoria por WhatsApp).",
+						"type": ["string", "null"]
+					},
+					"subject": {
+						"type": "string",
+						"minLength": 1
+					},
+					"body": {
+						"type": "string",
+						"minLength": 1
+					},
+					"imageUrl": {
+						"type": "string"
+					},
+					"promotedEventId": {
+						"type": "string"
+					}
+				},
+				"required": ["confirm", "channel", "sender", "subject", "body"],
+				"additionalProperties": false
+			},
+			"AdminCrmTestSendResult": {
+				"type": "object",
+				"properties": {
+					"to": {
+						"type": "string",
+						"description": "Destino ENMASCARADO: siempre el correo (o el teléfono del perfil) de quien llama."
+					}
+				},
+				"required": ["to"],
+				"additionalProperties": false
+			},
+			"AdminCrmSuppression": {
+				"type": "object",
+				"properties": {
+					"emailMasked": {
+						"type": "string"
+					},
+					"reason": {
+						"type": "string",
+						"description": "`admin` (la puso el equipo: se puede quitar), `unsubscribe`, `bounce`, `complaint`."
+					},
+					"workspaceId": {
+						"type": "string"
+					},
+					"isGlobal": {
+						"type": "boolean",
+						"description": "true = baja global (plataforma)."
+					},
+					"createdAt": {
+						"type": "string",
+						"description": "ISO 8601"
+					}
+				},
+				"required": [
+					"emailMasked",
+					"reason",
+					"workspaceId",
+					"isGlobal",
+					"createdAt"
+				],
+				"additionalProperties": false
+			},
+			"AdminCrmSuppressionInput": {
+				"type": "object",
+				"properties": {
+					"email": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 254
+					}
+				},
+				"required": ["email"],
+				"additionalProperties": false
+			},
+			"AdminCrmSuppressionRemoveInput": {
+				"type": "object",
+				"properties": {
+					"email": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 254
+					},
+					"confirm": {
+						"type": "boolean",
+						"const": true,
+						"description": "Obligatorio y literal `true`: quitar la baja vuelve a habilitar los envíos a esa persona."
+					}
+				},
+				"required": ["email", "confirm"],
+				"additionalProperties": false
+			},
+			"AdminCrmSuppressionResult": {
+				"type": "object",
+				"properties": {
+					"emailMasked": {
+						"type": "string"
+					},
+					"suppressed": {
+						"type": "boolean",
+						"description": "Cómo queda: true tras agregar, false tras quitar."
+					}
+				},
+				"required": ["emailMasked", "suppressed"],
+				"additionalProperties": false
+			},
+			"AdminCrmOrganizationOption": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"name": {
+						"type": "string"
+					},
+					"slug": {
+						"type": "string"
+					},
+					"logoUrl": {
+						"type": ["string", "null"]
+					}
+				},
+				"required": ["id", "name", "slug", "logoUrl"],
+				"additionalProperties": false
+			},
+			"AdminCrmPeopleSearchInput": {
+				"type": "object",
+				"properties": {
+					"query": {
+						"type": "string",
+						"maxLength": 120,
+						"description": "Correo o nombre (desde 2 caracteres; menos devuelve vacío)."
+					},
+					"scope": {
+						"description": "El `scope` del filtro de audiencia (`AdminCrmAudienceFilter.scope`). Sin valor: la plataforma.",
+						"type": "object",
+						"properties": {
+							"level": {
+								"type": "string",
+								"enum": ["platform", "orgs", "events"]
+							}
+						},
+						"required": ["level"],
+						"additionalProperties": {}
+					}
+				},
+				"required": ["query"],
+				"additionalProperties": false
+			},
+			"AdminCrmPersonOption": {
+				"type": "object",
+				"properties": {
+					"email": {
+						"type": "string",
+						"description": "Completo: es lo que lleva la condición `people` del filtro."
+					},
+					"name": {
+						"description": "Solo la inicial.",
+						"type": ["string", "null"]
+					},
+					"phoneMasked": {
+						"type": ["string", "null"]
+					}
+				},
+				"required": ["email", "name", "phoneMasked"],
+				"additionalProperties": false
+			},
+			"AdminSettlementStatus": {
+				"type": "string",
+				"enum": [
+					"DRAFT",
+					"GENERATED",
+					"SENT",
+					"AWAITING_PAYMENT",
+					"PAID",
+					"REQUESTED",
+					"PENDING",
+					"REJECTED"
+				],
+				"description": "Máquina de estados: DRAFT (por enviar, legado) → GENERATED (con PDF, el organizador no la ve) → SENT (visible, el organizador reparte) → AWAITING_PAYMENT (repartida, falta transferir) → PAID. REQUESTED/PENDING/REJECTED son legado."
+			},
+			"AdminSettlement": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"reference": {
+						"type": "string",
+						"description": "Id humano estándar: `LQ-EVT-ddmmaaaa-NOMBRE-EVENTO-FTCO`."
+					},
+					"label": {
+						"type": "string"
+					},
+					"status": {
+						"$ref": "#/components/schemas/AdminSettlementStatus"
+					},
+					"amount": {
+						"type": "number",
+						"description": "Monto a transferir. En un borrador automático puede ser negativo (los costos superan el recaudo)."
+					},
+					"grossAmount": {
+						"type": ["number", "null"]
+					},
+					"unitsSold": {
+						"anyOf": [
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"currency": {
+						"type": "string"
+					},
+					"notes": {
+						"type": ["string", "null"]
+					},
+					"rejectionReason": {
+						"type": ["string", "null"]
+					},
+					"hasDocument": {
+						"type": "boolean",
+						"description": "true si ya hay PDF de la liquidación."
+					},
+					"fileName": {
+						"type": ["string", "null"]
+					},
+					"allocations": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"holderName": {
+									"type": ["string", "null"]
+								},
+								"bank": {
+									"type": "string"
+								},
+								"accountType": {
+									"type": "string"
+								},
+								"accountLast4": {
+									"type": "string"
+								},
+								"percentage": {
+									"type": "number",
+									"description": "En modo AMOUNT es un derivado aproximado."
+								},
+								"amount": {
+									"type": "number"
+								},
+								"mode": {
+									"type": "string",
+									"enum": ["PERCENT", "AMOUNT"]
+								}
+							},
+							"required": [
+								"holderName",
+								"bank",
+								"accountType",
+								"accountLast4",
+								"percentage",
+								"amount",
+								"mode"
+							],
+							"additionalProperties": false
+						},
+						"description": "Reparto que confirmó el organizador (vacío = no repartió)."
+					},
+					"paymentProofs": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"fileName": {
+									"type": "string"
+								}
+							},
+							"required": ["fileName"],
+							"additionalProperties": false
+						}
+					},
+					"notifiedAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"requestedAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"paidAt": {
+						"anyOf": [
+							{
+								"type": "string",
+								"description": "ISO 8601"
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"createdAt": {
+						"type": "string",
+						"description": "ISO 8601"
+					},
+					"organization": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string"
+							},
+							"name": {
+								"type": "string"
+							},
+							"taxId": {
+								"type": ["string", "null"]
+							}
+						},
+						"required": ["id", "name", "taxId"],
+						"additionalProperties": false
+					},
+					"event": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string"
+									},
+									"name": {
+										"type": "string"
+									}
+								},
+								"required": ["id", "name"],
+								"additionalProperties": false
+							},
+							{
+								"type": "null"
+							}
+						]
+					},
+					"eventDate": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string"
+									},
+									"startsAt": {
+										"type": "string",
+										"description": "ISO 8601"
+									}
+								},
+								"required": ["id", "startsAt"],
+								"additionalProperties": false
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": [
+					"id",
+					"reference",
+					"label",
+					"status",
+					"amount",
+					"grossAmount",
+					"unitsSold",
+					"currency",
+					"notes",
+					"rejectionReason",
+					"hasDocument",
+					"fileName",
+					"allocations",
+					"paymentProofs",
+					"notifiedAt",
+					"requestedAt",
+					"paidAt",
+					"createdAt",
+					"organization",
+					"event",
+					"eventDate"
+				],
+				"additionalProperties": false
+			},
+			"AdminSettlementCreateInput": {
+				"oneOf": [
+					{
+						"type": "object",
+						"properties": {
+							"mode": {
+								"type": "string",
+								"const": "manual"
+							},
+							"organizationId": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 64
+							},
+							"eventId": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 64
+							},
+							"eventDateId": {
+								"description": "Requiere `eventId`. Una función tiene UNA activa.",
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 64
+							},
+							"label": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 200
+							},
+							"amount": {
+								"type": "number",
+								"exclusiveMinimum": 0,
+								"maximum": 9999999999.99
+							},
+							"currency": {
+								"description": "ISO 4217. Sin valor: `COP`.",
+								"type": "string",
+								"pattern": "^[A-Z]{3}$"
+							},
+							"storagePath": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 512,
+								"description": "`storagePath` devuelto por `POST /settlements/files`. Tiene que ser de la organización de la liquidación (`settlements/{organizationId}/…`)."
+							},
+							"fileName": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 255
+							},
+							"notes": {
+								"type": "string",
+								"maxLength": 1000
+							}
+						},
+						"required": [
+							"mode",
+							"organizationId",
+							"label",
+							"amount",
+							"storagePath",
+							"fileName"
+						],
+						"additionalProperties": false
+					},
+					{
+						"type": "object",
+						"properties": {
+							"mode": {
+								"type": "string",
+								"const": "auto"
+							},
+							"eventDateId": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 64
+							},
+							"integrate": {
+								"description": "Por defecto true. false = liquidación DE EJEMPLO: sin función asociada (no bloquea la real), label `[EJEMPLO]`.",
+								"type": "boolean"
+							},
+							"commissionRate": {
+								"description": "Comisión de pasarela en PORCENTAJE antes de IVA (ej. 2.9916). Sin valor: la del motor.",
+								"type": "number",
+								"minimum": 0,
+								"maximum": 100
+							},
+							"fixedFee": {
+								"description": "Costo fijo por transacción, base SIN IVA en COP (ej. 500; el motor suma el IVA). Sin valor: el del motor.",
+								"type": "number",
+								"minimum": 0,
+								"maximum": 100000
+							}
+						},
+						"required": ["mode", "eventDateId"],
+						"additionalProperties": false
+					}
+				],
+				"description": "`manual`: el PDF ya subido con `POST /settlements/files` y el monto digitado. `auto`: el motor calcula el borrador de la función (ventas, costos, saldo), renderiza el PDF y lo adjunta; el monto es el saldo final. Las dos nacen en GENERATED y NO notifican al organizador hasta `send`."
+			},
+			"AdminSettlementRegenerateInput": {
+				"type": "object",
+				"properties": {
+					"commissionRate": {
+						"description": "Comisión de pasarela en PORCENTAJE antes de IVA (ej. 2.9916). Sin valor: la del motor.",
+						"type": "number",
+						"minimum": 0,
+						"maximum": 100
+					},
+					"fixedFee": {
+						"description": "Costo fijo por transacción, base SIN IVA en COP (ej. 500; el motor suma el IVA). Sin valor: el del motor.",
+						"type": "number",
+						"minimum": 0,
+						"maximum": 100000
+					}
+				},
+				"additionalProperties": false
+			},
+			"AdminSettlementConfirmInput": {
+				"type": "object",
+				"properties": {
+					"confirm": {
+						"type": "boolean",
+						"const": true,
+						"description": "Obligatorio y literal `true`: sin él, 422 `CONFIRMATION_REQUIRED`."
+					}
+				},
+				"required": ["confirm"],
+				"additionalProperties": false
+			},
+			"AdminSettlementMarkPaidInput": {
+				"type": "object",
+				"properties": {
+					"confirm": {
+						"type": "boolean",
+						"const": true,
+						"description": "Obligatorio y literal `true`: sin él, 422 `CONFIRMATION_REQUIRED`."
+					},
+					"proofs": {
+						"minItems": 1,
+						"maxItems": 20,
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"storagePath": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 512,
+									"description": "`storagePath` devuelto por `POST /settlements/files`. Tiene que ser de la organización de la liquidación (`settlements/{organizationId}/…`)."
+								},
+								"fileName": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 255
+								}
+							},
+							"required": ["storagePath", "fileName"],
+							"additionalProperties": false
+						},
+						"description": "Comprobantes de la transferencia (uno por cuenta del reparto)."
+					}
+				},
+				"required": ["confirm", "proofs"],
+				"additionalProperties": false
+			},
+			"AdminSettlementAttachProofInput": {
+				"type": "object",
+				"properties": {
+					"storagePath": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 512,
+						"description": "`storagePath` devuelto por `POST /settlements/files`. Tiene que ser de la organización de la liquidación (`settlements/{organizationId}/…`)."
+					},
+					"fileName": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 255
+					},
+					"amount": {
+						"description": "Ajusta el monto al adjuntar (opcional). Cambia el dinero que se le gira al organizador: exige `confirm: true`.",
+						"type": "number",
+						"exclusiveMinimum": 0,
+						"maximum": 9999999999.99
+					},
+					"confirm": {
+						"description": "Literal `true`, obligatorio solo si viene `amount`: sin él, 422 `CONFIRMATION_REQUIRED`.",
+						"type": "boolean",
+						"const": true
+					}
+				},
+				"required": ["storagePath", "fileName"],
+				"additionalProperties": false
+			},
+			"AdminSettlementFileUploadInput": {
+				"type": "object",
+				"properties": {
+					"organizationId": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 64
+					},
+					"fileName": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 255
+					},
+					"contentBase64": {
+						"type": "string",
+						"minLength": 1,
+						"description": "El PDF en base64 (máx. 3 MB decodificado; se verifica que empiece por `%PDF`)."
+					}
+				},
+				"required": ["organizationId", "fileName", "contentBase64"],
+				"additionalProperties": false
+			},
+			"AdminSettlementFile": {
+				"type": "object",
+				"properties": {
+					"storagePath": {
+						"type": "string"
+					},
+					"fileName": {
+						"type": "string"
+					}
+				},
+				"required": ["storagePath", "fileName"],
+				"additionalProperties": false
+			},
+			"AdminSettlementCreateResult": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"status": {
+						"type": "string",
+						"const": "GENERATED"
+					}
+				},
+				"required": ["id", "status"],
+				"additionalProperties": false
+			},
+			"AdminSettlementTransition": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"status": {
+						"$ref": "#/components/schemas/AdminSettlementStatus"
+					},
+					"paidAt": {
+						"type": "string",
+						"description": "ISO 8601"
+					},
+					"fileName": {
+						"type": "string"
+					}
+				},
+				"required": ["id", "status"],
+				"additionalProperties": false
+			},
+			"AdminSettlementDeleteResult": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string"
+					},
+					"deleted": {
+						"type": "boolean",
+						"const": true
+					}
+				},
+				"required": ["id", "deleted"],
 				"additionalProperties": false
 			}
 		},

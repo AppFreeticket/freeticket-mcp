@@ -70,7 +70,7 @@ const DESTRUCTIVE = [
 	"website_put",
 ];
 
-describe("writes destructivos", () => {
+describe("destructive writes", () => {
 	const tools = registered();
 
 	it("destructive tools exist and are annotated as such", () => {

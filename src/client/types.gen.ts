@@ -878,6 +878,80 @@ export type SaleCancelRequest = {
 	acknowledge_open_payment?: boolean;
 };
 
+export type SaleRefundRequest = {
+	acknowledge_manual?: boolean;
+	items?: Array<string>;
+	block_seats?: boolean;
+};
+
+export type SaleRefundResult = {
+	id: string;
+	reference: string;
+	status: "PENDING" | "CONFIRMED" | "ABANDONED" | "CANCELLED" | "REFUNDED";
+	channel: string;
+	subtotal: number;
+	discountAmount: number;
+	serviceFee: number;
+	iva: number;
+	total: number;
+	currency: string;
+	buyerName: string;
+	buyerEmail: string;
+	buyerPhone: string | null;
+	buyerDocumentType: string | null;
+	buyerDocumentNumber: string | null;
+	organizationId: string | null;
+	paymentProvider: string | null;
+	paymentRef: string | null;
+	confirmedAt: string | null;
+	createdAt: string;
+	failureReason: string | null;
+	/**
+	 * Status of the latest payment event. Usually the payment gateway's RAW status in its own vocabulary. Values prefixed with `FT_` come from FreeTicket, not the gateway: currently `FT_SALE_APPROVED_POST_CONFIRM`, which marks that the gateway re-notified an already-confirmed charge — this is how Bold reports its refunds. A CONFIRMED sale with this status may have money refunded that is not yet recorded.
+	 */
+	paymentStatus: string | null;
+	declineCode: string | null;
+	refund?: {
+		amount: number | null;
+		refundedItemIds: Array<string>;
+		saleRefunded: boolean;
+		gatewayRefunded: boolean;
+		seats: "blocked" | "block_failed" | "released" | "release_failed" | "none";
+	};
+};
+
+export type SaleItemTransferRequest = {
+	email: string;
+};
+
+export type SaleItemTransfer = {
+	saleId: string;
+	itemId: string;
+	/**
+	 * New ticket code (the previous QR is void).
+	 */
+	ticketCode: string;
+	holderName: string;
+	holderEmail: string;
+	transferredAt: string;
+};
+
+export type CourtesyRecipientUpdate = {
+	name: string;
+	email: string;
+};
+
+export type CourtesyRecipient = {
+	saleId: string;
+	name: string;
+	email: string;
+	resent: boolean;
+	/**
+	 * true when the email changed: the previous QR codes are void (transferred tickets keep theirs).
+	 */
+	ticketCodesRotated: boolean;
+};
+
 export type CourtesySeats = {
 	eventDateId: string;
 	eventId: string;
@@ -929,7 +1003,14 @@ export type ReportFinancialsRow = {
 
 export type Settlement = {
 	id: string;
+	/**
+	 * Human-readable settlement id. EVENT: `LQ-EVT-ddmmaaaa-EVENT-NAME-FTCO`. MEMBERSHIP: `LQ-MEM-ddmmaaaa-ORG-MEMBERSHIP-yyyymmdd-yyyymmdd-FTCO` (creation date, workspace name, membership name, period start and end), so two settlements of the same workspace never share it. Derived, not stored: use `id` as the key.
+	 */
 	reference: string;
+	/**
+	 * EVENT = settlement of an event/function's ticket sales. MEMBERSHIP = settlement of the workspace's membership charges for a period (then `event` and `eventDate` are null and `period`/`membershipPlan` are set).
+	 */
+	kind: "EVENT" | "MEMBERSHIP";
 	label: string;
 	status: "SENT" | "AWAITING_PAYMENT" | "PAID";
 	amount: number;
@@ -945,6 +1026,26 @@ export type Settlement = {
 	eventDate: {
 		id: string;
 		startsAt: string;
+	} | null;
+	/**
+	 * Settled period for MEMBERSHIP settlements (calendar days, Bogota time, both ends inclusive). null for EVENT.
+	 */
+	period: {
+		/**
+		 * First day of the period (yyyy-mm-dd), inclusive.
+		 */
+		start: string;
+		/**
+		 * Last day of the period (yyyy-mm-dd), inclusive.
+		 */
+		end: string;
+	} | null;
+	/**
+	 * Membership plan the settlement covers (MEMBERSHIP only). null for EVENT.
+	 */
+	membershipPlan: {
+		id: string;
+		name: string;
 	} | null;
 	hasDocument: boolean;
 	paymentProofs: Array<{
@@ -1083,6 +1184,12 @@ export type TicketReassign = {
 	seatLabel?: string;
 };
 
+export type ResendTicket = {
+	ticketCode: string;
+	sentTo: string;
+	sentAt: string;
+};
+
 export type CheckinResult = {
 	ticketCode: string;
 	checkedInAt: string | null;
@@ -1195,9 +1302,9 @@ export type CustomerTicketItem = {
 	ticketTypeName: string;
 	quantity: number;
 	/**
-	 * Opaque ticket code. The QR code must encode the validator URL (`https://admin.appfreeticket.com/dashboard/tickets/validar?code=<ticketCode>`).
+	 * Opaque ticket code. The QR code must encode the validator URL (`https://admin.appfreeticket.com/dashboard/tickets/validar?code=<ticketCode>`). null while the QR gate is closed: it is only delivered for a CONFIRMED purchase whose event starts in 72 hours or less (or already started), the same rule as the buyer portal. Before that, show a countdown to `eventDate.startsAt` minus 72 h and fetch again.
 	 */
-	ticketCode: string;
+	ticketCode: string | null;
 	/**
 	 * Exact seat for seated events (seats.io), or null.
 	 */
@@ -1249,11 +1356,11 @@ export type EnterpriseExchangeRequest = {
 
 export type EnterpriseExchangeResponse = {
 	/**
-	 * Buyer session token. Send it as the `X-Customer-Session` header on /api/v1/customer*.
+	 * Buyer session token dedicated to this API key's workspace (not the buyer's portal session). Send it as the `X-Customer-Session` header on /api/v1/customer*, always together with this same API key: with another workspace's key, or without a key, it is an invalid session.
 	 */
 	session_token: string;
 	/**
-	 * Session expiry (ISO 8601, 7-day sliding window).
+	 * Session expiry (ISO 8601). Fixed 7 days from the exchange; it does not slide. When it expires, restart the login flow.
 	 */
 	expires_at: string;
 	customer: {
@@ -1279,6 +1386,10 @@ export type CustomerMembershipState = {
 		 */
 		expiresAt: string | null;
 		autoRenew: boolean;
+		/**
+		 * When the membership was cancelled. Set with `status` ACTIVE = the buyer cancelled and keeps access until `expiresAt` (no more charges); null = not cancelled.
+		 */
+		cancelledAt: string | null;
 	} | null;
 };
 
@@ -1643,6 +1754,32 @@ export type CustomerAddressUpdate = {
 	isDefault?: boolean;
 };
 
+export type CustomerNewsletterState = {
+	/**
+	 * true while the buyer is subscribed to this workspace.
+	 */
+	subscribed: boolean;
+	/**
+	 * When the buyer last gave consent (the latest subscription or re-subscription); null when not subscribed.
+	 */
+	subscribedAt: string | null;
+};
+
+export type CustomerNewsletterSubscribe = {
+	/**
+	 * Explicit consent to receive the newsletter. Must be `true`; the landing page sends it only after the buyer accepts the consent text.
+	 */
+	consent: true;
+	/**
+	 * Version of the consent text the buyer accepted (e.g. `2026-11-v1`). Stored with each subscription or re-subscription.
+	 */
+	consentTextVersion: string;
+	/**
+	 * Free-form origin of the sign-up (e.g. `footer`). Stored only on the first subscription.
+	 */
+	source?: string;
+};
+
 export type PurchaseSessionCreateRequest = {
 	eventDateId: string;
 	/**
@@ -1863,9 +2000,42 @@ export type CustomerOrderStatus = {
 	total: number;
 	currency: string;
 	/**
-	 * Tickets with their `ticketCode`. ONLY present when `status` is `approved`; null in any other case. A code handed out before the payment settles would be a valid ticket with no money behind it.
+	 * Tickets. ONLY present when `status` is `approved`; null in any other case (a code handed out before the payment settles would be a valid ticket with no money behind it). Even when approved, each `ticketCode` follows the QR gate described on `CustomerTicketItem`.
 	 */
 	tickets: Array<CustomerTicketItem> | null;
+};
+
+export type CustomerOrderItem = {
+	ticketTypeId: string;
+	quantity: number;
+	/**
+	 * seats.io labels. Only for seated events.
+	 */
+	seats?: Array<string>;
+};
+
+export type CustomerOrderCreateRequest = {
+	eventDateId: string;
+	items: [CustomerOrderItem];
+	/**
+	 * Hold token of the seats.io map session. Required if seats are sent.
+	 */
+	holdToken?: string;
+	discountCode?: string;
+	buyer: {
+		name: string;
+		phone: string;
+		idType: "CC" | "CE" | "NIT" | "PP" | "TI" | "PEP";
+		idNumber: string;
+		/**
+		 * Check digit. Required if idType is NIT.
+		 */
+		nitDigit?: string;
+	};
+	/**
+	 * Absolute URL of the landing page the buyer returns to. Validated against the enterprise domain allowlist and the workspace that owns the event; if it fails validation it is ignored and the purchase proceeds as usual.
+	 */
+	returnUrl: string;
 };
 
 export type ContentVideo = {
@@ -2428,6 +2598,10 @@ export type ContentLiveCreate = {
 	 */
 	memberOnly?: boolean;
 	/**
+	 * Default false. Keeps the recording available for 24 hours after the stream ends, to the same audience as the live (members, ticket holders, or everyone if public). Same as the dashboard's "Guardar repetición" option.
+	 */
+	replayEnabled?: boolean;
+	/**
 	 * Wall-clock time "YYYY-MM-DDTHH:mm" in the WORKSPACE time zone (not UTC, no offset). Must be in the future and at most 2 years ahead. Absent: inherits the show date's start time when `eventDateId` is set.
 	 */
 	scheduledAt?: string | null;
@@ -2437,6 +2611,7 @@ export type ContentLiveCreated = {
 	id: string;
 	title: string;
 	memberOnly: boolean;
+	replayEnabled: boolean;
 	/**
 	 * UTC ISO 8601.
 	 */
@@ -2467,11 +2642,16 @@ export type ContentLiveUpdate = {
 	 */
 	scheduledAt?: string | null;
 	memberOnly?: boolean;
+	/**
+	 * Keeps the recording available for 24 hours after the stream ends, to the same audience as the live (members, ticket holders, or everyone if public). Same as the dashboard's "Guardar repetición" option. Can be changed anytime; the 24 hours always count from the end of the stream.
+	 */
+	replayEnabled?: boolean;
 };
 
 export type ContentLiveSettings = {
 	id: string;
 	memberOnly: boolean;
+	replayEnabled: boolean;
 	/**
 	 * UTC ISO 8601.
 	 */
@@ -2507,9 +2687,17 @@ export type ContentLive = {
 	startedAt: string | null;
 	endedAt: string | null;
 	/**
-	 * true if a playable recording remains after the stream.
+	 * true if the recording is playable by the audience right now (replay enabled and within 24 hours of the end).
 	 */
 	hasRecording: boolean;
+	/**
+	 * Keep the recording 24 hours after the end for the live's audience.
+	 */
+	replayEnabled: boolean;
+	/**
+	 * UTC ISO 8601 end of the replay window (may be in the past). null while there is no replay: disabled, on air, not ended or recording not ready yet.
+	 */
+	replayUntil: string | null;
 };
 
 export type ContentPlaybackTokenRequest = {
@@ -2547,6 +2735,19 @@ export type WaitlistEntry = {
 	contact: string;
 	customerId: string | null;
 	source: string | null;
+	createdAt: string;
+};
+
+export type CourtesyRequestCreate = {
+	fullName: string;
+	email: string;
+	companion?: {
+		fullName: string;
+	};
+};
+
+export type CourtesyRequestResult = {
+	id: string;
 	createdAt: string;
 };
 
@@ -3381,216 +3582,402 @@ export type MerchAdminProduct = {
 	}>;
 };
 
-export type SaleRefundRequest = {
-	acknowledge_manual?: boolean;
-	items?: Array<string>;
-	block_seats?: boolean;
-};
-
-export type SaleRefundResult = {
+export type CustomerCommunityPost = {
 	id: string;
-	reference: string;
-	status: "PENDING" | "CONFIRMED" | "ABANDONED" | "CANCELLED" | "REFUNDED";
-	channel: string;
-	subtotal: number;
-	discountAmount: number;
-	serviceFee: number;
-	iva: number;
-	total: number;
-	currency: string;
-	buyerName: string;
-	buyerEmail: string;
-	buyerPhone: string | null;
-	buyerDocumentType: string | null;
-	buyerDocumentNumber: string | null;
-	organizationId: string | null;
-	paymentProvider: string | null;
-	paymentRef: string | null;
-	confirmedAt: string | null;
-	createdAt: string;
-	failureReason: string | null;
+	type: "TEXT" | "IMAGE" | "VIDEO" | "ARTICLE";
+	publishedAt: string;
 	/**
-	 * Status of the latest payment event. Usually the payment gateway's RAW status in its own vocabulary. Values prefixed with `FT_` come from FreeTicket, not the gateway: currently `FT_SALE_APPROVED_POST_CONFIRM`, which marks that the gateway re-notified an already-confirmed charge — this is how Bold reports its refunds. A CONFIRMED sale with this status may have money refunded that is not yet recorded.
+	 * The post is pinned. Same meaning in the feed and in the permalink.
 	 */
-	paymentStatus: string | null;
-	declineCode: string | null;
-	refund?: {
-		amount: number | null;
-		refundedItemIds: Array<string>;
-		saleRefunded: boolean;
-		gatewayRefunded: boolean;
-		seats: "blocked" | "block_failed" | "released" | "release_failed" | "none";
-	};
-};
-
-export type SaleItemTransferRequest = {
-	email: string;
-};
-
-export type SaleItemTransfer = {
-	saleId: string;
-	itemId: string;
+	pinned: boolean;
 	/**
-	 * New ticket code (the previous QR is void).
+	 * The organization marked this post as members-only content.
 	 */
-	ticketCode: string;
-	holderName: string;
-	holderEmail: string;
-	transferredAt: string;
-};
-
-export type CourtesyRecipientUpdate = {
-	name: string;
-	email: string;
-};
-
-export type CourtesyRecipient = {
-	saleId: string;
-	name: string;
-	email: string;
-	resent: boolean;
+	membersOnly: boolean;
 	/**
-	 * true when the email changed: the previous QR codes are void (transferred tickets keep theirs).
+	 * Redacted for THIS reader: members-only and the reader has no current membership. `content`, `video`, `link`, `linkedEvent`, `author` and `body` are null, `commentsCount` is 0; an ARTICLE keeps its cover, title and hand-written subtitle as the teaser.
 	 */
-	ticketCodesRotated: boolean;
-};
-
-export type ResendTicket = {
-	ticketCode: string;
-	sentTo: string;
-	sentAt: string;
-};
-
-export type CustomerOrderItem = {
-	ticketTypeId: string;
-	quantity: number;
+	locked: boolean;
+	content: string | null;
+	imageUrl: string | null;
 	/**
-	 * seats.io labels. Only for seated events.
+	 * ARTICLE only.
 	 */
-	seats?: Array<string>;
-};
-
-export type CustomerOrderCreateRequest = {
-	eventDateId: string;
-	items: [CustomerOrderItem];
+	title: string | null;
 	/**
-	 * Hold token of the seats.io map session. Required if seats are sent.
+	 * ARTICLE only: subtitle, or an excerpt when not locked.
 	 */
-	holdToken?: string;
-	discountCode?: string;
-	buyer: {
+	subtitle: string | null;
+	/**
+	 * ARTICLE only: permalink slug, accepted by `GET /customer/community/posts/{id}`.
+	 */
+	slug: string | null;
+	readingMinutes: number | null;
+	video: {
+		/**
+		 * Pass to `POST /content/playback-token` as kind `video`.
+		 */
+		id: string;
+		title: string;
+		/**
+		 * Signed URL, valid for 24 hours.
+		 */
+		thumbnailUrl: string | null;
+	} | null;
+	/**
+	 * Open Graph snapshot of the first link in the text.
+	 */
+	link: {
+		url: string;
+		title: string | null;
+		description: string | null;
+		imageUrl: string | null;
+		domain: string;
+	} | null;
+	linkedEvent: {
 		name: string;
-		phone: string;
-		idType: "CC" | "CE" | "NIT" | "PP" | "TI" | "PEP";
-		idNumber: string;
-		/**
-		 * Check digit. Required if idType is NIT.
-		 */
-		nitDigit?: string;
-	};
+		slug: string;
+		imageUrl: string | null;
+		venueName: string | null;
+		venueAddress: string | null;
+		startsAt: string | null;
+		timezone: string;
+	} | null;
 	/**
-	 * Absolute URL of the landing page the buyer returns to. Validated against the enterprise domain allowlist and the workspace that owns the event; if it fails validation it is ignored and the purchase proceeds as usual.
+	 * Set on a member's post; null when the organization published it.
 	 */
-	returnUrl: string;
+	author: {
+		/**
+		 * Public display name (member alias or first name only).
+		 */
+		name: string;
+		/**
+		 * Member `@alias`, without the `@`.
+		 */
+		handle: string | null;
+		avatarUrl: string | null;
+	} | null;
+	/**
+	 * The session buyer wrote this post.
+	 */
+	isMine: boolean;
+	/**
+	 * Visible comments.
+	 */
+	commentsCount: number;
+	/**
+	 * null without a buyer session; otherwise whether the buyer reacted.
+	 */
+	myReaction: boolean | null;
 };
 
-export type GetEventsIdDatesData = {
-	body?: never;
-	headers?: {
+export type CustomerCommunityPostDetail = {
+	id: string;
+	type: "TEXT" | "IMAGE" | "VIDEO" | "ARTICLE";
+	publishedAt: string;
+	/**
+	 * The post is pinned. Same meaning in the feed and in the permalink.
+	 */
+	pinned: boolean;
+	/**
+	 * The organization marked this post as members-only content.
+	 */
+	membersOnly: boolean;
+	/**
+	 * Redacted for THIS reader: members-only and the reader has no current membership. `content`, `video`, `link`, `linkedEvent`, `author` and `body` are null, `commentsCount` is 0; an ARTICLE keeps its cover, title and hand-written subtitle as the teaser.
+	 */
+	locked: boolean;
+	content: string | null;
+	imageUrl: string | null;
+	/**
+	 * ARTICLE only.
+	 */
+	title: string | null;
+	/**
+	 * ARTICLE only: subtitle, or an excerpt when not locked.
+	 */
+	subtitle: string | null;
+	/**
+	 * ARTICLE only: permalink slug, accepted by `GET /customer/community/posts/{id}`.
+	 */
+	slug: string | null;
+	readingMinutes: number | null;
+	video: {
 		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 * Pass to `POST /content/playback-token` as kind `video`.
 		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
 		id: string;
-	};
-	query?: never;
-	url: "/events/{id}/dates";
-};
-
-export type GetEventsIdDatesErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetEventsIdDatesError =
-	GetEventsIdDatesErrors[keyof GetEventsIdDatesErrors];
-
-export type GetEventsIdDatesResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: Array<EventDate>;
-	};
-};
-
-export type GetEventsIdDatesResponse =
-	GetEventsIdDatesResponses[keyof GetEventsIdDatesResponses];
-
-export type PostEventsIdDatesData = {
-	body: EventDateCreate;
-	headers?: {
+		title: string;
 		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 * Signed URL, valid for 24 hours.
 		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
-		id: string;
-	};
-	query?: never;
-	url: "/events/{id}/dates";
+		thumbnailUrl: string | null;
+	} | null;
+	/**
+	 * Open Graph snapshot of the first link in the text.
+	 */
+	link: {
+		url: string;
+		title: string | null;
+		description: string | null;
+		imageUrl: string | null;
+		domain: string;
+	} | null;
+	linkedEvent: {
+		name: string;
+		slug: string;
+		imageUrl: string | null;
+		venueName: string | null;
+		venueAddress: string | null;
+		startsAt: string | null;
+		timezone: string;
+	} | null;
+	/**
+	 * Set on a member's post; null when the organization published it.
+	 */
+	author: {
+		/**
+		 * Public display name (member alias or first name only).
+		 */
+		name: string;
+		/**
+		 * Member `@alias`, without the `@`.
+		 */
+		handle: string | null;
+		avatarUrl: string | null;
+	} | null;
+	/**
+	 * The session buyer wrote this post.
+	 */
+	isMine: boolean;
+	/**
+	 * Visible comments.
+	 */
+	commentsCount: number;
+	/**
+	 * null without a buyer session; otherwise whether the buyer reacted.
+	 */
+	myReaction: boolean | null;
+	/**
+	 * ARTICLE body in Markdown. null when locked or not an ARTICLE.
+	 */
+	body: string | null;
 };
 
-export type PostEventsIdDatesErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type PostEventsIdDatesError =
-	PostEventsIdDatesErrors[keyof PostEventsIdDatesErrors];
-
-export type PostEventsIdDatesResponses = {
-	/**
-	 * OK
-	 */
-	201: {
-		data: EventDate;
+export type CustomerCommunityComment = {
+	id: string;
+	body: string;
+	author: {
+		/**
+		 * Public display name (member alias or first name only).
+		 */
+		name: string;
+		/**
+		 * Member `@alias`, without the `@`.
+		 */
+		handle: string | null;
+		avatarUrl: string | null;
 	};
+	createdAt: string;
+	/**
+	 * Reply to another comment (one level of threading).
+	 */
+	parentId: string | null;
+	isMine: boolean;
 };
 
-export type PostEventsIdDatesResponse =
-	PostEventsIdDatesResponses[keyof PostEventsIdDatesResponses];
+export type CustomerCommunityMeetup = {
+	id: string;
+	title: string;
+	format: "IN_PERSON" | "ONLINE";
+	status: "PUBLISHED" | "CANCELLED";
+	startsAt: string;
+	endsAt: string | null;
+	/**
+	 * IANA time zone of the organization.
+	 */
+	timeZone: string;
+	/**
+	 * Already started or cancelled: RSVPs are not accepted.
+	 */
+	isClosed: boolean;
+	/**
+	 * Teaser: the reader has no current membership. Only the fields above are real; every field below comes neutral (null or false).
+	 */
+	locked: boolean;
+	description: string | null;
+	city: string | null;
+	locationName: string | null;
+	capacity: number | null;
+	/**
+	 * null when `locked`.
+	 */
+	goingCount: number | null;
+	/**
+	 * Always false when `locked`.
+	 */
+	isFull: boolean;
+	/**
+	 * Always false when `locked`.
+	 */
+	requiresApproval: boolean;
+	/**
+	 * null without a buyer session, without an RSVP or when `locked`.
+	 */
+	myRsvp: ("GOING" | "CANCELLED" | "PENDING" | "DECLINED") | null;
+	/**
+	 * Exact address. Only for a current member whose RSVP is GOING.
+	 */
+	locationDetail: string | null;
+	/**
+	 * Join link. Only for a current member whose RSVP is GOING.
+	 */
+	onlineUrl: string | null;
+};
+
+export type CustomerCommunityMe = {
+	/**
+	 * A valid `X-Customer-Session` came with the request.
+	 */
+	signedIn: boolean;
+	/**
+	 * Current membership in the key's organization (or the community's creator).
+	 */
+	member: boolean;
+	/**
+	 * Expelled from this community.
+	 */
+	banned: boolean;
+	/**
+	 * May react and comment on what they can read: signed in and not banned.
+	 */
+	canInteract: boolean;
+};
+
+export type CustomerCommunityReaction = {
+	/**
+	 * State after the toggle: true = the buyer's reaction is on.
+	 */
+	reacted: boolean;
+};
+
+export type CustomerCommunityCommentCreate = {
+	body: string;
+	/**
+	 * Reply to this comment. It must be a visible top-level comment of the same post.
+	 */
+	parentId?: string;
+};
+
+export type CustomerCommunityCommentDeleted = {
+	id: string;
+	deleted: true;
+	/**
+	 * The comment plus its live replies (top-level comments).
+	 */
+	deletedIds: Array<string>;
+};
+
+export type CustomerCommunityReportCreate = {
+	reason: "SPAM" | "HARASSMENT" | "HATE" | "SEXUAL" | "OTHER";
+	detail?: string;
+};
+
+export type CustomerCommunityReport = {
+	reported: true;
+	/**
+	 * true when this buyer had already reported it: nothing was counted again.
+	 */
+	duplicate: boolean;
+};
+
+export type CustomerLiveChatToken = {
+	/**
+	 * READ-ONLY Supabase Realtime JWT for the private channel `topic`. It carries no chat identity: it cannot write.
+	 */
+	token: string;
+	/**
+	 * Private Realtime channel: `live:<id>`.
+	 */
+	topic: string;
+	/**
+	 * ISO-8601. 30 minutes when access comes from a ticket for the show date, 60 minutes with a membership. Request a new one before it expires.
+	 */
+	expiresAt: string;
+	realtime: {
+		/**
+		 * Supabase project URL for the Realtime client.
+		 */
+		url: string;
+		/**
+		 * Supabase anon (public) key.
+		 */
+		apiKey: string;
+	};
+	/**
+	 * May post with `POST /customer/lives/{id}/chat/messages` right now.
+	 */
+	canWrite: boolean;
+	/**
+	 * Why `canWrite` is false; null when it is true.
+	 */
+	writeBlockedReason: ("BANNED" | "LIVE_NOT_ACTIVE") | null;
+	/**
+	 * The buyer's chat identity; null when banned.
+	 */
+	me: {
+		/**
+		 * The buyer's pseudonym in THIS live: equals `authorId` of the buyer's own messages (to mark them). Not a customer id; it changes from one live to another.
+		 */
+		authorId: string;
+		/**
+		 * Display name in the chat.
+		 */
+		name: string;
+	} | null;
+};
+
+export type CustomerLiveChatMessage = {
+	id: string;
+	/**
+	 * Stable pseudonym of the author within THIS live (not a customer id).
+	 */
+	authorId: string;
+	/**
+	 * Public display name.
+	 */
+	name: string;
+	/**
+	 * Plain text, one line, 1-280 characters.
+	 */
+	text: string;
+	/**
+	 * ISO-8601, server time.
+	 */
+	sentAt: string;
+	/**
+	 * Written by the organization's staff ("Organizer" badge).
+	 */
+	host: boolean;
+};
+
+export type CustomerLiveChatBacklog = {
+	/**
+	 * Latest messages, oldest first.
+	 */
+	items: Array<CustomerLiveChatMessage>;
+};
+
+export type CustomerLiveChatMessageCreate = {
+	/**
+	 * Message text. Whitespace is collapsed to one line; 1-280 characters after that (422 `EMPTY` / `TOO_LONG`).
+	 */
+	text: string;
+};
+
+export type CustomerLiveChatMessageCreated = {
+	message: CustomerLiveChatMessage;
+};
 
 export type PostAuthDeviceCodeData = {
 	body?: never;
@@ -4152,6 +4539,104 @@ export type PostEventsIdCancelResponses = {
 
 export type PostEventsIdCancelResponse =
 	PostEventsIdCancelResponses[keyof PostEventsIdCancelResponses];
+
+export type GetEventsIdDatesData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/dates";
+};
+
+export type GetEventsIdDatesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventsIdDatesError =
+	GetEventsIdDatesErrors[keyof GetEventsIdDatesErrors];
+
+export type GetEventsIdDatesResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<EventDate>;
+	};
+};
+
+export type GetEventsIdDatesResponse =
+	GetEventsIdDatesResponses[keyof GetEventsIdDatesResponses];
+
+export type PostEventsIdDatesData = {
+	body: EventDateCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/events/{id}/dates";
+};
+
+export type PostEventsIdDatesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostEventsIdDatesError =
+	PostEventsIdDatesErrors[keyof PostEventsIdDatesErrors];
+
+export type PostEventsIdDatesResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: EventDate;
+	};
+};
+
+export type PostEventsIdDatesResponse =
+	PostEventsIdDatesResponses[keyof PostEventsIdDatesResponses];
 
 export type DeleteEventsIdDatesDateIdData = {
 	body?: never;
@@ -5355,6 +5840,170 @@ export type PostSalesIdCancelResponses = {
 
 export type PostSalesIdCancelResponse =
 	PostSalesIdCancelResponses[keyof PostSalesIdCancelResponses];
+
+export type PostSalesIdRefundData = {
+	body: SaleRefundRequest;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/sales/{id}/refund";
+};
+
+export type PostSalesIdRefundErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Operation error.
+	 */
+	422: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostSalesIdRefundError =
+	PostSalesIdRefundErrors[keyof PostSalesIdRefundErrors];
+
+export type PostSalesIdRefundResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: SaleRefundResult;
+	};
+};
+
+export type PostSalesIdRefundResponse =
+	PostSalesIdRefundResponses[keyof PostSalesIdRefundResponses];
+
+export type PostSalesIdItemsItemIdTransferData = {
+	body: SaleItemTransferRequest;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+		itemId: string;
+	};
+	query?: never;
+	url: "/sales/{id}/items/{itemId}/transfer";
+};
+
+export type PostSalesIdItemsItemIdTransferErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PostSalesIdItemsItemIdTransferError =
+	PostSalesIdItemsItemIdTransferErrors[keyof PostSalesIdItemsItemIdTransferErrors];
+
+export type PostSalesIdItemsItemIdTransferResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: SaleItemTransfer;
+	};
+};
+
+export type PostSalesIdItemsItemIdTransferResponse =
+	PostSalesIdItemsItemIdTransferResponses[keyof PostSalesIdItemsItemIdTransferResponses];
+
+export type PatchSalesIdRecipientData = {
+	body: CourtesyRecipientUpdate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/sales/{id}/recipient";
+};
+
+export type PatchSalesIdRecipientErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type PatchSalesIdRecipientError =
+	PatchSalesIdRecipientErrors[keyof PatchSalesIdRecipientErrors];
+
+export type PatchSalesIdRecipientResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CourtesyRecipient;
+	};
+};
+
+export type PatchSalesIdRecipientResponse =
+	PatchSalesIdRecipientResponses[keyof PatchSalesIdRecipientResponses];
 
 export type GetEventDatesIdCourtesySeatsData = {
 	body?: never;
@@ -6958,6 +7607,10 @@ export type GetSettlementsData = {
 		 */
 		event?: string;
 		/**
+		 * EVENT|MEMBERSHIP. Omit to list both.
+		 */
+		kind?: "EVENT" | "MEMBERSHIP";
+		/**
 		 * SENT|AWAITING_PAYMENT|PAID
 		 */
 		status?: "SENT" | "AWAITING_PAYMENT" | "PAID";
@@ -7818,6 +8471,63 @@ export type PatchTicketsTicketCodeResponses = {
 export type PatchTicketsTicketCodeResponse =
 	PatchTicketsTicketCodeResponses[keyof PatchTicketsTicketCodeResponses];
 
+export type PostTicketsTicketCodeResendData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		ticketCode: string;
+	};
+	query?: never;
+	url: "/tickets/{ticketCode}/resend";
+};
+
+export type PostTicketsTicketCodeResendErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+};
+
+export type PostTicketsTicketCodeResendError =
+	PostTicketsTicketCodeResendErrors[keyof PostTicketsTicketCodeResendErrors];
+
+export type PostTicketsTicketCodeResendResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: ResendTicket;
+	};
+};
+
+export type PostTicketsTicketCodeResendResponse =
+	PostTicketsTicketCodeResendResponses[keyof PostTicketsTicketCodeResendResponses];
+
 export type DeleteTicketsTicketCodeCheckinData = {
 	body?: never;
 	headers?: {
@@ -8485,6 +9195,10 @@ export type PostApiCustomerAuthEnterpriseExchangeErrors = {
 	 * Invalid body.
 	 */
 	422: unknown;
+	/**
+	 * The dedicated session could not be created. The one-time token was consumed: restart the login flow.
+	 */
+	503: unknown;
 };
 
 export type PostApiCustomerAuthEnterpriseExchangeResponses = {
@@ -9019,6 +9733,569 @@ export type GetCustomerMerchOrdersResponses = {
 
 export type GetCustomerMerchOrdersResponse =
 	GetCustomerMerchOrdersResponses[keyof GetCustomerMerchOrdersResponses];
+
+export type DeleteCustomerNewsletterData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * Required only without an enterprise service API key. Ignored with a key.
+		 */
+		workspaceId?: string;
+	};
+	url: "/customer/newsletter";
+};
+
+export type DeleteCustomerNewsletterErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Operation error.
+	 */
+	404: _Error;
+	/**
+	 * Operation error.
+	 */
+	422: _Error;
+};
+
+export type DeleteCustomerNewsletterError =
+	DeleteCustomerNewsletterErrors[keyof DeleteCustomerNewsletterErrors];
+
+export type DeleteCustomerNewsletterResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerNewsletterState;
+	};
+};
+
+export type DeleteCustomerNewsletterResponse =
+	DeleteCustomerNewsletterResponses[keyof DeleteCustomerNewsletterResponses];
+
+export type GetCustomerNewsletterData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * Required only without an enterprise service API key. Ignored with a key.
+		 */
+		workspaceId?: string;
+	};
+	url: "/customer/newsletter";
+};
+
+export type GetCustomerNewsletterErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Operation error.
+	 */
+	404: _Error;
+	/**
+	 * Operation error.
+	 */
+	422: _Error;
+};
+
+export type GetCustomerNewsletterError =
+	GetCustomerNewsletterErrors[keyof GetCustomerNewsletterErrors];
+
+export type GetCustomerNewsletterResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerNewsletterState;
+	};
+};
+
+export type GetCustomerNewsletterResponse =
+	GetCustomerNewsletterResponses[keyof GetCustomerNewsletterResponses];
+
+export type PostCustomerNewsletterData = {
+	body: CustomerNewsletterSubscribe;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/newsletter";
+};
+
+export type PostCustomerNewsletterErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Operation error.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Operation error.
+	 */
+	422: _Error;
+};
+
+export type PostCustomerNewsletterError =
+	PostCustomerNewsletterErrors[keyof PostCustomerNewsletterErrors];
+
+export type PostCustomerNewsletterResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerNewsletterState;
+	};
+};
+
+export type PostCustomerNewsletterResponse =
+	PostCustomerNewsletterResponses[keyof PostCustomerNewsletterResponses];
+
+export type GetCustomerOrdersData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: {
+		/**
+		 * Required. The event date being queried.
+		 */
+		eventDateId?: string;
+	};
+	url: "/customer/orders";
+};
+
+export type GetCustomerOrdersErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Operation error.
+	 */
+	422: _Error;
+};
+
+export type GetCustomerOrdersError =
+	GetCustomerOrdersErrors[keyof GetCustomerOrdersErrors];
+
+export type GetCustomerOrdersResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerOrderCurrent;
+	};
+};
+
+export type GetCustomerOrdersResponse =
+	GetCustomerOrdersResponses[keyof GetCustomerOrdersResponses];
+
+export type PostCustomerOrdersData = {
+	body: CustomerOrderCreateRequest;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * Purchase session id (`POST /customer/purchase-sessions`). Required when the event's workspace enforces a single purchase session; if present, it is always validated. The requirement is decided by the EVENT, not the API key: it applies if the owning workspace, a linked artist or a catalog seller of the show has the flag, with or without a key. Rejections (409; uppercase `error.code` and the slug in `error.details.reason`): `PURCHASE_SESSION_REQUIRED` (missing, or belongs to another buyer or another event date), `PURCHASE_SESSION_SUPERSEDED` (another tab or device replaced it), `PURCHASE_SESSION_EXPIRED` (the map clock ran out before the order was created), `PURCHASE_SESSION_BUSY` (an order is already in flight with this session) and, on `POST /customer/orders` with seats, `HOLD_TOKEN_MISMATCH` (the `holdToken` is not the session's, or belongs to a replaced session or another buyer even if the header is absent). Payment POSTs accept the buyer's live session or the session that created THAT order, as long as no other session has been opened since. Rejecting a new payment NEVER affects a payment already in flight.
+		 */
+		"X-Purchase-Session"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/orders";
+};
+
+export type PostCustomerOrdersErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCustomerOrdersError =
+	PostCustomerOrdersErrors[keyof PostCustomerOrdersErrors];
+
+export type PostCustomerOrdersResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: CustomerOrderCreateResult;
+	};
+};
+
+export type PostCustomerOrdersResponse =
+	PostCustomerOrdersResponses[keyof PostCustomerOrdersResponses];
+
+export type PostCustomerOrdersIdPaymentData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * Purchase session id (`POST /customer/purchase-sessions`). Required when the event's workspace enforces a single purchase session; if present, it is always validated. The requirement is decided by the EVENT, not the API key: it applies if the owning workspace, a linked artist or a catalog seller of the show has the flag, with or without a key. Rejections (409; uppercase `error.code` and the slug in `error.details.reason`): `PURCHASE_SESSION_REQUIRED` (missing, or belongs to another buyer or another event date), `PURCHASE_SESSION_SUPERSEDED` (another tab or device replaced it), `PURCHASE_SESSION_EXPIRED` (the map clock ran out before the order was created), `PURCHASE_SESSION_BUSY` (an order is already in flight with this session) and, on `POST /customer/orders` with seats, `HOLD_TOKEN_MISMATCH` (the `holdToken` is not the session's, or belongs to a replaced session or another buyer even if the header is absent). Payment POSTs accept the buyer's live session or the session that created THAT order, as long as no other session has been opened since. Rejecting a new payment NEVER affects a payment already in flight.
+		 */
+		"X-Purchase-Session"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/orders/{id}/payment";
+};
+
+export type PostCustomerOrdersIdPaymentErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCustomerOrdersIdPaymentError =
+	PostCustomerOrdersIdPaymentErrors[keyof PostCustomerOrdersIdPaymentErrors];
+
+export type PostCustomerOrdersIdPaymentResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerOrderStartPayment;
+	};
+};
+
+export type PostCustomerOrdersIdPaymentResponse =
+	PostCustomerOrdersIdPaymentResponses[keyof PostCustomerOrdersIdPaymentResponses];
+
+export type PostCustomerOrdersIdPaymentCardData = {
+	body: CustomerOrderMercadoPagoChargeRequest;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * Purchase session id (`POST /customer/purchase-sessions`). Required when the event's workspace enforces a single purchase session; if present, it is always validated. The requirement is decided by the EVENT, not the API key: it applies if the owning workspace, a linked artist or a catalog seller of the show has the flag, with or without a key. Rejections (409; uppercase `error.code` and the slug in `error.details.reason`): `PURCHASE_SESSION_REQUIRED` (missing, or belongs to another buyer or another event date), `PURCHASE_SESSION_SUPERSEDED` (another tab or device replaced it), `PURCHASE_SESSION_EXPIRED` (the map clock ran out before the order was created), `PURCHASE_SESSION_BUSY` (an order is already in flight with this session) and, on `POST /customer/orders` with seats, `HOLD_TOKEN_MISMATCH` (the `holdToken` is not the session's, or belongs to a replaced session or another buyer even if the header is absent). Payment POSTs accept the buyer's live session or the session that created THAT order, as long as no other session has been opened since. Rejecting a new payment NEVER affects a payment already in flight.
+		 */
+		"X-Purchase-Session"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/orders/{id}/payment/card";
+};
+
+export type PostCustomerOrdersIdPaymentCardErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Operation error.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCustomerOrdersIdPaymentCardError =
+	PostCustomerOrdersIdPaymentCardErrors[keyof PostCustomerOrdersIdPaymentCardErrors];
+
+export type PostCustomerOrdersIdPaymentCardResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerOrderMercadoPagoChargeResult;
+	};
+};
+
+export type PostCustomerOrdersIdPaymentCardResponse =
+	PostCustomerOrdersIdPaymentCardResponses[keyof PostCustomerOrdersIdPaymentCardResponses];
+
+export type PostCustomerOrdersIdPaymentPseData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * Purchase session id (`POST /customer/purchase-sessions`). Required when the event's workspace enforces a single purchase session; if present, it is always validated. The requirement is decided by the EVENT, not the API key: it applies if the owning workspace, a linked artist or a catalog seller of the show has the flag, with or without a key. Rejections (409; uppercase `error.code` and the slug in `error.details.reason`): `PURCHASE_SESSION_REQUIRED` (missing, or belongs to another buyer or another event date), `PURCHASE_SESSION_SUPERSEDED` (another tab or device replaced it), `PURCHASE_SESSION_EXPIRED` (the map clock ran out before the order was created), `PURCHASE_SESSION_BUSY` (an order is already in flight with this session) and, on `POST /customer/orders` with seats, `HOLD_TOKEN_MISMATCH` (the `holdToken` is not the session's, or belongs to a replaced session or another buyer even if the header is absent). Payment POSTs accept the buyer's live session or the session that created THAT order, as long as no other session has been opened since. Rejecting a new payment NEVER affects a payment already in flight.
+		 */
+		"X-Purchase-Session"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/orders/{id}/payment/pse";
+};
+
+export type PostCustomerOrdersIdPaymentPseErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCustomerOrdersIdPaymentPseError =
+	PostCustomerOrdersIdPaymentPseErrors[keyof PostCustomerOrdersIdPaymentPseErrors];
+
+export type PostCustomerOrdersIdPaymentPseResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerOrderMercadoPagoPse;
+	};
+};
+
+export type PostCustomerOrdersIdPaymentPseResponse =
+	PostCustomerOrdersIdPaymentPseResponses[keyof PostCustomerOrdersIdPaymentPseResponses];
+
+export type PostCustomerOrdersIdReleaseData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/orders/{id}/release";
+};
+
+export type PostCustomerOrdersIdReleaseErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCustomerOrdersIdReleaseError =
+	PostCustomerOrdersIdReleaseErrors[keyof PostCustomerOrdersIdReleaseErrors];
+
+export type PostCustomerOrdersIdReleaseResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerOrderRelease;
+	};
+};
+
+export type PostCustomerOrdersIdReleaseResponse =
+	PostCustomerOrdersIdReleaseResponses[keyof PostCustomerOrdersIdReleaseResponses];
+
+export type GetCustomerOrdersIdData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/orders/{id}";
+};
+
+export type GetCustomerOrdersIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type GetCustomerOrdersIdError =
+	GetCustomerOrdersIdErrors[keyof GetCustomerOrdersIdErrors];
+
+export type GetCustomerOrdersIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerOrderStatus;
+	};
+};
+
+export type GetCustomerOrdersIdResponse =
+	GetCustomerOrdersIdResponses[keyof GetCustomerOrdersIdResponses];
 
 export type PostCustomerPurchaseSessionsData = {
 	body: PurchaseSessionCreateRequest;
@@ -9633,11 +10910,11 @@ export type PostContentPlaybackTokenErrors = {
 	 */
 	401: _Error;
 	/**
-	 * Insufficient role or resource not accessible.
+	 * Operation error.
 	 */
 	403: _Error;
 	/**
-	 * Resource does not exist or is out of scope.
+	 * Operation error.
 	 */
 	404: _Error;
 	/**
@@ -9789,6 +11066,65 @@ export type PostWaitlistResponses = {
 
 export type PostWaitlistResponse =
 	PostWaitlistResponses[keyof PostWaitlistResponses];
+
+export type PostCourtesyRequestsData = {
+	body: CourtesyRequestCreate;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/courtesy-requests";
+};
+
+export type PostCourtesyRequestsErrors = {
+	/**
+	 * Bad request: malformed parameters.
+	 */
+	400: _Error;
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCourtesyRequestsError =
+	PostCourtesyRequestsErrors[keyof PostCourtesyRequestsErrors];
+
+export type PostCourtesyRequestsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: CourtesyRequestResult;
+	};
+};
+
+export type PostCourtesyRequestsResponse =
+	PostCourtesyRequestsResponses[keyof PostCourtesyRequestsResponses];
 
 export type DeleteEventsIdScheduleData = {
 	body?: never;
@@ -14132,246 +15468,37 @@ export type PostMerchOrdersCodePaymentCardResponses = {
 export type PostMerchOrdersCodePaymentCardResponse =
 	PostMerchOrdersCodePaymentCardResponses[keyof PostMerchOrdersCodePaymentCardResponses];
 
-export type PostSalesIdRefundData = {
-	body: SaleRefundRequest;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
-		id: string;
-	};
-	query?: never;
-	url: "/sales/{id}/refund";
-};
-
-export type PostSalesIdRefundErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Conflict: the resource does not allow this operation in its current state.
-	 */
-	409: _Error;
-	/**
-	 * Operation error.
-	 */
-	422: _Error;
-	/**
-	 * The external provider failed to complete the operation.
-	 */
-	502: _Error;
-	/**
-	 * Service unavailable: an external dependency is down or initialization failed.
-	 */
-	503: _Error;
-};
-
-export type PostSalesIdRefundError =
-	PostSalesIdRefundErrors[keyof PostSalesIdRefundErrors];
-
-export type PostSalesIdRefundResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: SaleRefundResult;
-	};
-};
-
-export type PostSalesIdRefundResponse =
-	PostSalesIdRefundResponses[keyof PostSalesIdRefundResponses];
-
-export type PostSalesIdItemsItemIdTransferData = {
-	body: SaleItemTransferRequest;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
-		id: string;
-		itemId: string;
-	};
-	query?: never;
-	url: "/sales/{id}/items/{itemId}/transfer";
-};
-
-export type PostSalesIdItemsItemIdTransferErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Conflict: the resource does not allow this operation in its current state.
-	 */
-	409: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type PostSalesIdItemsItemIdTransferError =
-	PostSalesIdItemsItemIdTransferErrors[keyof PostSalesIdItemsItemIdTransferErrors];
-
-export type PostSalesIdItemsItemIdTransferResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: SaleItemTransfer;
-	};
-};
-
-export type PostSalesIdItemsItemIdTransferResponse =
-	PostSalesIdItemsItemIdTransferResponses[keyof PostSalesIdItemsItemIdTransferResponses];
-
-export type PatchSalesIdRecipientData = {
-	body: CourtesyRecipientUpdate;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-	};
-	path: {
-		id: string;
-	};
-	query?: never;
-	url: "/sales/{id}/recipient";
-};
-
-export type PatchSalesIdRecipientErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type PatchSalesIdRecipientError =
-	PatchSalesIdRecipientErrors[keyof PatchSalesIdRecipientErrors];
-
-export type PatchSalesIdRecipientResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: CourtesyRecipient;
-	};
-};
-
-export type PatchSalesIdRecipientResponse =
-	PatchSalesIdRecipientResponses[keyof PatchSalesIdRecipientResponses];
-
-export type PostTicketsTicketCodeResendData = {
+export type GetCustomerCommunityFeedData = {
 	body?: never;
 	headers?: {
 		/**
 		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
 		 */
 		"X-Workspace-Id"?: string;
-	};
-	path: {
-		ticketCode: string;
-	};
-	query?: never;
-	url: "/tickets/{ticketCode}/resend";
-};
-
-export type PostTicketsTicketCodeResendErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Conflict: the resource does not allow this operation in its current state.
-	 */
-	409: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-	/**
-	 * The external provider failed to complete the operation.
-	 */
-	502: _Error;
-};
-
-export type PostTicketsTicketCodeResendError =
-	PostTicketsTicketCodeResendErrors[keyof PostTicketsTicketCodeResendErrors];
-
-export type PostTicketsTicketCodeResendResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: ResendTicket;
-	};
-};
-
-export type PostTicketsTicketCodeResendResponse =
-	PostTicketsTicketCodeResendResponses[keyof PostTicketsTicketCodeResendResponses];
-
-export type GetCustomerOrdersData = {
-	body?: never;
-	headers?: {
 		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 * OPTIONAL buyer session token. Unlocks members-only content and the buyer's own state when the buyer has a current membership.
 		 */
-		"X-Workspace-Id"?: string;
+		"X-Customer-Session"?: string;
 	};
 	path?: never;
 	query?: {
 		/**
-		 * Required. The event date being queried.
+		 * Opaque `page.nextCursor` from the previous page.
 		 */
-		eventDateId?: string;
+		cursor?: string;
+		/**
+		 * Channel slug. Omit for all channels.
+		 */
+		channel?: string;
+		/**
+		 * Page size, 1-50.
+		 */
+		limit?: number;
 	};
-	url: "/customer/orders";
+	url: "/customer/community/feed";
 };
 
-export type GetCustomerOrdersErrors = {
+export type GetCustomerCommunityFeedErrors = {
 	/**
 	 * Missing or invalid credential.
 	 */
@@ -14385,44 +15512,191 @@ export type GetCustomerOrdersErrors = {
 	 */
 	404: _Error;
 	/**
-	 * Operation error.
+	 * Request body/parameter validation failed.
 	 */
 	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
 };
 
-export type GetCustomerOrdersError =
-	GetCustomerOrdersErrors[keyof GetCustomerOrdersErrors];
+export type GetCustomerCommunityFeedError =
+	GetCustomerCommunityFeedErrors[keyof GetCustomerCommunityFeedErrors];
 
-export type GetCustomerOrdersResponses = {
+export type GetCustomerCommunityFeedResponses = {
 	/**
 	 * OK
 	 */
 	200: {
-		data: CustomerOrderCurrent;
+		data: Array<CustomerCommunityPost>;
+		page: Page;
 	};
 };
 
-export type GetCustomerOrdersResponse =
-	GetCustomerOrdersResponses[keyof GetCustomerOrdersResponses];
+export type GetCustomerCommunityFeedResponse =
+	GetCustomerCommunityFeedResponses[keyof GetCustomerCommunityFeedResponses];
 
-export type PostCustomerOrdersData = {
-	body: CustomerOrderCreateRequest;
+export type GetCustomerCommunityPostsIdData = {
+	body?: never;
 	headers?: {
 		/**
 		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
 		 */
 		"X-Workspace-Id"?: string;
 		/**
-		 * Purchase session id (`POST /customer/purchase-sessions`). Required when the event's workspace enforces a single purchase session; if present, it is always validated. The requirement is decided by the EVENT, not the API key: it applies if the owning workspace, a linked artist or a catalog seller of the show has the flag, with or without a key. Rejections (409; uppercase `error.code` and the slug in `error.details.reason`): `PURCHASE_SESSION_REQUIRED` (missing, or belongs to another buyer or another event date), `PURCHASE_SESSION_SUPERSEDED` (another tab or device replaced it), `PURCHASE_SESSION_EXPIRED` (the map clock ran out before the order was created), `PURCHASE_SESSION_BUSY` (an order is already in flight with this session) and, on `POST /customer/orders` with seats, `HOLD_TOKEN_MISMATCH` (the `holdToken` is not the session's, or belongs to a replaced session or another buyer even if the header is absent). Payment POSTs accept the buyer's live session or the session that created THAT order, as long as no other session has been opened since. Rejecting a new payment NEVER affects a payment already in flight.
+		 * OPTIONAL buyer session token. Unlocks members-only content and the buyer's own state when the buyer has a current membership.
 		 */
-		"X-Purchase-Session"?: string;
+		"X-Customer-Session"?: string;
 	};
-	path?: never;
+	path: {
+		id: string;
+	};
 	query?: never;
-	url: "/customer/orders";
+	url: "/customer/community/posts/{id}";
 };
 
-export type PostCustomerOrdersErrors = {
+export type GetCustomerCommunityPostsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type GetCustomerCommunityPostsIdError =
+	GetCustomerCommunityPostsIdErrors[keyof GetCustomerCommunityPostsIdErrors];
+
+export type GetCustomerCommunityPostsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerCommunityPostDetail;
+	};
+};
+
+export type GetCustomerCommunityPostsIdResponse =
+	GetCustomerCommunityPostsIdResponses[keyof GetCustomerCommunityPostsIdResponses];
+
+export type GetCustomerCommunityPostsIdCommentsData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * OPTIONAL buyer session token. Unlocks members-only content and the buyer's own state when the buyer has a current membership.
+		 */
+		"X-Customer-Session"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: {
+		/**
+		 * Opaque `page.nextCursor` from the previous page.
+		 */
+		cursor?: string;
+		/**
+		 * Page size, 1-50.
+		 */
+		limit?: number;
+	};
+	url: "/customer/community/posts/{id}/comments";
+};
+
+export type GetCustomerCommunityPostsIdCommentsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type GetCustomerCommunityPostsIdCommentsError =
+	GetCustomerCommunityPostsIdCommentsErrors[keyof GetCustomerCommunityPostsIdCommentsErrors];
+
+export type GetCustomerCommunityPostsIdCommentsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<CustomerCommunityComment>;
+		page: Page;
+	};
+};
+
+export type GetCustomerCommunityPostsIdCommentsResponse =
+	GetCustomerCommunityPostsIdCommentsResponses[keyof GetCustomerCommunityPostsIdCommentsResponses];
+
+export type PostCustomerCommunityPostsIdCommentsData = {
+	body: CustomerCommunityCommentCreate;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+		/**
+		 * Client-chosen idempotency key (max. 255 characters). Retrying with the SAME key and the SAME body, by the same buyer on the same post, returns the comment created by the first attempt instead of creating another one; a different body with the same key is 409.
+		 */
+		"Idempotency-Key"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/community/posts/{id}/comments";
+};
+
+export type PostCustomerCommunityPostsIdCommentsErrors = {
 	/**
 	 * Missing or invalid credential.
 	 */
@@ -14453,22 +15727,28 @@ export type PostCustomerOrdersErrors = {
 	503: _Error;
 };
 
-export type PostCustomerOrdersError =
-	PostCustomerOrdersErrors[keyof PostCustomerOrdersErrors];
+export type PostCustomerCommunityPostsIdCommentsError =
+	PostCustomerCommunityPostsIdCommentsErrors[keyof PostCustomerCommunityPostsIdCommentsErrors];
 
-export type PostCustomerOrdersResponses = {
+export type PostCustomerCommunityPostsIdCommentsResponses = {
+	/**
+	 * Idempotent replay: the comment created by the first attempt with the same Idempotency-Key.
+	 */
+	200: {
+		data: CustomerCommunityComment;
+	};
 	/**
 	 * OK
 	 */
 	201: {
-		data: CustomerOrderCreateResult;
+		data: CustomerCommunityComment;
 	};
 };
 
-export type PostCustomerOrdersResponse =
-	PostCustomerOrdersResponses[keyof PostCustomerOrdersResponses];
+export type PostCustomerCommunityPostsIdCommentsResponse =
+	PostCustomerCommunityPostsIdCommentsResponses[keyof PostCustomerCommunityPostsIdCommentsResponses];
 
-export type PostCustomerOrdersIdPaymentData = {
+export type GetCustomerCommunityChannelsData = {
 	body?: never;
 	headers?: {
 		/**
@@ -14476,18 +15756,16 @@ export type PostCustomerOrdersIdPaymentData = {
 		 */
 		"X-Workspace-Id"?: string;
 		/**
-		 * Purchase session id (`POST /customer/purchase-sessions`). Required when the event's workspace enforces a single purchase session; if present, it is always validated. The requirement is decided by the EVENT, not the API key: it applies if the owning workspace, a linked artist or a catalog seller of the show has the flag, with or without a key. Rejections (409; uppercase `error.code` and the slug in `error.details.reason`): `PURCHASE_SESSION_REQUIRED` (missing, or belongs to another buyer or another event date), `PURCHASE_SESSION_SUPERSEDED` (another tab or device replaced it), `PURCHASE_SESSION_EXPIRED` (the map clock ran out before the order was created), `PURCHASE_SESSION_BUSY` (an order is already in flight with this session) and, on `POST /customer/orders` with seats, `HOLD_TOKEN_MISMATCH` (the `holdToken` is not the session's, or belongs to a replaced session or another buyer even if the header is absent). Payment POSTs accept the buyer's live session or the session that created THAT order, as long as no other session has been opened since. Rejecting a new payment NEVER affects a payment already in flight.
+		 * OPTIONAL buyer session token. Unlocks members-only content and the buyer's own state when the buyer has a current membership.
 		 */
-		"X-Purchase-Session"?: string;
+		"X-Customer-Session"?: string;
 	};
-	path: {
-		id: string;
-	};
+	path?: never;
 	query?: never;
-	url: "/customer/orders/{id}/payment";
+	url: "/customer/community/channels";
 };
 
-export type PostCustomerOrdersIdPaymentErrors = {
+export type GetCustomerCommunityChannelsErrors = {
 	/**
 	 * Missing or invalid credential.
 	 */
@@ -14500,10 +15778,6 @@ export type PostCustomerOrdersIdPaymentErrors = {
 	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
-	/**
-	 * Conflict: the resource does not allow this operation in its current state.
-	 */
-	409: _Error;
 	/**
 	 * Request body/parameter validation failed.
 	 */
@@ -14512,85 +15786,28 @@ export type PostCustomerOrdersIdPaymentErrors = {
 	 * Too many requests: rate limit exceeded.
 	 */
 	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
 };
 
-export type PostCustomerOrdersIdPaymentError =
-	PostCustomerOrdersIdPaymentErrors[keyof PostCustomerOrdersIdPaymentErrors];
+export type GetCustomerCommunityChannelsError =
+	GetCustomerCommunityChannelsErrors[keyof GetCustomerCommunityChannelsErrors];
 
-export type PostCustomerOrdersIdPaymentResponses = {
+export type GetCustomerCommunityChannelsResponses = {
 	/**
 	 * OK
 	 */
 	200: {
-		data: CustomerOrderStartPayment;
+		data: Array<CommunityChannel>;
 	};
 };
 
-export type PostCustomerOrdersIdPaymentResponse =
-	PostCustomerOrdersIdPaymentResponses[keyof PostCustomerOrdersIdPaymentResponses];
+export type GetCustomerCommunityChannelsResponse =
+	GetCustomerCommunityChannelsResponses[keyof GetCustomerCommunityChannelsResponses];
 
-export type PostCustomerOrdersIdPaymentCardData = {
-	body: CustomerOrderMercadoPagoChargeRequest;
-	headers?: {
-		/**
-		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
-		 */
-		"X-Workspace-Id"?: string;
-		/**
-		 * Purchase session id (`POST /customer/purchase-sessions`). Required when the event's workspace enforces a single purchase session; if present, it is always validated. The requirement is decided by the EVENT, not the API key: it applies if the owning workspace, a linked artist or a catalog seller of the show has the flag, with or without a key. Rejections (409; uppercase `error.code` and the slug in `error.details.reason`): `PURCHASE_SESSION_REQUIRED` (missing, or belongs to another buyer or another event date), `PURCHASE_SESSION_SUPERSEDED` (another tab or device replaced it), `PURCHASE_SESSION_EXPIRED` (the map clock ran out before the order was created), `PURCHASE_SESSION_BUSY` (an order is already in flight with this session) and, on `POST /customer/orders` with seats, `HOLD_TOKEN_MISMATCH` (the `holdToken` is not the session's, or belongs to a replaced session or another buyer even if the header is absent). Payment POSTs accept the buyer's live session or the session that created THAT order, as long as no other session has been opened since. Rejecting a new payment NEVER affects a payment already in flight.
-		 */
-		"X-Purchase-Session"?: string;
-	};
-	path: {
-		id: string;
-	};
-	query?: never;
-	url: "/customer/orders/{id}/payment/card";
-};
-
-export type PostCustomerOrdersIdPaymentCardErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Conflict: the resource does not allow this operation in its current state.
-	 */
-	409: _Error;
-	/**
-	 * Operation error.
-	 */
-	422: _Error;
-	/**
-	 * Too many requests: rate limit exceeded.
-	 */
-	429: _Error;
-};
-
-export type PostCustomerOrdersIdPaymentCardError =
-	PostCustomerOrdersIdPaymentCardErrors[keyof PostCustomerOrdersIdPaymentCardErrors];
-
-export type PostCustomerOrdersIdPaymentCardResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: CustomerOrderMercadoPagoChargeResult;
-	};
-};
-
-export type PostCustomerOrdersIdPaymentCardResponse =
-	PostCustomerOrdersIdPaymentCardResponses[keyof PostCustomerOrdersIdPaymentCardResponses];
-
-export type PostCustomerOrdersIdPaymentPseData = {
+export type GetCustomerCommunityMeetupsData = {
 	body?: never;
 	headers?: {
 		/**
@@ -14598,18 +15815,21 @@ export type PostCustomerOrdersIdPaymentPseData = {
 		 */
 		"X-Workspace-Id"?: string;
 		/**
-		 * Purchase session id (`POST /customer/purchase-sessions`). Required when the event's workspace enforces a single purchase session; if present, it is always validated. The requirement is decided by the EVENT, not the API key: it applies if the owning workspace, a linked artist or a catalog seller of the show has the flag, with or without a key. Rejections (409; uppercase `error.code` and the slug in `error.details.reason`): `PURCHASE_SESSION_REQUIRED` (missing, or belongs to another buyer or another event date), `PURCHASE_SESSION_SUPERSEDED` (another tab or device replaced it), `PURCHASE_SESSION_EXPIRED` (the map clock ran out before the order was created), `PURCHASE_SESSION_BUSY` (an order is already in flight with this session) and, on `POST /customer/orders` with seats, `HOLD_TOKEN_MISMATCH` (the `holdToken` is not the session's, or belongs to a replaced session or another buyer even if the header is absent). Payment POSTs accept the buyer's live session or the session that created THAT order, as long as no other session has been opened since. Rejecting a new payment NEVER affects a payment already in flight.
+		 * OPTIONAL buyer session token. Unlocks members-only content and the buyer's own state when the buyer has a current membership.
 		 */
-		"X-Purchase-Session"?: string;
+		"X-Customer-Session"?: string;
 	};
-	path: {
-		id: string;
+	path?: never;
+	query?: {
+		/**
+		 * Maximum meetups, 1-50.
+		 */
+		limit?: number;
 	};
-	query?: never;
-	url: "/customer/orders/{id}/payment/pse";
+	url: "/customer/community/meetups";
 };
 
-export type PostCustomerOrdersIdPaymentPseErrors = {
+export type GetCustomerCommunityMeetupsErrors = {
 	/**
 	 * Missing or invalid credential.
 	 */
@@ -14622,10 +15842,6 @@ export type PostCustomerOrdersIdPaymentPseErrors = {
 	 * Resource does not exist or is out of scope.
 	 */
 	404: _Error;
-	/**
-	 * Conflict: the resource does not allow this operation in its current state.
-	 */
-	409: _Error;
 	/**
 	 * Request body/parameter validation failed.
 	 */
@@ -14634,39 +15850,293 @@ export type PostCustomerOrdersIdPaymentPseErrors = {
 	 * Too many requests: rate limit exceeded.
 	 */
 	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
 };
 
-export type PostCustomerOrdersIdPaymentPseError =
-	PostCustomerOrdersIdPaymentPseErrors[keyof PostCustomerOrdersIdPaymentPseErrors];
+export type GetCustomerCommunityMeetupsError =
+	GetCustomerCommunityMeetupsErrors[keyof GetCustomerCommunityMeetupsErrors];
 
-export type PostCustomerOrdersIdPaymentPseResponses = {
+export type GetCustomerCommunityMeetupsResponses = {
 	/**
 	 * OK
 	 */
 	200: {
-		data: CustomerOrderMercadoPagoPse;
+		data: Array<CustomerCommunityMeetup>;
 	};
 };
 
-export type PostCustomerOrdersIdPaymentPseResponse =
-	PostCustomerOrdersIdPaymentPseResponses[keyof PostCustomerOrdersIdPaymentPseResponses];
+export type GetCustomerCommunityMeetupsResponse =
+	GetCustomerCommunityMeetupsResponses[keyof GetCustomerCommunityMeetupsResponses];
 
-export type PostCustomerOrdersIdReleaseData = {
+export type GetCustomerCommunityMeetupsIdData = {
 	body?: never;
 	headers?: {
 		/**
 		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
 		 */
 		"X-Workspace-Id"?: string;
+		/**
+		 * OPTIONAL buyer session token. Unlocks members-only content and the buyer's own state when the buyer has a current membership.
+		 */
+		"X-Customer-Session"?: string;
 	};
 	path: {
 		id: string;
 	};
 	query?: never;
-	url: "/customer/orders/{id}/release";
+	url: "/customer/community/meetups/{id}";
 };
 
-export type PostCustomerOrdersIdReleaseErrors = {
+export type GetCustomerCommunityMeetupsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type GetCustomerCommunityMeetupsIdError =
+	GetCustomerCommunityMeetupsIdErrors[keyof GetCustomerCommunityMeetupsIdErrors];
+
+export type GetCustomerCommunityMeetupsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerCommunityMeetup;
+	};
+};
+
+export type GetCustomerCommunityMeetupsIdResponse =
+	GetCustomerCommunityMeetupsIdResponses[keyof GetCustomerCommunityMeetupsIdResponses];
+
+export type GetCustomerCommunityMeData = {
+	body?: never;
+	headers?: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * OPTIONAL buyer session token. Unlocks members-only content and the buyer's own state when the buyer has a current membership.
+		 */
+		"X-Customer-Session"?: string;
+	};
+	path?: never;
+	query?: never;
+	url: "/customer/community/me";
+};
+
+export type GetCustomerCommunityMeErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type GetCustomerCommunityMeError =
+	GetCustomerCommunityMeErrors[keyof GetCustomerCommunityMeErrors];
+
+export type GetCustomerCommunityMeResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerCommunityMe;
+	};
+};
+
+export type GetCustomerCommunityMeResponse =
+	GetCustomerCommunityMeResponses[keyof GetCustomerCommunityMeResponses];
+
+export type DeleteCustomerCommunityPostsIdReactionsData = {
+	body?: never;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/community/posts/{id}/reactions";
+};
+
+export type DeleteCustomerCommunityPostsIdReactionsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type DeleteCustomerCommunityPostsIdReactionsError =
+	DeleteCustomerCommunityPostsIdReactionsErrors[keyof DeleteCustomerCommunityPostsIdReactionsErrors];
+
+export type DeleteCustomerCommunityPostsIdReactionsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerCommunityReaction;
+	};
+};
+
+export type DeleteCustomerCommunityPostsIdReactionsResponse =
+	DeleteCustomerCommunityPostsIdReactionsResponses[keyof DeleteCustomerCommunityPostsIdReactionsResponses];
+
+export type PostCustomerCommunityPostsIdReactionsData = {
+	body?: never;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/community/posts/{id}/reactions";
+};
+
+export type PostCustomerCommunityPostsIdReactionsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCustomerCommunityPostsIdReactionsError =
+	PostCustomerCommunityPostsIdReactionsErrors[keyof PostCustomerCommunityPostsIdReactionsErrors];
+
+export type PostCustomerCommunityPostsIdReactionsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerCommunityReaction;
+	};
+};
+
+export type PostCustomerCommunityPostsIdReactionsResponse =
+	PostCustomerCommunityPostsIdReactionsResponses[keyof PostCustomerCommunityPostsIdReactionsResponses];
+
+export type PostCustomerCommunityPostsIdReportData = {
+	body: CustomerCommunityReportCreate;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+		/**
+		 * Optional (max. 255 characters; longer responds 422). This operation is idempotent by itself: one report per buyer and target, so a retry returns `duplicate: true` with or without the key.
+		 */
+		"Idempotency-Key"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/community/posts/{id}/report";
+};
+
+export type PostCustomerCommunityPostsIdReportErrors = {
 	/**
 	 * Missing or invalid credential.
 	 */
@@ -14697,37 +16167,314 @@ export type PostCustomerOrdersIdReleaseErrors = {
 	503: _Error;
 };
 
-export type PostCustomerOrdersIdReleaseError =
-	PostCustomerOrdersIdReleaseErrors[keyof PostCustomerOrdersIdReleaseErrors];
+export type PostCustomerCommunityPostsIdReportError =
+	PostCustomerCommunityPostsIdReportErrors[keyof PostCustomerCommunityPostsIdReportErrors];
 
-export type PostCustomerOrdersIdReleaseResponses = {
+export type PostCustomerCommunityPostsIdReportResponses = {
 	/**
 	 * OK
 	 */
 	200: {
-		data: CustomerOrderRelease;
+		data: CustomerCommunityReport;
 	};
 };
 
-export type PostCustomerOrdersIdReleaseResponse =
-	PostCustomerOrdersIdReleaseResponses[keyof PostCustomerOrdersIdReleaseResponses];
+export type PostCustomerCommunityPostsIdReportResponse =
+	PostCustomerCommunityPostsIdReportResponses[keyof PostCustomerCommunityPostsIdReportResponses];
 
-export type GetCustomerOrdersIdData = {
+export type DeleteCustomerCommunityCommentsIdData = {
 	body?: never;
-	headers?: {
+	headers: {
 		/**
 		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
 		 */
 		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
 	};
 	path: {
 		id: string;
 	};
 	query?: never;
-	url: "/customer/orders/{id}";
+	url: "/customer/community/comments/{id}";
 };
 
-export type GetCustomerOrdersIdErrors = {
+export type DeleteCustomerCommunityCommentsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type DeleteCustomerCommunityCommentsIdError =
+	DeleteCustomerCommunityCommentsIdErrors[keyof DeleteCustomerCommunityCommentsIdErrors];
+
+export type DeleteCustomerCommunityCommentsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerCommunityCommentDeleted;
+	};
+};
+
+export type DeleteCustomerCommunityCommentsIdResponse =
+	DeleteCustomerCommunityCommentsIdResponses[keyof DeleteCustomerCommunityCommentsIdResponses];
+
+export type PostCustomerCommunityCommentsIdReportData = {
+	body: CustomerCommunityReportCreate;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+		/**
+		 * Optional (max. 255 characters; longer responds 422). This operation is idempotent by itself: one report per buyer and target, so a retry returns `duplicate: true` with or without the key.
+		 */
+		"Idempotency-Key"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/community/comments/{id}/report";
+};
+
+export type PostCustomerCommunityCommentsIdReportErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCustomerCommunityCommentsIdReportError =
+	PostCustomerCommunityCommentsIdReportErrors[keyof PostCustomerCommunityCommentsIdReportErrors];
+
+export type PostCustomerCommunityCommentsIdReportResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerCommunityReport;
+	};
+};
+
+export type PostCustomerCommunityCommentsIdReportResponse =
+	PostCustomerCommunityCommentsIdReportResponses[keyof PostCustomerCommunityCommentsIdReportResponses];
+
+export type DeleteCustomerCommunityMeetupsIdRsvpData = {
+	body?: never;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/community/meetups/{id}/rsvp";
+};
+
+export type DeleteCustomerCommunityMeetupsIdRsvpErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type DeleteCustomerCommunityMeetupsIdRsvpError =
+	DeleteCustomerCommunityMeetupsIdRsvpErrors[keyof DeleteCustomerCommunityMeetupsIdRsvpErrors];
+
+export type DeleteCustomerCommunityMeetupsIdRsvpResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerCommunityMeetup;
+	};
+};
+
+export type DeleteCustomerCommunityMeetupsIdRsvpResponse =
+	DeleteCustomerCommunityMeetupsIdRsvpResponses[keyof DeleteCustomerCommunityMeetupsIdRsvpResponses];
+
+export type PostCustomerCommunityMeetupsIdRsvpData = {
+	body?: never;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+		/**
+		 * Optional (max. 255 characters; longer responds 422). This operation is idempotent by itself: one RSVP per buyer and meetup, so a retry returns the same state with or without the key.
+		 */
+		"Idempotency-Key"?: string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/community/meetups/{id}/rsvp";
+};
+
+export type PostCustomerCommunityMeetupsIdRsvpErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCustomerCommunityMeetupsIdRsvpError =
+	PostCustomerCommunityMeetupsIdRsvpErrors[keyof PostCustomerCommunityMeetupsIdRsvpErrors];
+
+export type PostCustomerCommunityMeetupsIdRsvpResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerCommunityMeetup;
+	};
+};
+
+export type PostCustomerCommunityMeetupsIdRsvpResponse =
+	PostCustomerCommunityMeetupsIdRsvpResponses[keyof PostCustomerCommunityMeetupsIdRsvpResponses];
+
+export type GetCustomerLivesIdChatData = {
+	body?: never;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: {
+		/**
+		 * Number of messages, 1-200.
+		 */
+		limit?: number;
+	};
+	url: "/customer/lives/{id}/chat";
+};
+
+export type GetCustomerLivesIdChatErrors = {
 	/**
 	 * Missing or invalid credential.
 	 */
@@ -14748,22 +16495,160 @@ export type GetCustomerOrdersIdErrors = {
 	 * Too many requests: rate limit exceeded.
 	 */
 	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
 };
 
-export type GetCustomerOrdersIdError =
-	GetCustomerOrdersIdErrors[keyof GetCustomerOrdersIdErrors];
+export type GetCustomerLivesIdChatError =
+	GetCustomerLivesIdChatErrors[keyof GetCustomerLivesIdChatErrors];
 
-export type GetCustomerOrdersIdResponses = {
+export type GetCustomerLivesIdChatResponses = {
 	/**
 	 * OK
 	 */
 	200: {
-		data: CustomerOrderStatus;
+		data: CustomerLiveChatBacklog;
 	};
 };
 
-export type GetCustomerOrdersIdResponse =
-	GetCustomerOrdersIdResponses[keyof GetCustomerOrdersIdResponses];
+export type GetCustomerLivesIdChatResponse =
+	GetCustomerLivesIdChatResponses[keyof GetCustomerLivesIdChatResponses];
+
+export type PostCustomerLivesIdChatTokenData = {
+	body?: never;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/lives/{id}/chat/token";
+};
+
+export type PostCustomerLivesIdChatTokenErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCustomerLivesIdChatTokenError =
+	PostCustomerLivesIdChatTokenErrors[keyof PostCustomerLivesIdChatTokenErrors];
+
+export type PostCustomerLivesIdChatTokenResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: CustomerLiveChatToken;
+	};
+};
+
+export type PostCustomerLivesIdChatTokenResponse =
+	PostCustomerLivesIdChatTokenResponses[keyof PostCustomerLivesIdChatTokenResponses];
+
+export type PostCustomerLivesIdChatMessagesData = {
+	body: CustomerLiveChatMessageCreate;
+	headers: {
+		/**
+		 * Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).
+		 */
+		"X-Workspace-Id"?: string;
+		/**
+		 * REQUIRED buyer session token (401 without it).
+		 */
+		"X-Customer-Session": string;
+		/**
+		 * REQUIRED (max. 255 characters; missing responds 422 `IDEMPOTENCY_KEY_REQUIRED`). The message id is derived from the organization, the buyer, the live, this key and the normalized `text`: a retry with the SAME key and the SAME text yields the SAME message id, so subscribers and the history never see it twice. The same key with a DIFFERENT text is a different message (a new id), never a replay of the first. Use a new key for each new message.
+		 */
+		"Idempotency-Key": string;
+	};
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/customer/lives/{id}/chat/messages";
+};
+
+export type PostCustomerLivesIdChatMessagesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCustomerLivesIdChatMessagesError =
+	PostCustomerLivesIdChatMessagesErrors[keyof PostCustomerLivesIdChatMessagesErrors];
+
+export type PostCustomerLivesIdChatMessagesResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: CustomerLiveChatMessageCreated;
+	};
+};
+
+export type PostCustomerLivesIdChatMessagesResponse =
+	PostCustomerLivesIdChatMessagesResponses[keyof PostCustomerLivesIdChatMessagesResponses];
 
 export type ClientOptions = {
 	baseUrl:

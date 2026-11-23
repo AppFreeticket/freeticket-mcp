@@ -11,7 +11,7 @@ import { registerPublicTools } from "./public";
 const stubCreds = { apiUrl: "http://localhost", apiKey: "test" };
 const stub = makeB2bClient(stubCreds);
 
-// El registro no debe tirar y no debe haber nombres duplicados entre capas.
+// Registration must not throw and no name may repeat across layers.
 function names(server: McpServer): string[] {
 	// ponytail: _registeredTools is SDK-internal; if it changes, this test says so.
 	return Object.keys(
@@ -71,7 +71,7 @@ function summaryWorkspaceAcceptsAList(server: McpServer): boolean {
 	return schema?.safeParse(["a", "b"]).success === true;
 }
 
-describe("vista corta de events_list (#8)", () => {
+describe("events_list slim view (#8)", () => {
 	it("trims description and images, keeping what identifies the event", () => {
 		const full = {
 			id: "e1",
@@ -147,7 +147,7 @@ describe("tool registration", () => {
 		registerB2bWriteTools(server, stub);
 		const t = names(server);
 		// 35 writes: 29 from contract 1.5.0 + the 6 from 1.7.0 (members area and
-		// token de reproducción de contenido) + the 7 from 1.19/1.20 (events_cancel,
+		// content playback token) + the 7 from 1.19/1.20 (events_cancel,
 		// tickets_reassign, staff_delete, webhooks_update, customer_order_release,
 		// content_posts_create, workspaces_create) + the 10 from 1.21–1.27
 		// (events_schedule/unschedule, the lineup and its invitations, presale
@@ -158,10 +158,12 @@ describe("tool registration", () => {
 		// profile, organization, ticket templates, master QRs) + the 8 from
 		// 1.33–1.36 (sales_transfer, sales_recipient_update, tickets_checkin_undo,
 		// events_viewers_add/delete, events_validators_add, staff_resend_invite,
-		// staff_access_set) + the 3 merch_products_* writes from 1.37–1.42.
+		// staff_access_set) + the 3 merch_products_* writes from 1.37–1.42
+		// + courtesy_requests_create (1.47). The buyer community writes
+		// (customer_community_*, 1.47–1.55) live in ./customer-community.ts.
 		// The customer_* writes (6 + the 3 customer_addresses_*) live in the
 		// buyer layer (./customer.ts) since 0.24.0.
-		expect(t.length).toBe(110);
+		expect(t.length).toBe(111);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",
@@ -207,8 +209,9 @@ describe("tool registration", () => {
 		// 4 original reads + 15 from Wave C + admin_tokens (admin 1.1.0)
 		// + admin_workspaces_assign_plan (admin 1.3.0)
 		// + admin_workspaces_plan_get and admin_workspaces_delete (admin 1.5)
-		// + 7 CRM master reads (admin 1.7.0; its writes stay out).
-		expect(t.length).toBe(30);
+		// + 7 CRM master reads (admin 1.7.0; its writes stay out)
+		// + 2 CRM reads and 2 settlements reads (admin 1.9; writes stay out).
+		expect(t.length).toBe(34);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of t) expect(n).toMatch(/^admin_/);
 		for (const n of [

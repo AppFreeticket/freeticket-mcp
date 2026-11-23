@@ -140,7 +140,10 @@ export type OrderCreated = {
 };
 
 export type OrderTicket = {
-	ticketCode: string;
+	/**
+	 * Ticket code, for reference. null while the QR gate is closed: it is only delivered when the event starts in 72 hours or less (or already started), the same rule as the buyer portal.
+	 */
+	ticketCode: string | null;
 	ticketTypeName: string;
 };
 

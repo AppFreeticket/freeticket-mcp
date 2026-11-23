@@ -11,6 +11,6 @@ const PORT = Number(process.env.PORT ?? 3333);
 
 createServer(handleHttp).listen(PORT, () => {
 	process.stderr.write(
-		`FreeTicket MCP HTTP en :${PORT} (POST /mcp · POST /mcp/public · OAuth: /authorize /token /register)\n`,
+		`FreeTicket MCP HTTP on :${PORT} (POST /mcp · POST /mcp/public · OAuth: /authorize /token /register)\n`,
 	);
 });

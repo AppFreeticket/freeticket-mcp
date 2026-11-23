@@ -351,7 +351,7 @@ async function checkKey(
 	return { status: "ok", scope: me.data?.scope === "read" ? "read" : "write" };
 }
 
-/** Sella un authorization code atado al PKCE challenge y al redirect. */
+/** Seals an authorization code bound to the PKCE challenge and the redirect. */
 function mintCode(
 	creds: { apiKey: string; workspaceId?: string; readOnly: boolean },
 	challenge: string,
@@ -446,7 +446,7 @@ async function handleMcp(
 	body: unknown,
 	opts: { listProtected?: boolean } = {},
 ): Promise<void> {
-	// Stateless: server + transport nuevos por request, cerrados al terminar.
+	// Stateless: new server + transport per request, closed when done.
 	const mcp = buildServer(creds, opts);
 	const transport = new StreamableHTTPServerTransport({
 		sessionIdGenerator: undefined,
@@ -471,7 +471,7 @@ export async function handleHttp(
 	const origin = new URL(publicUrl).origin;
 	const issuer = EXTERNAL_ISSUER ?? origin;
 
-	// CORS: clientes MCP en browser + discovery OAuth.
+	// CORS: browser MCP clients + OAuth discovery.
 	res.setHeader("access-control-allow-origin", "*");
 	res.setHeader("access-control-allow-methods", "GET, POST, OPTIONS");
 	res.setHeader(
@@ -577,7 +577,7 @@ export async function handleHttp(
 			});
 		}
 
-		// Página de consentimiento.
+		// Consent page.
 		if (
 			req.method === "GET" &&
 			url.pathname === "/authorize" &&
@@ -616,7 +616,7 @@ export async function handleHttp(
 			const wait = consentLimiter.check(ip) || deviceStartLimiter.check(ip);
 			if (wait)
 				return tooMany(res, wait, {
-					error: "Demasiados intentos. Espera unos minutos y reintenta.",
+					error: "Too many attempts. Wait a few minutes and retry.",
 				});
 			const body = (asJson(await readBody(req)) ?? {}) as {
 				client_id?: string;
@@ -639,7 +639,7 @@ export async function handleHttp(
 			if (!device)
 				return json(res, 503, {
 					error:
-						"No se pudo iniciar sesión con FreeTicket. Reintenta en unos minutos o usa Opciones avanzadas.",
+						"Could not sign in with FreeTicket. Retry in a few minutes or use Advanced options.",
 				});
 			return json(res, 200, device);
 		}
@@ -691,8 +691,7 @@ export async function handleHttp(
 				if (err === "slow_down")
 					return json(res, 200, { pending: true, slow: true });
 				return json(res, 200, {
-					error:
-						"El código expiró o fue rechazado. Recarga la página para reintentar.",
+					error: "The code expired or was rejected. Reload the page to retry.",
 				});
 			}
 			const grant = (await r.json()) as {
@@ -715,8 +714,7 @@ export async function handleHttp(
 			const key = await checkKey(grant.access_token);
 			if (key.status !== "ok")
 				return json(res, 200, {
-					error:
-						"No se pudo verificar la conexión. Recarga la página para reintentar.",
+					error: "Could not verify the connection. Reload the page to retry.",
 				});
 			const code = mintCode(
 				{
@@ -764,8 +762,8 @@ export async function handleHttp(
 					res,
 					consentPage(form, {
 						error: apiKey
-							? "La API key no es válida (falló GET /api/v1/me)."
-							: "Ingresa una API key.",
+							? "The API key is not valid (GET /api/v1/me failed)."
+							: "Enter an API key.",
 						redirect,
 					}),
 				);

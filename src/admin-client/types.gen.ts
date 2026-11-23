@@ -589,6 +589,305 @@ export type AdminCrmCancelResult = {
 	status: "DENIED";
 };
 
+export type AdminCrmTestSendInput = {
+	/**
+	 * Obligatorio y literal `true`: sin él, 422 `CONFIRMATION_REQUIRED` y no sale nada.
+	 */
+	confirm: true;
+	channel: AdminCrmChannel;
+	sender: AdminCrmSender;
+	/**
+	 * Plantilla de WhatsApp (obligatoria por WhatsApp).
+	 */
+	templateName?: string | null;
+	subject: string;
+	body: string;
+	imageUrl?: string;
+	promotedEventId?: string;
+};
+
+export type AdminCrmTestSendResult = {
+	/**
+	 * Destino ENMASCARADO: siempre el correo (o el teléfono del perfil) de quien llama.
+	 */
+	to: string;
+};
+
+export type AdminCrmSuppression = {
+	emailMasked: string;
+	/**
+	 * `admin` (la puso el equipo: se puede quitar), `unsubscribe`, `bounce`, `complaint`.
+	 */
+	reason: string;
+	workspaceId: string;
+	/**
+	 * true = baja global (plataforma).
+	 */
+	isGlobal: boolean;
+	/**
+	 * ISO 8601
+	 */
+	createdAt: string;
+};
+
+export type AdminCrmSuppressionInput = {
+	email: string;
+};
+
+export type AdminCrmSuppressionRemoveInput = {
+	email: string;
+	/**
+	 * Obligatorio y literal `true`: quitar la baja vuelve a habilitar los envíos a esa persona.
+	 */
+	confirm: true;
+};
+
+export type AdminCrmSuppressionResult = {
+	emailMasked: string;
+	/**
+	 * Cómo queda: true tras agregar, false tras quitar.
+	 */
+	suppressed: boolean;
+};
+
+export type AdminCrmOrganizationOption = {
+	id: string;
+	name: string;
+	slug: string;
+	logoUrl: string | null;
+};
+
+export type AdminCrmPeopleSearchInput = {
+	/**
+	 * Correo o nombre (desde 2 caracteres; menos devuelve vacío).
+	 */
+	query: string;
+	/**
+	 * El `scope` del filtro de audiencia (`AdminCrmAudienceFilter.scope`). Sin valor: la plataforma.
+	 */
+	scope?: {
+		level: "platform" | "orgs" | "events";
+		[key: string]: unknown | ("platform" | "orgs" | "events");
+	};
+};
+
+export type AdminCrmPersonOption = {
+	/**
+	 * Completo: es lo que lleva la condición `people` del filtro.
+	 */
+	email: string;
+	/**
+	 * Solo la inicial.
+	 */
+	name: string | null;
+	phoneMasked: string | null;
+};
+
+/**
+ * Máquina de estados: DRAFT (por enviar, legado) → GENERATED (con PDF, el organizador no la ve) → SENT (visible, el organizador reparte) → AWAITING_PAYMENT (repartida, falta transferir) → PAID. REQUESTED/PENDING/REJECTED son legado.
+ */
+export type AdminSettlementStatus =
+	| "DRAFT"
+	| "GENERATED"
+	| "SENT"
+	| "AWAITING_PAYMENT"
+	| "PAID"
+	| "REQUESTED"
+	| "PENDING"
+	| "REJECTED";
+
+export type AdminSettlement = {
+	id: string;
+	/**
+	 * Id humano estándar: `LQ-EVT-ddmmaaaa-NOMBRE-EVENTO-FTCO`.
+	 */
+	reference: string;
+	label: string;
+	status: AdminSettlementStatus;
+	/**
+	 * Monto a transferir. En un borrador automático puede ser negativo (los costos superan el recaudo).
+	 */
+	amount: number;
+	grossAmount: number | null;
+	unitsSold: number | null;
+	currency: string;
+	notes: string | null;
+	rejectionReason: string | null;
+	/**
+	 * true si ya hay PDF de la liquidación.
+	 */
+	hasDocument: boolean;
+	fileName: string | null;
+	/**
+	 * Reparto que confirmó el organizador (vacío = no repartió).
+	 */
+	allocations: Array<{
+		holderName: string | null;
+		bank: string;
+		accountType: string;
+		accountLast4: string;
+		/**
+		 * En modo AMOUNT es un derivado aproximado.
+		 */
+		percentage: number;
+		amount: number;
+		mode: "PERCENT" | "AMOUNT";
+	}>;
+	paymentProofs: Array<{
+		fileName: string;
+	}>;
+	notifiedAt: string | null;
+	requestedAt: string | null;
+	paidAt: string | null;
+	/**
+	 * ISO 8601
+	 */
+	createdAt: string;
+	organization: {
+		id: string;
+		name: string;
+		taxId: string | null;
+	};
+	event: {
+		id: string;
+		name: string;
+	} | null;
+	eventDate: {
+		id: string;
+		/**
+		 * ISO 8601
+		 */
+		startsAt: string;
+	} | null;
+};
+
+/**
+ * `manual`: el PDF ya subido con `POST /settlements/files` y el monto digitado. `auto`: el motor calcula el borrador de la función (ventas, costos, saldo), renderiza el PDF y lo adjunta; el monto es el saldo final. Las dos nacen en GENERATED y NO notifican al organizador hasta `send`.
+ */
+export type AdminSettlementCreateInput =
+	| {
+			mode: "manual";
+			organizationId: string;
+			eventId?: string;
+			/**
+			 * Requiere `eventId`. Una función tiene UNA activa.
+			 */
+			eventDateId?: string;
+			label: string;
+			amount: number;
+			/**
+			 * ISO 4217. Sin valor: `COP`.
+			 */
+			currency?: string;
+			/**
+			 * `storagePath` devuelto por `POST /settlements/files`. Tiene que ser de la organización de la liquidación (`settlements/{organizationId}/…`).
+			 */
+			storagePath: string;
+			fileName: string;
+			notes?: string;
+	  }
+	| {
+			mode: "auto";
+			eventDateId: string;
+			/**
+			 * Por defecto true. false = liquidación DE EJEMPLO: sin función asociada (no bloquea la real), label `[EJEMPLO]`.
+			 */
+			integrate?: boolean;
+			/**
+			 * Comisión de pasarela en PORCENTAJE antes de IVA (ej. 2.9916). Sin valor: la del motor.
+			 */
+			commissionRate?: number;
+			/**
+			 * Costo fijo por transacción, base SIN IVA en COP (ej. 500; el motor suma el IVA). Sin valor: el del motor.
+			 */
+			fixedFee?: number;
+	  };
+
+export type AdminSettlementRegenerateInput = {
+	/**
+	 * Comisión de pasarela en PORCENTAJE antes de IVA (ej. 2.9916). Sin valor: la del motor.
+	 */
+	commissionRate?: number;
+	/**
+	 * Costo fijo por transacción, base SIN IVA en COP (ej. 500; el motor suma el IVA). Sin valor: el del motor.
+	 */
+	fixedFee?: number;
+};
+
+export type AdminSettlementConfirmInput = {
+	/**
+	 * Obligatorio y literal `true`: sin él, 422 `CONFIRMATION_REQUIRED`.
+	 */
+	confirm: true;
+};
+
+export type AdminSettlementMarkPaidInput = {
+	/**
+	 * Obligatorio y literal `true`: sin él, 422 `CONFIRMATION_REQUIRED`.
+	 */
+	confirm: true;
+	/**
+	 * Comprobantes de la transferencia (uno por cuenta del reparto).
+	 */
+	proofs: Array<{
+		/**
+		 * `storagePath` devuelto por `POST /settlements/files`. Tiene que ser de la organización de la liquidación (`settlements/{organizationId}/…`).
+		 */
+		storagePath: string;
+		fileName: string;
+	}>;
+};
+
+export type AdminSettlementAttachProofInput = {
+	/**
+	 * `storagePath` devuelto por `POST /settlements/files`. Tiene que ser de la organización de la liquidación (`settlements/{organizationId}/…`).
+	 */
+	storagePath: string;
+	fileName: string;
+	/**
+	 * Ajusta el monto al adjuntar (opcional). Cambia el dinero que se le gira al organizador: exige `confirm: true`.
+	 */
+	amount?: number;
+	/**
+	 * Literal `true`, obligatorio solo si viene `amount`: sin él, 422 `CONFIRMATION_REQUIRED`.
+	 */
+	confirm?: true;
+};
+
+export type AdminSettlementFileUploadInput = {
+	organizationId: string;
+	fileName: string;
+	/**
+	 * El PDF en base64 (máx. 3 MB decodificado; se verifica que empiece por `%PDF`).
+	 */
+	contentBase64: string;
+};
+
+export type AdminSettlementFile = {
+	storagePath: string;
+	fileName: string;
+};
+
+export type AdminSettlementCreateResult = {
+	id: string;
+	status: "GENERATED";
+};
+
+export type AdminSettlementTransition = {
+	id: string;
+	status: AdminSettlementStatus;
+	/**
+	 * ISO 8601
+	 */
+	paidAt?: string;
+	fileName?: string;
+};
+
+export type AdminSettlementDeleteResult = {
+	id: string;
+	deleted: true;
+};
+
 export type GetMeData = {
 	body?: never;
 	path?: never;
@@ -2269,6 +2568,837 @@ export type GetCrmEventDatesResponses = {
 
 export type GetCrmEventDatesResponse =
 	GetCrmEventDatesResponses[keyof GetCrmEventDatesResponses];
+
+export type DeleteCrmSuppressionsData = {
+	body: AdminCrmSuppressionRemoveInput;
+	path?: never;
+	query?: never;
+	url: "/crm/suppressions";
+};
+
+export type DeleteCrmSuppressionsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type DeleteCrmSuppressionsError =
+	DeleteCrmSuppressionsErrors[keyof DeleteCrmSuppressionsErrors];
+
+export type DeleteCrmSuppressionsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmSuppressionResult;
+	};
+};
+
+export type DeleteCrmSuppressionsResponse =
+	DeleteCrmSuppressionsResponses[keyof DeleteCrmSuppressionsResponses];
+
+export type GetCrmSuppressionsData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Parte del correo (hasta 254).
+		 */
+		query?: string;
+		/**
+		 * `global` o `all`.
+		 */
+		scope?: "global" | "all";
+		/**
+		 * 1–500 (por defecto 100).
+		 */
+		limit?: number;
+	};
+	url: "/crm/suppressions";
+};
+
+export type GetCrmSuppressionsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetCrmSuppressionsError =
+	GetCrmSuppressionsErrors[keyof GetCrmSuppressionsErrors];
+
+export type GetCrmSuppressionsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<AdminCrmSuppression>;
+	};
+};
+
+export type GetCrmSuppressionsResponse =
+	GetCrmSuppressionsResponses[keyof GetCrmSuppressionsResponses];
+
+export type PostCrmSuppressionsData = {
+	body: AdminCrmSuppressionInput;
+	path?: never;
+	query?: never;
+	url: "/crm/suppressions";
+};
+
+export type PostCrmSuppressionsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCrmSuppressionsError =
+	PostCrmSuppressionsErrors[keyof PostCrmSuppressionsErrors];
+
+export type PostCrmSuppressionsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmSuppressionResult;
+	};
+};
+
+export type PostCrmSuppressionsResponse =
+	PostCrmSuppressionsResponses[keyof PostCrmSuppressionsResponses];
+
+export type PostCrmTestSendData = {
+	body: AdminCrmTestSendInput;
+	path?: never;
+	query?: never;
+	url: "/crm/test-send";
+};
+
+export type PostCrmTestSendErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostCrmTestSendError =
+	PostCrmTestSendErrors[keyof PostCrmTestSendErrors];
+
+export type PostCrmTestSendResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminCrmTestSendResult;
+	};
+};
+
+export type PostCrmTestSendResponse =
+	PostCrmTestSendResponses[keyof PostCrmTestSendResponses];
+
+export type GetCrmOrganizationsData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Texto (hasta 120 caracteres).
+		 */
+		query?: string;
+	};
+	url: "/crm/organizations";
+};
+
+export type GetCrmOrganizationsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type GetCrmOrganizationsError =
+	GetCrmOrganizationsErrors[keyof GetCrmOrganizationsErrors];
+
+export type GetCrmOrganizationsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<AdminCrmOrganizationOption>;
+	};
+};
+
+export type GetCrmOrganizationsResponse =
+	GetCrmOrganizationsResponses[keyof GetCrmOrganizationsResponses];
+
+export type PostCrmPeopleSearchData = {
+	body: AdminCrmPeopleSearchInput;
+	path?: never;
+	query?: never;
+	url: "/crm/people/search";
+};
+
+export type PostCrmPeopleSearchErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostCrmPeopleSearchError =
+	PostCrmPeopleSearchErrors[keyof PostCrmPeopleSearchErrors];
+
+export type PostCrmPeopleSearchResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<AdminCrmPersonOption>;
+	};
+};
+
+export type PostCrmPeopleSearchResponse =
+	PostCrmPeopleSearchResponses[keyof PostCrmPeopleSearchResponses];
+
+export type GetSettlementsData = {
+	body?: never;
+	path?: never;
+	query?: {
+		/**
+		 * Solo las de ese estado.
+		 */
+		status?:
+			| "DRAFT"
+			| "GENERATED"
+			| "SENT"
+			| "AWAITING_PAYMENT"
+			| "PAID"
+			| "REQUESTED"
+			| "PENDING"
+			| "REJECTED";
+		/**
+		 * Solo las de esa organización.
+		 */
+		organizationId?: string;
+		/**
+		 * Tamaño de página (1–100, por defecto 20).
+		 */
+		limit?: number;
+		/**
+		 * `page.nextCursor` de la página anterior.
+		 */
+		cursor?: string;
+	};
+	url: "/settlements";
+};
+
+export type GetSettlementsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetSettlementsError =
+	GetSettlementsErrors[keyof GetSettlementsErrors];
+
+export type GetSettlementsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: Array<AdminSettlement>;
+		page: Page;
+	};
+};
+
+export type GetSettlementsResponse =
+	GetSettlementsResponses[keyof GetSettlementsResponses];
+
+export type PostSettlementsData = {
+	body: AdminSettlementCreateInput;
+	path?: never;
+	query?: never;
+	url: "/settlements";
+};
+
+export type PostSettlementsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Operation error.
+	 */
+	500: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostSettlementsError =
+	PostSettlementsErrors[keyof PostSettlementsErrors];
+
+export type PostSettlementsResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: AdminSettlementCreateResult;
+	};
+};
+
+export type PostSettlementsResponse =
+	PostSettlementsResponses[keyof PostSettlementsResponses];
+
+export type PostSettlementsFilesData = {
+	body: AdminSettlementFileUploadInput;
+	path?: never;
+	query?: never;
+	url: "/settlements/files";
+};
+
+export type PostSettlementsFilesErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostSettlementsFilesError =
+	PostSettlementsFilesErrors[keyof PostSettlementsFilesErrors];
+
+export type PostSettlementsFilesResponses = {
+	/**
+	 * OK
+	 */
+	201: {
+		data: AdminSettlementFile;
+	};
+};
+
+export type PostSettlementsFilesResponse =
+	PostSettlementsFilesResponses[keyof PostSettlementsFilesResponses];
+
+export type DeleteSettlementsIdData = {
+	body: AdminSettlementConfirmInput;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/settlements/{id}";
+};
+
+export type DeleteSettlementsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type DeleteSettlementsIdError =
+	DeleteSettlementsIdErrors[keyof DeleteSettlementsIdErrors];
+
+export type DeleteSettlementsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminSettlementDeleteResult;
+	};
+};
+
+export type DeleteSettlementsIdResponse =
+	DeleteSettlementsIdResponses[keyof DeleteSettlementsIdResponses];
+
+export type GetSettlementsIdData = {
+	body?: never;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/settlements/{id}";
+};
+
+export type GetSettlementsIdErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetSettlementsIdError =
+	GetSettlementsIdErrors[keyof GetSettlementsIdErrors];
+
+export type GetSettlementsIdResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminSettlement;
+	};
+};
+
+export type GetSettlementsIdResponse =
+	GetSettlementsIdResponses[keyof GetSettlementsIdResponses];
+
+export type PostSettlementsIdRegenerateData = {
+	body?: AdminSettlementRegenerateInput;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/settlements/{id}/regenerate";
+};
+
+export type PostSettlementsIdRegenerateErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+	/**
+	 * Operation error.
+	 */
+	500: _Error;
+	/**
+	 * The external provider failed to complete the operation.
+	 */
+	502: _Error;
+	/**
+	 * Service unavailable: an external dependency is down or initialization failed.
+	 */
+	503: _Error;
+};
+
+export type PostSettlementsIdRegenerateError =
+	PostSettlementsIdRegenerateErrors[keyof PostSettlementsIdRegenerateErrors];
+
+export type PostSettlementsIdRegenerateResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminSettlementTransition;
+	};
+};
+
+export type PostSettlementsIdRegenerateResponse =
+	PostSettlementsIdRegenerateResponses[keyof PostSettlementsIdRegenerateResponses];
+
+export type PostSettlementsIdSendData = {
+	body: AdminSettlementConfirmInput;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/settlements/{id}/send";
+};
+
+export type PostSettlementsIdSendErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostSettlementsIdSendError =
+	PostSettlementsIdSendErrors[keyof PostSettlementsIdSendErrors];
+
+export type PostSettlementsIdSendResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminSettlementTransition;
+	};
+};
+
+export type PostSettlementsIdSendResponse =
+	PostSettlementsIdSendResponses[keyof PostSettlementsIdSendResponses];
+
+export type PostSettlementsIdMarkPaidData = {
+	body: AdminSettlementMarkPaidInput;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/settlements/{id}/mark-paid";
+};
+
+export type PostSettlementsIdMarkPaidErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostSettlementsIdMarkPaidError =
+	PostSettlementsIdMarkPaidErrors[keyof PostSettlementsIdMarkPaidErrors];
+
+export type PostSettlementsIdMarkPaidResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminSettlementTransition;
+	};
+};
+
+export type PostSettlementsIdMarkPaidResponse =
+	PostSettlementsIdMarkPaidResponses[keyof PostSettlementsIdMarkPaidResponses];
+
+export type PostSettlementsIdProofsData = {
+	body: AdminSettlementAttachProofInput;
+	path: {
+		id: string;
+	};
+	query?: never;
+	url: "/settlements/{id}/proofs";
+};
+
+export type PostSettlementsIdProofsErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Conflict: the resource does not allow this operation in its current state.
+	 */
+	409: _Error;
+	/**
+	 * Payload too large: the request body exceeds the maximum size.
+	 */
+	413: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+	/**
+	 * Too many requests: rate limit exceeded.
+	 */
+	429: _Error;
+};
+
+export type PostSettlementsIdProofsError =
+	PostSettlementsIdProofsErrors[keyof PostSettlementsIdProofsErrors];
+
+export type PostSettlementsIdProofsResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: AdminSettlementTransition;
+	};
+};
+
+export type PostSettlementsIdProofsResponse =
+	PostSettlementsIdProofsResponses[keyof PostSettlementsIdProofsResponses];
 
 export type ClientOptions = {
 	baseUrl: "https://admin.appfreeticket.com/api/admin" | (string & {});

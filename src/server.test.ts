@@ -51,7 +51,7 @@ describe("server instructions", () => {
 			"admin_*",
 			"whoami",
 			"events_list",
-			"un solo workspace",
+			"a single workspace",
 			"COP",
 			"cursor",
 			"slug",

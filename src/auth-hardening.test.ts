@@ -298,7 +298,7 @@ describe("(b) read scope", () => {
 		expect([...toolNames(server)]).toEqual(["a_read"]);
 	});
 
-	it("the device flow pre-ticks Solo lectura and seals the read scope", async () => {
+	it("the device flow pre-ticks Read-only and seals the read scope", async () => {
 		const handleHttp = await loadHandler();
 		vi.stubGlobal(
 			"fetch",
@@ -363,7 +363,7 @@ describe("(b) read scope", () => {
 					return new Response(
 						JSON.stringify({ access_token: "ft_live_ro", workspaces: [] }),
 					);
-				// /me: the user ticked "Solo lectura" on /device — the key is read.
+				// /me: the user ticked "Read-only" on /device — the key is read.
 				meCalls.push(String(url));
 				return new Response(JSON.stringify({ data: { scope: "read" } }));
 			}),
@@ -524,7 +524,7 @@ describe("(d) admin cookie on the consent page", () => {
 			res,
 		);
 		expect(out.status).toBe(200);
-		expect(out.body).toContain("Ingresa una API key");
+		expect(out.body).toContain("Enter an API key");
 	});
 });
 
@@ -779,17 +779,17 @@ describe("security review", () => {
 		const r = checkRedirect(id, "https://claude.ai/x", SECRET);
 		expect(r).toMatchObject({ ok: true, unknownHost: true });
 		const page = consentPage(new URLSearchParams(), { redirect: r });
-		expect(page).toContain("no es un cliente conocido");
+		expect(page).toContain("is not a known client");
 		expect(page).toContain("https://claude.ai/x");
 		// The registrant-chosen name is quoted as unverified, never the title.
 		expect(page).not.toContain("<b>Claude</b>");
-		expect(page).toContain("no está verificado");
+		expect(page).toContain("is not verified");
 		// The real callback keeps its name and shows no warning.
 		const known = checkRedirect(client([CB]), CB, SECRET);
 		expect(known.unknownHost).toBe(false);
 		const ok = consentPage(new URLSearchParams(), { redirect: known });
 		expect(ok).toContain("<b>Claude</b>");
-		expect(ok).not.toContain("no es un cliente conocido");
+		expect(ok).not.toContain("is not a known client");
 	});
 
 	it("P1-b: GET /authorize starts no device flow", async () => {

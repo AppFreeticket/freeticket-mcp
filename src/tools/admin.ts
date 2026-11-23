@@ -9,11 +9,15 @@ import {
 	getCrmEventDates,
 	getCrmEvents,
 	getCrmOptions,
+	getCrmOrganizations,
 	getCrmQuota,
+	getCrmSuppressions,
 	getFeatureFlags,
 	getMe,
 	getPlatformPlans,
 	getPlatformPlansId,
+	getSettlements,
+	getSettlementsId,
 	getTokens,
 	getUsers,
 	getUsersId,
@@ -39,16 +43,23 @@ import { UI_META, uiTool } from "../ui";
 import { limitParam } from "../views";
 
 const CONFIRM = " ⚠️ Sensitive cross-tenant action: confirm with the human.";
+const SETTLEMENTS_READ_ONLY =
+	" Read-only: creating, regenerating, sending, marking as paid, attaching " +
+	"receipts to or deleting settlements is not done from the MCP but with the " +
+	"CLI (`ft admin settlements`) or the dashboard.";
 const CRM_READ_ONLY =
-	" Solo lectura: lanzar, avanzar lotes, frenar o cancelar campañas no se " +
-	"hace desde el MCP, sino con el CLI (`ft admin crm`) o el panel.";
+	" Read-only: launching, advancing batches, pausing or cancelling campaigns " +
+	"is not done from the MCP but with the CLI (`ft admin crm`) or the dashboard.";
 
 /**
- * Tools superadmin (/api/admin, cross-tenant). Se registran solo si hay
- * FT_ADMIN_SESSION. Cubre reads + writes (Ola C): workspaces, users,
- * impersonation, platform plans y feature flags. Del CRM maestro solo las
- * lecturas: las escrituras (`x-ft-mcp: { expose: false }` en el contrato)
- * mandan correos y WhatsApp reales a clientes y quedan fuera a propósito.
+ * Superadmin tools (/api/admin, cross-tenant). Registered only when
+ * FT_ADMIN_SESSION is set. Covers reads + writes (Wave C): workspaces, users,
+ * impersonation, platform plans and feature flags. From the master CRM only
+ * the reads: the writes (`x-ft-mcp: { expose: false }` in the contract) send
+ * real emails and WhatsApp messages to customers and are left out on purpose.
+ * Same with settlements (contract 1.9): read-only; creating, regenerating,
+ * sending, marking them paid or attaching receipts moves organizers' money
+ * and stays in the CLI (`ft admin settlements`).
  */
 export function registerAdminTools(server: McpServer, client: Client): void {
 	server.tool(
@@ -61,12 +72,12 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	uiTool(
 		server,
 		"admin_workspaces",
-		"Lista tenants/workspaces cross-tenant (GET /api/admin/workspaces).",
+		"Lists tenants/workspaces cross-tenant (GET /api/admin/workspaces).",
 		{
-			q: z.string().optional().describe("Buscar por nombre/slug"),
-			status: z.string().optional().describe("Filtrar por estado"),
+			q: z.string().optional().describe("Search by name/slug"),
+			status: z.string().optional().describe("Filter by status"),
 			limit: limitParam,
-			cursor: z.string().optional().describe("Cursor de paginación"),
+			cursor: z.string().optional().describe("Pagination cursor"),
 		},
 		async (q) => run(getWorkspaces({ query: q, client })),
 	);
@@ -74,10 +85,10 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	uiTool(
 		server,
 		"admin_users",
-		"Lista usuarios globales cross-tenant (GET /api/admin/users).",
+		"Lists global users cross-tenant (GET /api/admin/users).",
 		{
-			q: z.string().optional().describe("Buscar por nombre/email"),
-			role: z.string().optional().describe("Filtrar por rol"),
+			q: z.string().optional().describe("Search by name/email"),
+			role: z.string().optional().describe("Filter by role"),
 			limit: limitParam,
 			cursor: z.string().optional(),
 		},
@@ -106,8 +117,8 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		"Superadmin audit log (GET /api/admin/audit-log).",
 		{
 			action: z.string().optional().describe("Filter by action"),
-			from: z.string().optional().describe("Desde (ISO 8601)"),
-			to: z.string().optional().describe("Hasta (ISO 8601)"),
+			from: z.string().optional().describe("From (ISO 8601)"),
+			to: z.string().optional().describe("To (ISO 8601)"),
 			limit: limitParam,
 			cursor: z.string().optional(),
 		},
@@ -117,17 +128,17 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	// ── Workspaces ───────────────────────────────────────────────────────────
 	server.tool(
 		"admin_workspaces_get",
-		"Detalle de un workspace/tenant (GET /api/admin/workspaces/{id}).",
+		"Detail of a workspace/tenant (GET /api/admin/workspaces/{id}).",
 		{ id: z.string().describe("Workspace id") },
 		read("admin_workspaces_get"),
 		async ({ id }) => run(getWorkspacesId({ path: { id }, client })),
 	);
 	server.tool(
 		"admin_workspaces_create",
-		"Crea un workspace/tenant (POST /api/admin/workspaces).",
+		"Creates a workspace/tenant (POST /api/admin/workspaces).",
 		{
 			name: z.string(),
-			slug: z.string().describe("Slug único"),
+			slug: z.string().describe("Unique slug"),
 			type: z.enum(["ARTIST", "VENUE", "ORGANIZER"]),
 			country: z.string(),
 			email: z.string().email().optional().describe("Owner email"),
@@ -137,7 +148,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"admin_workspaces_update",
-		"Actualiza un workspace/tenant (PATCH /api/admin/workspaces/{id}).",
+		"Updates a workspace/tenant (PATCH /api/admin/workspaces/{id}).",
 		{
 			id: z.string().describe("Workspace id"),
 			name: z.string().optional(),
@@ -188,7 +199,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			id: z.string().describe("Workspace id"),
 			planSlug: z
 				.enum(["spark", "star", "icon", "legend"])
-				.describe("Tier a activar (`legend` es enterprise)"),
+				.describe("Tier to activate (`legend` is enterprise)"),
 		},
 		// openWorld: cancels the tenant's Stripe subscription first.
 		write("admin_workspaces_assign_plan", {
@@ -200,7 +211,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"admin_workspaces_suspend",
-		`Suspende un workspace/tenant (POST /api/admin/workspaces/{id}/suspend).${CONFIRM}`,
+		`Suspends a workspace/tenant (POST /api/admin/workspaces/{id}/suspend).${CONFIRM}`,
 		{ id: z.string().describe("Workspace id") },
 		write("admin_workspaces_suspend", { destructive: true }),
 		async ({ id }) => run(postWorkspacesIdSuspend({ path: { id }, client })),
@@ -217,23 +228,23 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"admin_workspaces_restore",
-		"Restaura un workspace suspendido (POST /api/admin/workspaces/{id}/restore).",
+		"Restores a suspended workspace (POST /api/admin/workspaces/{id}/restore).",
 		{ id: z.string().describe("Workspace id") },
 		write("admin_workspaces_restore", { destructive: false }),
 		async ({ id }) => run(postWorkspacesIdRestore({ path: { id }, client })),
 	);
 
-	// ── Users e impersonation ────────────────────────────────────────────────
+	// ── Users and impersonation ──────────────────────────────────────────────
 	server.tool(
 		"admin_users_get",
-		"Detalle de un usuario global (GET /api/admin/users/{id}).",
+		"Detail of a global user (GET /api/admin/users/{id}).",
 		{ id: z.string().describe("User id") },
 		read("admin_users_get"),
 		async ({ id }) => run(getUsersId({ path: { id }, client })),
 	);
 	server.tool(
 		"admin_users_update",
-		"Actualiza rol o baneo de un usuario (PATCH /api/admin/users/{id}).",
+		"Updates a user's role or ban (PATCH /api/admin/users/{id}).",
 		{
 			id: z.string().describe("User id"),
 			role: z
@@ -247,10 +258,10 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"admin_impersonate",
-		`Inicia impersonación de un usuario/workspace — devuelve un token (POST /api/admin/impersonate).${CONFIRM}`,
+		`Starts impersonating a user/workspace — returns a token (POST /api/admin/impersonate).${CONFIRM}`,
 		{
-			targetUserId: z.string().optional().describe("Usuario a impersonar"),
-			workspaceId: z.string().optional().describe("Workspace de contexto"),
+			targetUserId: z.string().optional().describe("User to impersonate"),
+			workspaceId: z.string().optional().describe("Context workspace"),
 		},
 		write("admin_impersonate", { destructive: true }),
 		async (body) => run(postImpersonate({ body, client })),
@@ -262,7 +273,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 		async () => run(postImpersonateStop({ client })),
 	);
 
-	// ── Platform plans y feature flags ───────────────────────────────────────
+	// ── Platform plans and feature flags ─────────────────────────────────────
 	uiTool(
 		server,
 		"admin_platform_plans_list",
@@ -272,14 +283,14 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"admin_platform_plans_get",
-		"Detalle de un plan de plataforma (GET /api/admin/platform-plans/{id}).",
+		"Detail of a platform plan (GET /api/admin/platform-plans/{id}).",
 		{ id: z.string().describe("Platform plan id") },
 		read("admin_platform_plans_get"),
 		async ({ id }) => run(getPlatformPlansId({ path: { id }, client })),
 	);
 	server.tool(
 		"admin_platform_plans_create",
-		"Crea un plan de plataforma (POST /api/admin/platform-plans).",
+		"Creates a platform plan (POST /api/admin/platform-plans).",
 		{
 			name: z.string(),
 			slug: z.string(),
@@ -287,7 +298,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			priceYearly: z.number(),
 			priceBiannual: z.number().nullish(),
 			isActive: z.boolean(),
-			maxEvents: z.number().int().nullish().describe("null = ilimitado"),
+			maxEvents: z.number().int().nullish().describe("null = unlimited"),
 			memberships: z.boolean().optional(),
 			content: z.boolean().optional(),
 			fanDatabase: z.boolean().optional(),
@@ -304,7 +315,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"admin_platform_plans_update",
-		"Actualiza un plan de plataforma (PATCH /api/admin/platform-plans/{id}).",
+		"Updates a platform plan (PATCH /api/admin/platform-plans/{id}).",
 		{
 			id: z.string().describe("Platform plan id"),
 			name: z.string().optional(),
@@ -332,13 +343,13 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	uiTool(
 		server,
 		"admin_feature_flags_list",
-		"Lista feature flags, opcionalmente por key (GET /api/admin/feature-flags).",
-		{ key: z.string().optional().describe("Filtrar por key") },
+		"Lists feature flags, optionally by key (GET /api/admin/feature-flags).",
+		{ key: z.string().optional().describe("Filter by key") },
 		async (q) => run(getFeatureFlags({ query: q, client })),
 	);
 	server.tool(
 		"admin_feature_flags_set",
-		"Activa/desactiva un feature flag en un scope (PUT /api/admin/feature-flags/{key}).",
+		"Enables/disables a feature flag in a scope (PUT /api/admin/feature-flags/{key}).",
 		{
 			key: z.string().describe("Flag key"),
 			scope: z.enum(["global", "plan", "workspace"]),
@@ -353,11 +364,11 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			run(putFeatureFlagsKey({ path: { key }, body, client })),
 	);
 
-	// ── CRM maestro (solo lecturas) ──────────────────────────────────────────
+	// ── Master CRM (reads only) ──────────────────────────────────────────────
 	uiTool(
 		server,
 		"admin_crm_campaigns",
-		`Lista las campañas del CRM maestro que lanzó el equipo (GET /api/admin/crm/campaigns).${CRM_READ_ONLY}`,
+		`Lists the master CRM campaigns launched by the team (GET /api/admin/crm/campaigns).${CRM_READ_ONLY}`,
 		{
 			channel: z.enum(["EMAIL", "WHATSAPP"]).optional(),
 			status: z
@@ -377,38 +388,38 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				.min(1)
 				.max(100)
 				.optional()
-				.describe("1-100, por defecto 50"),
+				.describe("1-100, default 50"),
 		},
 		async (q) => run(getCrmCampaigns({ query: q, client })),
 	);
 	server.tool(
 		"admin_crm_campaigns_get",
-		`Detalle de una campaña del CRM maestro: filtro, firma, contadores y lotes (GET /api/admin/crm/campaigns/{id}).${CRM_READ_ONLY}`,
+		`Detail of a master CRM campaign: filter, sender, counters and batches (GET /api/admin/crm/campaigns/{id}).${CRM_READ_ONLY}`,
 		{ id: z.string().describe("Campaign id") },
 		read("admin_crm_campaigns_get"),
 		async ({ id }) => run(getCrmCampaignsId({ path: { id }, client })),
 	);
 	server.tool(
 		"admin_crm_audience_preview",
-		"Cuenta la audiencia de un filtro del CRM sin enviar ni crear nada " +
-			"(POST /api/admin/crm/audience/preview): contadores por canal, una " +
-			"muestra de hasta 10 personas enmascarada en el servidor, quién puede " +
-			"firmar y, si hay WhatsApp alcanzable, los días que tomaría con el cupo. " +
-			"`filter` es v2: `{ version: 2, scope, include, except }`, con `scope` " +
-			"`{ level: 'platform' }`, `{ level: 'orgs', workspaceIds }` o " +
-			"`{ level: 'events', eventIds }`, e `include`/`except` listas de " +
-			"condiciones (`purchased`, `abandoned`, `checked_in`, `city`, `facet`, " +
-			"`membership`, `spend`, `received_campaign`, `people`). Usá " +
-			"`admin_crm_options`, `admin_crm_events` y `admin_crm_event_dates` " +
-			"para los ids. Un filtro inválido responde 422 con `error.details[].path`; " +
-			"uno demasiado grande, 413." +
+		"Counts the audience of a CRM filter without sending or creating anything " +
+			"(POST /api/admin/crm/audience/preview): counters per channel, a " +
+			"sample of up to 10 people masked on the server, who can sign as " +
+			"sender and, if WhatsApp is reachable, the days it would take within " +
+			"the quota. `filter` is v2: `{ version: 2, scope, include, except }`, " +
+			"with `scope` `{ level: 'platform' }`, `{ level: 'orgs', workspaceIds }` " +
+			"or `{ level: 'events', eventIds }`, and `include`/`except` lists of " +
+			"conditions (`purchased`, `abandoned`, `checked_in`, `city`, `facet`, " +
+			"`membership`, `spend`, `received_campaign`, `people`). Use " +
+			"`admin_crm_options`, `admin_crm_events` and `admin_crm_event_dates` " +
+			"for the ids. An invalid filter returns 422 with `error.details[].path`; " +
+			"one that is too large, 413." +
 			CRM_READ_ONLY,
 		{
 			filter: z
 				.object({ version: z.literal(2) })
 				.passthrough()
 				.describe(
-					"Filtro de audiencia v2 (`version: 2` obligatorio; el resto lo valida el servidor)",
+					"Audience filter v2 (`version: 2` required; the server validates the rest)",
 				),
 			sender: z
 				.discriminatedUnion("kind", [
@@ -420,7 +431,7 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 				])
 				.optional()
 				.describe(
-					"Quién firma. Solo suma las bajas de ese remitente; nunca agrega gente.",
+					"Who signs as sender. It only adds that sender's unsubscribes; it never adds people.",
 				),
 		},
 		read("admin_crm_audience_preview"),
@@ -429,49 +440,126 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 	uiTool(
 		server,
 		"admin_crm_quota",
-		"Cupo diario de WhatsApp y lotes ya comprometidos del CRM maestro (GET /api/admin/crm/quota).",
+		"Daily WhatsApp quota and already committed batches of the master CRM (GET /api/admin/crm/quota).",
 		{},
 		async () => run(getCrmQuota({ client })),
 	);
 	server.tool(
 		"admin_crm_options",
-		"Opciones para armar un filtro del CRM: ciudades, facetas (género/formato), " +
-			"planes de membresía y plantillas (GET /api/admin/crm/options).",
+		"Options to build a CRM filter: cities, facets (genre/format), " +
+			"membership plans and templates (GET /api/admin/crm/options).",
 		read("admin_crm_options"),
 		async () => run(getCrmOptions({ client })),
 	);
 	uiTool(
 		server,
 		"admin_crm_events",
-		"Busca shows para un filtro o una campaña del CRM (GET /api/admin/crm/events).",
+		"Searches shows for a CRM filter or campaign (GET /api/admin/crm/events).",
 		{
 			purpose: z
 				.enum(["scope", "promote", "except"])
 				.describe(
-					"`scope` para acotar la audiencia, `except` para excluir, `promote` " +
-						"para el show que se anuncia (solo publicados; con " +
-						"`senderWorkspaceId`, solo los de esa organización)",
+					"`scope` to narrow the audience, `except` to exclude, `promote` " +
+						"for the show being announced (published only; with " +
+						"`senderWorkspaceId`, only that organization's)",
 				),
-			query: z.string().max(120).optional().describe("Texto a buscar"),
+			query: z.string().max(120).optional().describe("Text to search"),
 			senderWorkspaceId: z.string().optional(),
 		},
 		async (q) => run(getCrmEvents({ query: q, client })),
 	);
 	server.tool(
 		"admin_crm_event_dates",
-		"Funciones de uno o varios shows, para acotar una condición del CRM a " +
-			"fechas puntuales (GET /api/admin/crm/event-dates).",
+		"Dates (performances) of one or more shows, to narrow a CRM condition to " +
+			"specific dates (GET /api/admin/crm/event-dates).",
 		{
 			eventIds: z
 				.array(z.string())
 				.min(1)
 				.max(50)
-				.describe("Ids de shows (1 a 50)"),
+				.describe("Show ids (1 to 50)"),
 		},
 		read("admin_crm_event_dates"),
 		async ({ eventIds }) =>
 			run(
 				getCrmEventDates({ query: { eventIds: eventIds.join(",") }, client }),
 			),
+	);
+
+	server.tool(
+		"admin_crm_organizations",
+		"Searches active organizations by name or slug for the CRM filter " +
+			"(`scope.level: 'orgs'`) or for `sender.workspaceId` " +
+			"(GET /api/admin/crm/organizations): up to 10 with `query`, the " +
+			"first 20 by name without it.",
+		{
+			query: z.string().max(120).optional().describe("Name or slug"),
+		},
+		read("admin_crm_organizations"),
+		async (q) => run(getCrmOrganizations({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"admin_crm_suppressions",
+		"Master CRM unsubscribes (suppressions), most recent first, with the " +
+			"email masked (GET /api/admin/crm/suppressions). `scope: 'global'` " +
+			"(default) returns only platform-level ones; `all` adds each " +
+			"organization's. Adding or removing a suppression is not done from the MCP." +
+			CRM_READ_ONLY,
+		{
+			query: z
+				.string()
+				.max(254)
+				.optional()
+				.describe("Full email or a part of it"),
+			scope: z.enum(["global", "all"]).optional(),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(500)
+				.optional()
+				.describe("1-500, default 100"),
+		},
+		async (q) => run(getCrmSuppressions({ query: q, client })),
+	);
+
+	// ── Settlements (contract 1.9, read-only) ────────────────────────────────
+	uiTool(
+		server,
+		"admin_settlements_list",
+		"EVENT settlements of every organization, newest first " +
+			"(GET /api/admin/settlements); membership settlements are not listed, " +
+			"same as in the dashboard. The payout split only carries the last 4 " +
+			"digits of each account. Amounts in integer COP." +
+			SETTLEMENTS_READ_ONLY,
+		{
+			status: z
+				.enum([
+					"DRAFT",
+					"GENERATED",
+					"SENT",
+					"AWAITING_PAYMENT",
+					"PAID",
+					"REQUESTED",
+					"PENDING",
+					"REJECTED",
+				])
+				.optional(),
+			organizationId: z
+				.string()
+				.optional()
+				.describe("Only that organization's"),
+			limit: limitParam,
+			cursor: z.string().optional().describe("Pagination cursor"),
+		},
+		async (q) => run(getSettlements({ query: q, client })),
+	);
+	server.tool(
+		"admin_settlements_get",
+		`Detail of a settlement of any organization (GET /api/admin/settlements/{id}).${SETTLEMENTS_READ_ONLY}`,
+		{ id: z.string().describe("Settlement id") },
+		read("admin_settlements_get"),
+		async ({ id }) => run(getSettlementsId({ path: { id }, client })),
 	);
 }

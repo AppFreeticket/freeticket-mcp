@@ -176,6 +176,36 @@ describe.each([
 		// `[]` is a full replace that clears every photo; it must reach the API.
 		body: { imageUrls: [] },
 	},
+	// ── Contract 1.47–1.55 ───────────────────────────────────────────────
+	{
+		tool: "courtesy_requests_create",
+		args: {
+			fullName: "Ana Gómez",
+			email: "ana@correo.co",
+			companion: { fullName: "Luis Gómez" },
+		},
+		method: "POST",
+		url: "https://api.test/api/v1/courtesy-requests",
+		body: {
+			fullName: "Ana Gómez",
+			email: "ana@correo.co",
+			companion: { fullName: "Luis Gómez" },
+		},
+	},
+	{
+		tool: "settlements_list",
+		args: { kind: "MEMBERSHIP" },
+		method: "GET",
+		url: "https://api.test/api/v1/settlements?kind=MEMBERSHIP",
+		body: undefined,
+	},
+	{
+		tool: "content_lives_update",
+		args: { id: "live_1", replayEnabled: true },
+		method: "PATCH",
+		url: "https://api.test/api/v1/content/lives/live_1",
+		body: { replayEnabled: true },
+	},
 	{
 		tool: "customer_merch_orders",
 		args: { cursor: "c_2" },
@@ -356,6 +386,142 @@ describe("customer_* carry the buyer session as a credential", () => {
 		expect(calls[0].url).toBe(url);
 		const text = await calls[0].text();
 		expect(text ? JSON.parse(text) : undefined).toEqual(body);
+		expect(calls[0].headers.get("X-Customer-Session")).toBe("sess_buyer");
+		expect(calls[0].headers.get("Authorization")).toBeNull();
+	});
+
+	// ── Contract 1.47–1.55: buyer community, live chat, newsletter ─────────
+	it("registers the buyer community only with the enterprise key AND the session", () => {
+		const both = build({ apiKey: "ft_test", customerSession: "s" }).tools;
+		for (const name of [
+			"customer_community_feed",
+			"customer_community_comments_create",
+			"customer_live_chat_send",
+		]) {
+			expect(both[name], name).toBeDefined();
+			expect(build({ customerSession: "s" }).tools[name]).toBeUndefined();
+			expect(build({ apiKey: "ft_test" }).tools[name]).toBeUndefined();
+		}
+		// The read-only connection keeps the community reads, drops its writes.
+		const ro = build({
+			apiKey: "ft_test",
+			customerSession: "s",
+			readOnly: "1",
+		}).tools;
+		expect(ro.customer_community_feed).toBeDefined();
+		expect(ro.customer_community_comments_create).toBeUndefined();
+	});
+
+	it.each([
+		{
+			tool: "customer_community_feed",
+			args: { channel: "bogota", limit: 10 },
+			method: "GET",
+			url: "https://api.test/api/v1/customer/community/feed?channel=bogota&limit=10",
+			body: undefined,
+		},
+		{
+			tool: "customer_community_comments",
+			args: { id: "post_1", cursor: "c_1" },
+			method: "GET",
+			url: "https://api.test/api/v1/customer/community/posts/post_1/comments?cursor=c_1",
+			body: undefined,
+		},
+		{
+			tool: "customer_community_comments_create",
+			args: { id: "post_1", body: "¡Qué show!", parentId: "cmt_1" },
+			method: "POST",
+			url: "https://api.test/api/v1/customer/community/posts/post_1/comments",
+			// `id` is the path, never part of the body.
+			body: { body: "¡Qué show!", parentId: "cmt_1" },
+		},
+		{
+			tool: "customer_community_unreact",
+			args: { id: "post_1" },
+			method: "DELETE",
+			url: "https://api.test/api/v1/customer/community/posts/post_1/reactions",
+			body: undefined,
+		},
+		{
+			tool: "customer_community_comments_report",
+			args: { id: "cmt_9", reason: "SPAM" },
+			method: "POST",
+			url: "https://api.test/api/v1/customer/community/comments/cmt_9/report",
+			body: { reason: "SPAM" },
+		},
+		{
+			tool: "customer_community_rsvp_cancel",
+			args: { id: "meet_1" },
+			method: "DELETE",
+			url: "https://api.test/api/v1/customer/community/meetups/meet_1/rsvp",
+			body: undefined,
+		},
+		{
+			tool: "customer_live_chat",
+			args: { id: "live_1", limit: 50 },
+			method: "GET",
+			url: "https://api.test/api/v1/customer/lives/live_1/chat?limit=50",
+			body: undefined,
+		},
+	])("$tool: enterprise key AND buyer session", async ({
+		tool,
+		args,
+		method,
+		url,
+		body,
+	}) => {
+		const { calls, tools } = build({
+			apiKey: "ft_test",
+			customerSession: "sess_buyer",
+		});
+		expect(tools[tool], `missing tool ${tool}`).toBeDefined();
+		await tools[tool].handler(args, {});
+		expect(calls).toHaveLength(1);
+		expect(calls[0].method).toBe(method);
+		expect(calls[0].url).toBe(url);
+		const text = await calls[0].text();
+		expect(text ? JSON.parse(text) : undefined).toEqual(body);
+		expect(calls[0].headers.get("Authorization")).toBe("Bearer ft_test");
+		expect(calls[0].headers.get("X-Customer-Session")).toBe("sess_buyer");
+	});
+
+	it("customer_live_chat_send always sends an Idempotency-Key, and reuses the one given", async () => {
+		const { calls, tools } = build({
+			apiKey: "ft_test",
+			customerSession: "sess_buyer",
+		});
+		await tools.customer_live_chat_send.handler(
+			{ id: "live_1", text: "hola" },
+			{},
+		);
+		await tools.customer_live_chat_send.handler(
+			{ id: "live_1", text: "hola", idempotencyKey: "k-1" },
+			{},
+		);
+		expect(calls[0].url).toBe(
+			"https://api.test/api/v1/customer/lives/live_1/chat/messages",
+		);
+		expect(JSON.parse(await calls[0].text())).toEqual({ text: "hola" });
+		expect(calls[0].headers.get("Idempotency-Key")).toBeTruthy();
+		expect(calls[1].headers.get("Idempotency-Key")).toBe("k-1");
+	});
+
+	it.each([
+		{ tool: "customer_newsletter", method: "GET" },
+		{ tool: "customer_newsletter_unsubscribe", method: "DELETE" },
+	])("$tool: buyer layer, workspace in the query, no B2B key", async ({
+		tool,
+		method,
+	}) => {
+		const { calls, tools } = build({
+			apiKey: "ft_test",
+			customerSession: "sess_buyer",
+		});
+		await tools[tool].handler({ workspaceId: "org_1" }, {});
+		expect(calls[0].method).toBe(method);
+		expect(calls[0].url).toBe(
+			"https://api.test/api/v1/customer/newsletter?workspaceId=org_1",
+		);
 		expect(calls[0].headers.get("X-Customer-Session")).toBe("sess_buyer");
 		expect(calls[0].headers.get("Authorization")).toBeNull();
 	});

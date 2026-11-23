@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { run } from "./api";
 
-describe("run() ante un fallo de transporte (#12)", () => {
+describe("run() on a transport failure (#12)", () => {
 	it("returns the same envelope with a network_error code and retryable", async () => {
 		// @hey-api/client-fetch only populates `error` when there was an HTTP
 		// response. A DNS, timeout or TLS failure rejects the promise; without the

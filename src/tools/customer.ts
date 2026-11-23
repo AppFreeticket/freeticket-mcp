@@ -4,9 +4,11 @@ import { z } from "zod";
 import { run } from "../api";
 import {
 	deleteCustomerAddressesId,
+	deleteCustomerNewsletter,
 	getCustomerAddresses,
 	getCustomerMe,
 	getCustomerMembership,
+	getCustomerNewsletter,
 	getCustomerOrders,
 	getCustomerOrdersId,
 	getCustomerProfile,
@@ -93,6 +95,21 @@ export function registerCustomerTools(server: McpServer, client: Client): void {
 		async (q) => run(getCustomerMembership({ query: q, client })),
 	);
 	server.tool(
+		"customer_newsletter",
+		"Whether the buyer is subscribed to one workspace's newsletter " +
+			"(GET /customer/newsletter → `subscribed`). Subscribing is not a " +
+			"tool: it records the buyer's consent to the text the brand's " +
+			"landing shows them.",
+		{
+			workspaceId: z
+				.string()
+				.min(1)
+				.describe("Workspace whose newsletter to check"),
+		},
+		read("customer_newsletter"),
+		async (q) => run(getCustomerNewsletter({ query: q, client })),
+	);
+	server.tool(
 		"customer_profile",
 		"Profile of the buyer — name and phone (GET /customer/profile).",
 		{},
@@ -171,6 +188,24 @@ export function registerCustomerTools(server: McpServer, client: Client): void {
 		write("customer_order_release", { destructive: true }),
 		async ({ id }) =>
 			run(postCustomerOrdersIdRelease({ path: { id }, client })),
+	);
+	server.tool(
+		"customer_newsletter_unsubscribe",
+		"Unsubscribes the buyer from one workspace's newsletter " +
+			"(DELETE /customer/newsletter). Idempotent: answers " +
+			"`subscribed: false` also when they were not subscribed. Subscribing " +
+			"again goes through the brand's landing (it records consent).",
+		{
+			workspaceId: z
+				.string()
+				.min(1)
+				.describe("Workspace whose newsletter to leave"),
+		},
+		write("customer_newsletter_unsubscribe", {
+			destructive: false,
+			idempotent: true,
+		}),
+		async (q) => run(deleteCustomerNewsletter({ query: q, client })),
 	);
 	server.tool(
 		"customer_profile_update",

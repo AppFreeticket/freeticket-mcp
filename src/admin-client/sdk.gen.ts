@@ -7,6 +7,12 @@ import type {
 } from "@hey-api/client-fetch";
 import { client as _heyApiClient } from "./client.gen";
 import type {
+	DeleteCrmSuppressionsData,
+	DeleteCrmSuppressionsError,
+	DeleteCrmSuppressionsResponse,
+	DeleteSettlementsIdData,
+	DeleteSettlementsIdError,
+	DeleteSettlementsIdResponse,
 	DeleteTokensIdData,
 	DeleteTokensIdError,
 	DeleteTokensIdResponse,
@@ -31,9 +37,15 @@ import type {
 	GetCrmOptionsData,
 	GetCrmOptionsError,
 	GetCrmOptionsResponse,
+	GetCrmOrganizationsData,
+	GetCrmOrganizationsError,
+	GetCrmOrganizationsResponse,
 	GetCrmQuotaData,
 	GetCrmQuotaError,
 	GetCrmQuotaResponse,
+	GetCrmSuppressionsData,
+	GetCrmSuppressionsError,
+	GetCrmSuppressionsResponse,
 	GetFeatureFlagsData,
 	GetFeatureFlagsError,
 	GetFeatureFlagsResponse,
@@ -46,6 +58,12 @@ import type {
 	GetPlatformPlansIdError,
 	GetPlatformPlansIdResponse,
 	GetPlatformPlansResponse,
+	GetSettlementsData,
+	GetSettlementsError,
+	GetSettlementsIdData,
+	GetSettlementsIdError,
+	GetSettlementsIdResponse,
+	GetSettlementsResponse,
 	GetTokensData,
 	GetTokensError,
 	GetTokensResponse,
@@ -88,6 +106,15 @@ import type {
 	PostCrmCampaignsIdCancelError,
 	PostCrmCampaignsIdCancelResponse,
 	PostCrmCampaignsResponse,
+	PostCrmPeopleSearchData,
+	PostCrmPeopleSearchError,
+	PostCrmPeopleSearchResponse,
+	PostCrmSuppressionsData,
+	PostCrmSuppressionsError,
+	PostCrmSuppressionsResponse,
+	PostCrmTestSendData,
+	PostCrmTestSendError,
+	PostCrmTestSendResponse,
 	PostImpersonateData,
 	PostImpersonateError,
 	PostImpersonateResponse,
@@ -97,6 +124,24 @@ import type {
 	PostPlatformPlansData,
 	PostPlatformPlansError,
 	PostPlatformPlansResponse,
+	PostSettlementsData,
+	PostSettlementsError,
+	PostSettlementsFilesData,
+	PostSettlementsFilesError,
+	PostSettlementsFilesResponse,
+	PostSettlementsIdMarkPaidData,
+	PostSettlementsIdMarkPaidError,
+	PostSettlementsIdMarkPaidResponse,
+	PostSettlementsIdProofsData,
+	PostSettlementsIdProofsError,
+	PostSettlementsIdProofsResponse,
+	PostSettlementsIdRegenerateData,
+	PostSettlementsIdRegenerateError,
+	PostSettlementsIdRegenerateResponse,
+	PostSettlementsIdSendData,
+	PostSettlementsIdSendError,
+	PostSettlementsIdSendResponse,
+	PostSettlementsResponse,
 	PostTokensData,
 	PostTokensError,
 	PostTokensResponse,
@@ -1047,5 +1092,411 @@ export const getCrmEventDates = <ThrowOnError extends boolean = false>(
 		],
 		url: "/crm/event-dates",
 		...options,
+	});
+};
+
+/**
+ * Quitar una baja global que puso el equipo (ESCRITURA)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: la persona vuelve a recibir campañas del CRM. Exige `{ "email": …, "confirm": true }`; sin `confirm`, 422 `CONFIRMATION_REQUIRED` y no se quita nada. Solo las que puso el equipo (motivo `admin`): la que pidió la persona desde el enlace de baja, un rebote o una queja responden 404 y siguen vigentes. 429 con `Retry-After`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_suppression.remove`.
+ */
+export const deleteCrmSuppressions = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteCrmSuppressionsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteCrmSuppressionsResponse,
+		DeleteCrmSuppressionsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/suppressions",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Listar las bajas del CRM
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Las bajas más recientes primero. `scope=global` (por defecto): solo las globales (workspace de plataforma); `all`: también las de cada organización. Los correos van enmascarados; `query` busca por el correo completo o una parte.
+ */
+export const getCrmSuppressions = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCrmSuppressionsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCrmSuppressionsResponse,
+		GetCrmSuppressionsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/suppressions",
+		...options,
+	});
+};
+
+/**
+ * Agregar una baja global (ESCRITURA)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: la persona deja de recibir campañas del CRM maestro (no frena las campañas propias de un organizador). Queda con motivo `admin`. Idempotente: si ya estaba dada de baja (por cualquier motivo) no cambia nada y responde igual. 429 con `Retry-After`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_suppression.add` (con el correo enmascarado).
+ */
+export const postCrmSuppressions = <ThrowOnError extends boolean = false>(
+	options: Options<PostCrmSuppressionsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCrmSuppressionsResponse,
+		PostCrmSuppressionsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/suppressions",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Enviar una prueba de la campaña a uno mismo (ESCRITURA: envía)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA: manda el mensaje armado tal como saldría, con asunto `[Prueba]`, a QUIEN LLAMA — su correo, o por WhatsApp el teléfono de su perfil de staff — nunca a un destino del body. Exige `{ "confirm": true }`; sin él, 422 `CONFIRMATION_REQUIRED` y no sale nada. Por WhatsApp consume 1 del cupo de Meta. Mismas reglas de canal y remitente que el lanzamiento (422 con `details[].path`). 429 `RATE_LIMITED` con `Retry-After` (5 cada 10 min por persona, compartido con el panel). 409 `WHATSAPP_BLOCKED` / 503 `WHATSAPP_UNAVAILABLE`; 502 `SEND_FAILED` si el proveedor rechazó el envío. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `crm_campaign.test`.
+ */
+export const postCrmTestSend = <ThrowOnError extends boolean = false>(
+	options: Options<PostCrmTestSendData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCrmTestSendResponse,
+		PostCrmTestSendError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/test-send",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Buscar organizaciones para una campaña del CRM
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Organizaciones activas (sin la de plataforma) por nombre o slug: hasta 10 con `query`, las primeras 20 por nombre sin ella. Sirven para `scope.level: "orgs"` del filtro o para `sender.workspaceId`.
+ */
+export const getCrmOrganizations = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCrmOrganizationsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCrmOrganizationsResponse,
+		GetCrmOrganizationsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/organizations",
+		...options,
+	});
+};
+
+/**
+ * Buscar personas del alcance para una campaña del CRM
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Lectura (POST porque el alcance es un objeto; no escribe nada). Personas del alcance —el mismo universo del resolver: a quien aparece le puede llegar— por correo o nombre, desde 2 caracteres. Devuelve el correo COMPLETO (es lo que lleva la condición `people` del filtro), del nombre solo la inicial y el teléfono enmascarado. Por eso no la expone el MCP (`x-ft-mcp`).
+ */
+export const postCrmPeopleSearch = <ThrowOnError extends boolean = false>(
+	options: Options<PostCrmPeopleSearchData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCrmPeopleSearchResponse,
+		PostCrmPeopleSearchError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/crm/people/search",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Listar liquidaciones (todas las organizaciones)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. Las liquidaciones de EVENTOS de todas las organizaciones, las más nuevas primero (las de membresías no se listan acá, igual que en el panel). Paginada por cursor (`limit`, `cursor`). Del reparto solo viajan los últimos 4 dígitos de cada cuenta.
+ */
+export const getSettlements = <ThrowOnError extends boolean = false>(
+	options?: Options<GetSettlementsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetSettlementsResponse,
+		GetSettlementsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements",
+		...options,
+	});
+};
+
+/**
+ * Crear una liquidación, manual o automática (ESCRITURA: dinero)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`). `mode: manual` registra un PDF ya subido con `POST /settlements/files` y el monto digitado (máx. dos decimales); `mode: auto` calcula el borrador de la función y adjunta el PDF generado (monto = saldo final, puede ser negativo). Nace en `GENERATED` y NO notifica al organizador. 409 `DUPLICATE_SETTLEMENT` (con `details.existingId` cuando se conoce) si la función ya tiene una liquidación activa — reintentar con el mismo body no crea otra. 422 si el archivo no es de la organización, o el evento/función no le pertenecen. 503 `STORAGE_UNAVAILABLE` / 502 `UPLOAD_FAILED` / 500 `DRAFT_FAILED` en la automática. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.create` / `settlement.create_auto`.
+ */
+export const postSettlements = <ThrowOnError extends boolean = false>(
+	options: Options<PostSettlementsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSettlementsResponse,
+		PostSettlementsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Subir el PDF de una liquidación o de un comprobante (ESCRITURA)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): sube un PDF (en `contentBase64`, máx. 3 MB decodificado; se verifican los bytes `%PDF`) al bucket privado de liquidaciones de la organización y devuelve su `storagePath`. No crea ni cambia ninguna liquidación: ese `storagePath` se usa en `POST /settlements` (`mode: manual`), `POST /settlements/{id}/proofs` y `POST /settlements/{id}/mark-paid`. Nunca devuelve una URL pública. 422 si no es un PDF o la organización no existe; 413 si pasa el tope; 503 `STORAGE_UNAVAILABLE` / 502 `UPLOAD_FAILED`. No expuesta por el MCP (`x-ft-mcp`).
+ */
+export const postSettlementsFiles = <ThrowOnError extends boolean = false>(
+	options: Options<PostSettlementsFilesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSettlementsFilesResponse,
+		PostSettlementsFilesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/files",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Borrar una liquidación (ESCRITURA: dinero, irreversible)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA IRREVERSIBLE (`x-ft-destructive`): exige `{ "confirm": true }` en el cuerpo; sin él responde 422 `CONFIRMATION_REQUIRED` y no borra nada. Igual que el panel, una liquidación de EVENTO se puede borrar en cualquier estado (incluida una `PAID`). Una de MEMBRESÍAS solo en `DRAFT` o `GENERATED`: al borrarla sus cobros vuelven a quedar pendientes, en la misma transacción; si ya se envió, 409 `INVALID_STATE` y no se toca nada. El estado previo completo queda en `GET /audit-log` como `settlement.delete`. El PDF queda en el bucket. 404 si no existe. No expuesta por el MCP (`x-ft-mcp`).
+ */
+export const deleteSettlementsId = <ThrowOnError extends boolean = false>(
+	options: Options<DeleteSettlementsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteSettlementsIdResponse,
+		DeleteSettlementsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/{id}",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Ver una liquidación
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`.
+ */
+export const getSettlementsId = <ThrowOnError extends boolean = false>(
+	options: Options<GetSettlementsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetSettlementsIdResponse,
+		GetSettlementsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/{id}",
+		...options,
+	});
+};
+
+/**
+ * Regenerar el PDF con el reparto bancario (ESCRITURA: dinero)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): reemplaza el PDF de una liquidación en `AWAITING_PAYMENT` por el definitivo, con las cuentas y montos del reparto del organizador. Usa la misma comisión y costo fijo que la generación automática (`commissionRate` en %, `fixedFee` base sin IVA). No cambia el monto: si el saldo recalculado no coincide con él responde 409 `AMOUNT_MISMATCH` y no escribe nada (hay que generar la liquidación desde cero). 409 `INVALID_STATE` si no es de EVENTO (una de membresías no se regenera), no está esperando el pago, no tiene reparto o no está asociada a una función. 404 si no existe. 503 `STORAGE_UNAVAILABLE` / 502 `UPLOAD_FAILED` / 500 `DRAFT_FAILED`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.regenerate`.
+ */
+export const postSettlementsIdRegenerate = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostSettlementsIdRegenerateData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSettlementsIdRegenerateResponse,
+		PostSettlementsIdRegenerateError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/{id}/regenerate",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Enviar una liquidación al organizador (ESCRITURA: envía correo)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): `GENERATED` → `SENT`; desde acá el organizador la ve, puede repartir el pago y recibe un correo (best-effort: si el correo falla, el envío queda hecho). Exige `{ "confirm": true }`; sin él, 422 `CONFIRMATION_REQUIRED` y no pasa nada. 409 `INVALID_STATE` si no está en `GENERATED` (ya enviada, o en otro estado): reintentar no re-notifica. 404 si no existe. 429 con `Retry-After` (20 cada 10 min por usuario). No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.send`.
+ */
+export const postSettlementsIdSend = <ThrowOnError extends boolean = false>(
+	options: Options<PostSettlementsIdSendData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSettlementsIdSendResponse,
+		PostSettlementsIdSendError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/{id}/send",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Marcar una liquidación como pagada (ESCRITURA: dinero)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): `AWAITING_PAYMENT` → `PAID`, guarda los comprobantes de la transferencia (`proofs`, subidos antes con `POST /settlements/files`; cada `storagePath` tiene que ser de la organización de la liquidación, si no 422) y le manda un correo al organizador (best-effort). Exige `{ "confirm": true }`; sin él, 422 `CONFIRMATION_REQUIRED` y no se registra nada. 409 `INVALID_STATE` si no está esperando el pago (ya pagada incluida): reintentar no paga ni notifica dos veces. 404 si no existe. 429 con `Retry-After`. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.mark_paid`.
+ */
+export const postSettlementsIdMarkPaid = <ThrowOnError extends boolean = false>(
+	options: Options<PostSettlementsIdMarkPaidData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSettlementsIdMarkPaidResponse,
+		PostSettlementsIdMarkPaidError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/{id}/mark-paid",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Adjuntar el PDF a una liquidación por enviar (ESCRITURA: dinero)
+ * Requiere sesión de plataforma con rol `SUPER_ADMIN`. ESCRITURA (`x-ft-destructive`): `DRAFT` → `GENERATED` con el PDF subido antes por `POST /settlements/files` (tiene que ser de la organización de la liquidación, si no 422) y, opcional, un monto nuevo (máx. dos decimales); con `amount` exige `{ "confirm": true }`, sin él 422 `CONFIRMATION_REQUIRED` y no se toca nada. Solo filas legado: lo que se crea hoy ya nace en `GENERATED`. No notifica al organizador. 409 `INVALID_STATE` si ya tiene comprobante. 404 si no existe. Los comprobantes de la TRANSFERENCIA van en `mark-paid`, no acá. No expuesta por el MCP (`x-ft-mcp`). Queda en `GET /audit-log` como `settlement.attach_proof`.
+ */
+export const postSettlementsIdProofs = <ThrowOnError extends boolean = false>(
+	options: Options<PostSettlementsIdProofsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSettlementsIdProofsResponse,
+		PostSettlementsIdProofsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				in: "cookie",
+				name: "better-auth.session_token",
+				type: "apiKey",
+			},
+		],
+		url: "/settlements/{id}/proofs",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };

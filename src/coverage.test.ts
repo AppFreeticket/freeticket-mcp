@@ -101,6 +101,18 @@ const EXCLUDED: Record<string, string> = {
 	// PUT the file bytes to. An MCP host has no file to send; the photos are
 	// uploaded with `ft merch products create`, and the resulting publicUrls
 	// are set with merch_products_create / merch_products_set_images.
+	// Newsletter sign-up of an enterprise landing (contract 1.48): the body is
+	// the buyer's consent (`consent: true` + the version of the text they
+	// accepted). Consent is given to the text the landing shows the buyer, not
+	// asserted by an agent. Reading the status and unsubscribing are tools
+	// (customer_newsletter, customer_newsletter_unsubscribe).
+	postCustomerNewsletter:
+		"records the buyer's consent to the landing's versioned text — consent is the buyer's, not an agent's",
+	// Live chat Realtime token (contract 1.55): a short-lived JWT for the
+	// browser to subscribe to the Supabase channel. An agent reads the backlog
+	// (customer_live_chat) and posts (customer_live_chat_send) without it.
+	postCustomerLivesIdChatToken:
+		"browser Realtime subscription token — agents use customer_live_chat / customer_live_chat_send",
 	postMerchProductsImagesUploadUrl:
 		"signed upload URL for raw file bytes — uploading from disk belongs to the CLI (`ft merch products`)",
 };
@@ -116,10 +128,10 @@ describe.each([
 	[
 		"B2B /api/v1",
 		"openapi.json",
-		["b2b.ts", "b2b-writes.ts", "customer.ts"],
-		200,
+		["b2b.ts", "b2b-writes.ts", "customer.ts", "customer-community.ts"],
+		230,
 	],
-	["superadmin /api/admin", "admin-openapi.json", ["admin.ts"], 36],
+	["superadmin /api/admin", "admin-openapi.json", ["admin.ts"], 50],
 	["public /api/public", "public-openapi.json", ["public.ts"], 6],
 ])("contract %s", (_label, file, files, minOps) => {
 	const ops = operations(file as SpecFile);

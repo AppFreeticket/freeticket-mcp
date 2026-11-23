@@ -68,6 +68,7 @@ import {
 	postContentPlaybackToken,
 	postContentPosts,
 	postContentSeries,
+	postCourtesyRequests,
 	postDiscounts,
 	postEventDatesIdAccessClose,
 	postEvents,
@@ -137,7 +138,7 @@ export function registerB2bWriteTools(
 		"Creates an event with its dates (POST /events).",
 		{
 			name: z.string().describe("Event name"),
-			slug: z.string().describe("Slug único (URL-friendly)"),
+			slug: z.string().describe("Unique slug (URL-friendly)"),
 			description: z.string().optional(),
 			venueId: z.string().nullish().describe("Venue id"),
 			dates: z
@@ -145,7 +146,7 @@ export function registerB2bWriteTools(
 					z.object({
 						startsAt: z.string().describe("Inicio (ISO 8601)"),
 						endsAt: z.string().nullish().describe("Fin (ISO 8601)"),
-						timezone: z.string().describe("Ej: America/Bogota"),
+						timezone: z.string().describe("e.g. America/Bogota"),
 					}),
 				)
 				.describe("At least one date"),
@@ -262,7 +263,7 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"events_delete",
-		`Elimina un evento (DELETE /events/{id}).${CONFIRM}`,
+		`Deletes an event (DELETE /events/{id}).${CONFIRM}`,
 		{ id: z.string().describe("Event id") },
 		write("events_delete", { destructive: true }),
 		async ({ id }) => run(deleteEventsId({ path: { id }, client })),
@@ -285,14 +286,11 @@ export function registerB2bWriteTools(
 			timezone: z
 				.string()
 				.default("America/Bogota")
-				.describe("Ej: America/Bogota"),
+				.describe("e.g. America/Bogota"),
 			label: z.string().max(200).nullish().describe("Date label"),
 			endsAt: z.string().nullish().describe("Fin (ISO 8601)"),
-			doorsOpenAt: z
-				.string()
-				.nullish()
-				.describe("Apertura de puertas (ISO 8601)"),
-			venueId: z.string().nullish().describe("Venue de esta función"),
+			doorsOpenAt: z.string().nullish().describe("Doors open (ISO 8601)"),
+			venueId: z.string().nullish().describe("Venue for this date"),
 			streamType: z
 				.enum(["PRESENCIAL", "ONLINE", "HIBRIDO"])
 				.optional()
@@ -321,10 +319,7 @@ export function registerB2bWriteTools(
 			dateId: z.string().describe("Date id"),
 			startsAt: z.string().optional().describe("Inicio (ISO 8601)"),
 			endsAt: z.string().nullish().describe("Fin (ISO 8601)"),
-			doorsOpenAt: z
-				.string()
-				.nullish()
-				.describe("Apertura de puertas (ISO 8601)"),
+			doorsOpenAt: z.string().nullish().describe("Doors open (ISO 8601)"),
 			timezone: z.string().optional(),
 			label: z.string().max(200).nullish(),
 			venueId: z.string().nullish(),
@@ -381,7 +376,7 @@ export function registerB2bWriteTools(
 				.describe("Price in the given currency"),
 			currency: z.enum(["COP"]).default("COP").describe("Only COP"),
 			capacity: z.number().int().describe("Stock total"),
-			maxPerOrder: z.number().int().describe("Máximo por orden"),
+			maxPerOrder: z.number().int().describe("Max per order"),
 			isVisible: z.boolean(),
 			organizerAbsorbsFee: z
 				.boolean()
@@ -405,7 +400,7 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"ticket_types_update",
-		"Actualiza un tipo de ticket — precio, stock, visibilidad (PATCH /ticket-types/{id}).",
+		"Updates a ticket type — price, stock, visibility (PATCH /ticket-types/{id}).",
 		{
 			id: z.string().describe("Ticket type id"),
 			name: z.string().min(1).max(100).optional(),
@@ -436,13 +431,13 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"ticket_types_delete",
-		`Elimina un tipo de ticket (DELETE /ticket-types/{id}).${CONFIRM}`,
+		`Deletes a ticket type (DELETE /ticket-types/{id}).${CONFIRM}`,
 		{ id: z.string().describe("Ticket type id") },
 		write("ticket_types_delete", { destructive: true }),
 		async ({ id }) => run(deleteTicketTypesId({ path: { id }, client })),
 	);
 
-	// ── Ventas y tickets ─────────────────────────────────────────────────────
+	// ── Sales and tickets ────────────────────────────────────────────────────
 	server.tool(
 		"sales_create",
 		"Issues tickets to a buyer without going through checkout " +
@@ -547,7 +542,7 @@ export function registerB2bWriteTools(
 			run(postTicketsTicketCodeResend({ path: { ticketCode: code }, client })),
 	);
 
-	// ── Membresías ───────────────────────────────────────────────────────────
+	// ── Memberships ──────────────────────────────────────────────────────────
 	server.tool(
 		"plans_create",
 		"Creates a fan membership plan that buyers can subscribe to " +
@@ -616,7 +611,7 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"plans_delete",
-		`Elimina un plan de membresía (DELETE /membership-plans/{id}).${CONFIRM}`,
+		`Deletes a membership plan (DELETE /membership-plans/{id}).${CONFIRM}`,
 		{ id: z.string().describe("Plan id") },
 		write("plans_delete", { destructive: true }),
 		async ({ id }) => run(deleteMembershipPlansId({ path: { id }, client })),
@@ -630,10 +625,10 @@ export function registerB2bWriteTools(
 		async ({ id }) => run(postSubscriptionsIdCancel({ path: { id }, client })),
 	);
 
-	// ── Venues y staff ───────────────────────────────────────────────────────
+	// ── Venues and staff ─────────────────────────────────────────────────────
 	server.tool(
 		"venues_create",
-		"Crea un venue (POST /venues).",
+		"Creates a venue (POST /venues).",
 		{
 			name: z.string(),
 			address: z.string(),
@@ -648,7 +643,7 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"venues_update",
-		"Actualiza un venue (PATCH /venues/{id}).",
+		"Updates a venue (PATCH /venues/{id}).",
 		{
 			id: z.string().describe("Venue id"),
 			name: z.string().optional(),
@@ -666,7 +661,7 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"venues_delete",
-		`Elimina un venue (DELETE /venues/{id}).${CONFIRM}`,
+		`Deletes a venue (DELETE /venues/{id}).${CONFIRM}`,
 		{ id: z.string().describe("Venue id") },
 		write("venues_delete", { destructive: true }),
 		async ({ id }) => run(deleteVenuesId({ path: { id }, client })),
@@ -718,22 +713,22 @@ export function registerB2bWriteTools(
 	// ── Comercial ────────────────────────────────────────────────────────────
 	server.tool(
 		"discounts_create",
-		"Crea un cupón/descuento (POST /discounts).",
+		"Creates a coupon/discount (POST /discounts).",
 		{
 			code: z.string().describe("Coupon code"),
 			type: z.enum(["PERCENT", "FIXED"]),
-			value: z.number().describe("Porcentaje o monto fijo según type"),
-			eventId: z.string().nullish().describe("Limitar a un evento"),
-			maxUses: z.number().int().nullish().describe("Usos máximos"),
+			value: z.number().describe("Percentage or fixed amount, per type"),
+			eventId: z.string().nullish().describe("Limit to one event"),
+			maxUses: z.number().int().nullish().describe("Max uses"),
 			startsAt: z.string().nullish().describe("Valid from (ISO 8601)"),
-			endsAt: z.string().nullish().describe("Vigente hasta (ISO 8601)"),
+			endsAt: z.string().nullish().describe("Valid until (ISO 8601)"),
 		},
 		write("discounts_create", { destructive: false }),
 		async (body) => run(postDiscounts({ body, client })),
 	);
 	server.tool(
 		"discounts_update",
-		"Actualiza un cupón/descuento (PATCH /discounts/{id}).",
+		"Updates a coupon/discount (PATCH /discounts/{id}).",
 		{
 			id: z.string().describe("Coupon id"),
 			active: z.boolean().optional(),
@@ -748,7 +743,7 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"discounts_delete",
-		`Elimina un cupón/descuento (DELETE /discounts/{id}).${CONFIRM}`,
+		`Deletes a coupon/discount (DELETE /discounts/{id}).${CONFIRM}`,
 		{ id: z.string().describe("Coupon id") },
 		write("discounts_delete", { destructive: true }),
 		async ({ id }) => run(deleteDiscountsId({ path: { id }, client })),
@@ -788,7 +783,7 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"webhooks_delete",
-		`Elimina un webhook (DELETE /webhooks/{id}).${CONFIRM}`,
+		`Deletes a webhook (DELETE /webhooks/{id}).${CONFIRM}`,
 		{ id: z.string().describe("Webhook id") },
 		write("webhooks_delete", { destructive: true }),
 		async ({ id }) => run(deleteWebhooksId({ path: { id }, client })),
@@ -1088,6 +1083,28 @@ export function registerB2bWriteTools(
 					client,
 				}),
 			),
+	);
+
+	// ── Landing courtesy requests (enterprise, contract 1.47) ────────────────
+	server.tool(
+		"courtesy_requests_create",
+		"Registers a courtesy-invitation request from an enterprise landing " +
+			"(POST /courtesy-requests); it belongs to the key's organization. " +
+			"Sends nothing: the team reviews it in the dashboard " +
+			"(/dashboard/cortesias), where the list and export live. One request " +
+			"per email: a resubmit answers 409 `CONFLICT` and leaves the first " +
+			"untouched. 429 `RATE_LIMITED` (10/min per email) carries " +
+			"`Retry-After`. Requires an enterprise service API key.",
+		{
+			fullName: z.string().min(2).max(120),
+			email: z.string().email().max(254),
+			companion: z
+				.object({ fullName: z.string().min(2).max(120) })
+				.optional()
+				.describe("Optional plus-one, by name only"),
+		},
+		write("courtesy_requests_create", { destructive: false }),
+		async (body) => run(postCourtesyRequests({ body, client })),
 	);
 
 	// ── Contract 1.28–1.29: show day ─────────────────────────────────────────
@@ -1841,6 +1858,9 @@ export function registerB2bWriteTools(
 	const scheduledAt =
 		'Wall-clock time "YYYY-MM-DDTHH:mm" in the WORKSPACE time zone (not ' +
 		"UTC, no offset); future and at most 2 years ahead";
+	const REPLAY =
+		"Keeps the recording 24 h after the stream ends, for the live's own " +
+		"audience (default false)";
 	server.tool(
 		"content_videos_update",
 		"Edits an on-demand video (draft or published); only the fields sent " +
@@ -1998,6 +2018,7 @@ export function registerB2bWriteTools(
 				.describe("Show date to tie it to (one stream per date)"),
 			memberOnly: z.boolean().optional().describe("Default true"),
 			scheduledAt: z.string().nullish().describe(scheduledAt),
+			replayEnabled: z.boolean().optional().describe(REPLAY),
 		},
 		// openWorld: creates the stream in Mux.
 		write("content_lives_create", { destructive: false, openWorld: true }),
@@ -2005,7 +2026,7 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"content_lives_update",
-		"Changes a live stream's scheduled time and/or members-only flag; absent " +
+		"Changes a live stream's scheduled time, members-only flag and/or replay; absent " +
 			"fields keep their value. Never returns the stream key " +
 			"(PATCH /content/lives/{id}). Errors: 409 `LIVE_NOT_IDLE` " +
 			"(`scheduledAt` on a stream on air or ended), 409 `MEMBERSHIP_PREREQ`. " +
@@ -2017,6 +2038,10 @@ export function registerB2bWriteTools(
 				.nullish()
 				.describe(`${scheduledAt}; null removes it. Only while IDLE`),
 			memberOnly: z.boolean().optional(),
+			replayEnabled: z
+				.boolean()
+				.optional()
+				.describe(`${REPLAY}. Can be changed anytime`),
 		},
 		write("content_lives_update", { destructive: false }),
 		async ({ id, ...body }) =>
@@ -2637,7 +2662,7 @@ export function registerB2bWriteTools(
 			options: z
 				.array(
 					z.object({
-						name: z.string().min(1).max(40).describe("e.g. `Talla`"),
+						name: z.string().min(1).max(40).describe("e.g. `Size`"),
 						values: z
 							.array(z.string().min(1).max(60))
 							.min(1)
@@ -2654,7 +2679,7 @@ export function registerB2bWriteTools(
 						attributes: z
 							.record(z.string(), z.string())
 							.optional()
-							.describe('One value per option: `{ "Talla": "M" }`'),
+							.describe('One value per option: `{ "Size": "M" }`'),
 						sku: z
 							.string()
 							.min(1)

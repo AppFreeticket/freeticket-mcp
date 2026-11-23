@@ -5,6 +5,46 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+### Added
+- Contracts synced: `/api/v1` 1.45.0 → 1.55.0, `/api/admin` 1.8.0 → 1.9.0,
+  `/api/public` 0.10.1 → 0.11.0; clients regenerated.
+- Buyer community and live chat (`/api/v1/customer/community/*`,
+  `/api/v1/customer/lives/{id}/chat*`), new `src/tools/customer-community.ts`.
+  Double credential by contract (enterprise key + buyer session), registered
+  only when the connection carries both: `customer_community_me`,
+  `customer_community_channels`, `customer_community_feed`,
+  `customer_community_post_get`, `customer_community_comments`,
+  `customer_community_meetups`, `customer_community_meetups_get`,
+  `customer_live_chat` (reads) and `customer_community_comments_create`,
+  `customer_community_comments_delete` (destructive, `x-ft-destructive`),
+  `customer_community_react` / `customer_community_unreact`,
+  `customer_community_posts_report` / `customer_community_comments_report`,
+  `customer_community_rsvp` / `customer_community_rsvp_cancel`,
+  `customer_live_chat_send` (always sends the required `Idempotency-Key`).
+- `customer_newsletter` and `customer_newsletter_unsubscribe` (buyer layer).
+- `courtesy_requests_create` (`POST /courtesy-requests`, enterprise key).
+- Superadmin reads: `admin_settlements_list`, `admin_settlements_get`,
+  `admin_crm_organizations`, `admin_crm_suppressions`.
+- `settlements_list` takes `kind` (EVENT | MEMBERSHIP);
+  `content_lives_create` / `content_lives_update` take `replayEnabled`.
+
+### Not exposed (on purpose)
+- `POST /customer/newsletter`: it records the buyer's consent to the
+  landing's versioned text; consent is the buyer's, not an agent's.
+- `POST /customer/lives/{id}/chat/token`: a browser Realtime JWT.
+- `/api/admin` 1.9 writes marked `x-ft-mcp: { expose: false }`: every
+  settlement write, CRM suppressions add/remove, the CRM test send and
+  `POST /crm/people/search` (full buyer emails).
+
+### Changed
+- All MCP-facing text is now in English (the repo is public): every tool
+  description and parameter description (the superadmin/CRM block was
+  Spanish), the server `instructions`, the error and truncation hints, the
+  OAuth consent page and the view footer ("Showing N of M"). Tool names are
+  unchanged.
+- `public_orders_get`: each ticket's `ticketCode` is `null` until the QR gate
+  opens (event 72 h away or less), as in public contract 0.11.0.
+
 ### Fixed
 - ChatGPT custom MCP connectors ("Agregar servidor MCP personalizado")
   redirect to a per-connector `https://chatgpt.com/connector/oauth/<id>`.
@@ -145,7 +185,7 @@ rows again in `structuredContent` 59 650) → **24 737 chars of text after**
   `hasMore: true`) and the hint says to repeat the same call with the same
   `cursor` and `limit: <shown>` — that response carries the exact cursor.
 - The tools with a view also get the note in `structuredContent.truncated`
-  (the view footer says "Mostrando N de M"); the preview fallback reaches the
+  (the view footer says "Showing N of M"); the preview fallback reaches the
   view as text, not as an object.
 - Trimmed views by default for `sales_list`, `sales_tickets`, `sales_attempts`,
   `reports_export_buyers` and `reports_export_attendees` (ids, codes, status,
@@ -663,7 +703,7 @@ Closes six gaps from the umbrella ledger in one pass (#355, #356, #381, #382,
 ### Added
 - **Login with the free-admin session** as the primary consent path: `/authorize`
   now starts the RFC 8628 device flow against free-admin (same backend as
-  `ft login`). The user clicks "Continuar con FreeTicket", approves with their
+  `ft login`). The user clicks "Continue with FreeTicket", approves with their
   normal session at `/device`, and the consent page polls `/device-token` and
   redirects back to the MCP client automatically — no API keys to paste.
   Multi-workspace accounts get a picker (the minted key travels sealed,
