@@ -5,6 +5,41 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+### Added
+- Contracts synced: `/api/v1` 1.45.0 → 1.55.0, `/api/admin` 1.8.0 → 1.9.0,
+  `/api/public` 0.10.1 → 0.11.0; clients regenerated.
+- Buyer community and live chat (`/api/v1/customer/community/*`,
+  `/api/v1/customer/lives/{id}/chat*`), new `src/tools/customer-community.ts`.
+  Double credential by contract (enterprise key + buyer session), registered
+  only when the connection carries both: `customer_community_me`,
+  `customer_community_channels`, `customer_community_feed`,
+  `customer_community_post_get`, `customer_community_comments`,
+  `customer_community_meetups`, `customer_community_meetups_get`,
+  `customer_live_chat` (reads) and `customer_community_comments_create`,
+  `customer_community_comments_delete` (destructive, `x-ft-destructive`),
+  `customer_community_react` / `customer_community_unreact`,
+  `customer_community_posts_report` / `customer_community_comments_report`,
+  `customer_community_rsvp` / `customer_community_rsvp_cancel`,
+  `customer_live_chat_send` (always sends the required `Idempotency-Key`).
+- `customer_newsletter` and `customer_newsletter_unsubscribe` (buyer layer).
+- `courtesy_requests_create` (`POST /courtesy-requests`, enterprise key).
+- Superadmin reads: `admin_settlements_list`, `admin_settlements_get`,
+  `admin_crm_organizations`, `admin_crm_suppressions`.
+- `settlements_list` takes `kind` (EVENT | MEMBERSHIP);
+  `content_lives_create` / `content_lives_update` take `replayEnabled`.
+
+### Not exposed (on purpose)
+- `POST /customer/newsletter`: it records the buyer's consent to the
+  landing's versioned text; consent is the buyer's, not an agent's.
+- `POST /customer/lives/{id}/chat/token`: a browser Realtime JWT.
+- `/api/admin` 1.9 writes marked `x-ft-mcp: { expose: false }`: every
+  settlement write, CRM suppressions add/remove, the CRM test send and
+  `POST /crm/people/search` (full buyer emails).
+
+### Changed
+- `public_orders_get`: each ticket's `ticketCode` is `null` until the QR gate
+  opens (event 72 h away or less), as in public contract 0.11.0.
+
 ### Fixed
 - ChatGPT custom MCP connectors ("Agregar servidor MCP personalizado")
   redirect to a per-connector `https://chatgpt.com/connector/oauth/<id>`.

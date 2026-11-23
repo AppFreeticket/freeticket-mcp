@@ -13,6 +13,7 @@ import { registerAdminTools } from "./tools/admin";
 import { registerB2bTools } from "./tools/b2b";
 import { registerB2bWriteTools } from "./tools/b2b-writes";
 import { registerCustomerTools } from "./tools/customer";
+import { registerCustomerCommunityTools } from "./tools/customer-community";
 import { registerPublicTools } from "./tools/public";
 import { registerUi } from "./ui";
 
@@ -113,6 +114,9 @@ export function buildServer(creds: Creds, opts: BuildOptions = {}): McpServer {
 		const client = makeB2bClient(creds);
 		registerB2bTools(tools, client, creds);
 		registerB2bWriteTools(tools, client, creds);
+		// Buyer community + live chat: enterprise key AND buyer session.
+		if (creds.customerSession)
+			registerCustomerCommunityTools(tools, client, creds.customerSession);
 	}
 	if (creds.customerSession) {
 		registerCustomerTools(tools, makeCustomerClient(creds));

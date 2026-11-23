@@ -82,7 +82,8 @@ export function registerPublicTools(server: McpServer, client: Client): void {
 	);
 	server.tool(
 		"public_orders_get",
-		"Status of a B2C order — pending | paid | expired | cancelled — plus the tickets once paid (GET /public/orders/{id}).",
+		"Status of a B2C order — pending | paid | expired | cancelled — plus the tickets once paid (GET /public/orders/{id}). " +
+			"Each `ticketCode` is null until the QR gate opens (event 72 h away or less); the QR goes by email.",
 		{
 			id: z.string().describe("Order id (returned by public_orders_create)"),
 		},

@@ -68,6 +68,7 @@ import {
 	postContentPlaybackToken,
 	postContentPosts,
 	postContentSeries,
+	postCourtesyRequests,
 	postDiscounts,
 	postEventDatesIdAccessClose,
 	postEvents,
@@ -1090,6 +1091,28 @@ export function registerB2bWriteTools(
 			),
 	);
 
+	// ── Landing courtesy requests (enterprise, contract 1.47) ────────────────
+	server.tool(
+		"courtesy_requests_create",
+		"Registers a courtesy-invitation request from an enterprise landing " +
+			"(POST /courtesy-requests); it belongs to the key's organization. " +
+			"Sends nothing: the team reviews it in the dashboard " +
+			"(/dashboard/cortesias), where the list and export live. One request " +
+			"per email: a resubmit answers 409 `CONFLICT` and leaves the first " +
+			"untouched. 429 `RATE_LIMITED` (10/min per email) carries " +
+			"`Retry-After`. Requires an enterprise service API key.",
+		{
+			fullName: z.string().min(2).max(120),
+			email: z.string().email().max(254),
+			companion: z
+				.object({ fullName: z.string().min(2).max(120) })
+				.optional()
+				.describe("Optional plus-one, by name only"),
+		},
+		write("courtesy_requests_create", { destructive: false }),
+		async (body) => run(postCourtesyRequests({ body, client })),
+	);
+
 	// ── Contract 1.28–1.29: show day ─────────────────────────────────────────
 	server.tool(
 		"event_dates_access_close_sign",
@@ -1841,6 +1864,9 @@ export function registerB2bWriteTools(
 	const scheduledAt =
 		'Wall-clock time "YYYY-MM-DDTHH:mm" in the WORKSPACE time zone (not ' +
 		"UTC, no offset); future and at most 2 years ahead";
+	const REPLAY =
+		"Keeps the recording 24 h after the stream ends, for the live's own " +
+		"audience (default false)";
 	server.tool(
 		"content_videos_update",
 		"Edits an on-demand video (draft or published); only the fields sent " +
@@ -1998,6 +2024,7 @@ export function registerB2bWriteTools(
 				.describe("Show date to tie it to (one stream per date)"),
 			memberOnly: z.boolean().optional().describe("Default true"),
 			scheduledAt: z.string().nullish().describe(scheduledAt),
+			replayEnabled: z.boolean().optional().describe(REPLAY),
 		},
 		// openWorld: creates the stream in Mux.
 		write("content_lives_create", { destructive: false, openWorld: true }),
@@ -2005,7 +2032,7 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"content_lives_update",
-		"Changes a live stream's scheduled time and/or members-only flag; absent " +
+		"Changes a live stream's scheduled time, members-only flag and/or replay; absent " +
 			"fields keep their value. Never returns the stream key " +
 			"(PATCH /content/lives/{id}). Errors: 409 `LIVE_NOT_IDLE` " +
 			"(`scheduledAt` on a stream on air or ended), 409 `MEMBERSHIP_PREREQ`. " +
@@ -2017,6 +2044,10 @@ export function registerB2bWriteTools(
 				.nullish()
 				.describe(`${scheduledAt}; null removes it. Only while IDLE`),
 			memberOnly: z.boolean().optional(),
+			replayEnabled: z
+				.boolean()
+				.optional()
+				.describe(`${REPLAY}. Can be changed anytime`),
 		},
 		write("content_lives_update", { destructive: false }),
 		async ({ id, ...body }) =>

@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket Public API",
-		"version": "0.10.1",
+		"version": "0.11.0",
 		"description": "FreeTicket public REST API for B2C buyers and their agents (CLI/MCP). Anonymous: no endpoint requires an API key. The only exception is `POST /orders` with `items[].seats` (numbered seats), which requires a buyer session — the `ft-customer` cookie or the `X-Customer-Session` header. Payment is always completed by a person on FreeTicket's checkout. Isolated from the B2B /api/v1 and superadmin /api/admin contracts.\n\n## Versioning and deprecation\n\n- **Path version.** The B2B API is versioned in the path (`/api/v1`). A breaking change ships under a new path (`/api/v2`); the previous version keeps running in parallel until its sunset date.\n- **Contract version.** `info.version` is the semantic version of this document. MINOR = additive (new endpoints, new optional fields, new enum values, new error codes; clients must ignore unknown fields). PATCH = documentation or fixes that do not change shapes. The public API (`/api/public`) is pre-1.0 and not versioned in the path: there, a MINOR bump may include a breaking change and PATCH never does.\n- **Deprecation signals.** A deprecated operation is marked `deprecated: true` in this document and its responses carry `Deprecation` (RFC 9745, e.g. `Deprecation: @1767225600`), `Sunset` (RFC 8594, an HTTP-date after which the operation may stop working) and `Link: <https://appfreeticket.com/desarrolladores>; rel=\"deprecation\"`.\n- **Timeline.** At least 6 months between the first `Deprecation` header and the `Sunset` date for `/api/v1`, and at least 90 days for `/api/public`. A path version is only retired after all its operations have sunset.\n- **Current status.** No operation is deprecated today.\n\n## Rate limits\n\n- **429 always carries `Retry-After`** (seconds). Wait at least that long before retrying the same request. The JSON error envelope comes with `error.retryable: true`; most rate-limited responses use `error.code: \"RATE_LIMITED\"`, and some return a more specific code (for example `TOO_MANY_REQUESTS` or `SEAT_BUDGET_EXHAUSTED`).\n- **RateLimit headers are sent where listed below.** Those endpoints answer every response, success or error, with the IETF RateLimit headers (draft-ietf-httpapi-ratelimit-headers): `RateLimit-Policy: \"<policy>\";q=<quota>;w=<window seconds>` and `RateLimit: \"<policy>\";r=<remaining>;t=<seconds until reset>`. Other endpoints may answer 429 without them.\n- Counters are fixed windows kept per server instance: treat the numbers as pacing hints, not as a global account quota.\n\nEndpoints that send RateLimit headers today: `POST /orders` (per client IP) and `POST /tickets/{code}/resend` (1 per minute per ticket code). Other endpoints may also answer 429."
 	},
 	"servers": [
@@ -554,7 +554,7 @@
 				"operationId": "getOrdersId",
 				"tags": ["orders"],
 				"summary": "Get a B2C order's status (and tickets once paid)",
-				"description": "Public (no auth). Order status: `pending | paid | expired | cancelled`. Once paid (`paid`) it includes the issued ticket codes; the QR/ticket is delivered by email. While still `pending` it returns `expiresAt`, the instant (ISO 8601, UTC) at which its reservation expires — the SAME one returned by `POST /orders`, so a countdown can resume after a reload instead of restarting. It may be in the PAST: that means the reservation has already expired and there is no point sending the buyer to pay, even if the `checkoutUrl` still opens. A null `expiresAt` NEVER means 'no time limit': it means the order is no longer pending, or there is no reservation. The id is a non-enumerable cuid; no buyer data is exposed.",
+				"description": "Public (no auth). Order status: `pending | paid | expired | cancelled`. Once paid (`paid`) it includes the issued tickets; each `ticketCode` is null until the QR gate opens (event starting in 72 hours or less, the same rule as the buyer portal). The QR/ticket is delivered by email. While still `pending` it returns `expiresAt`, the instant (ISO 8601, UTC) at which its reservation expires — the SAME one returned by `POST /orders`, so a countdown can resume after a reload instead of restarting. It may be in the PAST: that means the reservation has already expired and there is no point sending the buyer to pay, even if the `checkoutUrl` still opens. A null `expiresAt` NEVER means 'no time limit': it means the order is no longer pending, or there is no reservation. The id is a non-enumerable cuid; no buyer data is exposed.",
 				"security": [],
 				"parameters": [
 					{
@@ -1050,7 +1050,8 @@
 				"type": "object",
 				"properties": {
 					"ticketCode": {
-						"type": "string"
+						"description": "Ticket code, for reference. null while the QR gate is closed: it is only delivered when the event starts in 72 hours or less (or already started), the same rule as the buyer portal.",
+						"type": ["string", "null"]
 					},
 					"ticketTypeName": {
 						"type": "string"

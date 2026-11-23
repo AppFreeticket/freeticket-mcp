@@ -31,6 +31,18 @@ import type {
 	DeleteCustomerAddressesIdData,
 	DeleteCustomerAddressesIdError,
 	DeleteCustomerAddressesIdResponse,
+	DeleteCustomerCommunityCommentsIdData,
+	DeleteCustomerCommunityCommentsIdError,
+	DeleteCustomerCommunityCommentsIdResponse,
+	DeleteCustomerCommunityMeetupsIdRsvpData,
+	DeleteCustomerCommunityMeetupsIdRsvpError,
+	DeleteCustomerCommunityMeetupsIdRsvpResponse,
+	DeleteCustomerCommunityPostsIdReactionsData,
+	DeleteCustomerCommunityPostsIdReactionsError,
+	DeleteCustomerCommunityPostsIdReactionsResponse,
+	DeleteCustomerNewsletterData,
+	DeleteCustomerNewsletterError,
+	DeleteCustomerNewsletterResponse,
 	DeleteDiscountsIdData,
 	DeleteDiscountsIdError,
 	DeleteDiscountsIdResponse,
@@ -127,6 +139,30 @@ import type {
 	GetCustomerAddressesData,
 	GetCustomerAddressesError,
 	GetCustomerAddressesResponse,
+	GetCustomerCommunityChannelsData,
+	GetCustomerCommunityChannelsError,
+	GetCustomerCommunityChannelsResponse,
+	GetCustomerCommunityFeedData,
+	GetCustomerCommunityFeedError,
+	GetCustomerCommunityFeedResponse,
+	GetCustomerCommunityMeData,
+	GetCustomerCommunityMeError,
+	GetCustomerCommunityMeetupsData,
+	GetCustomerCommunityMeetupsError,
+	GetCustomerCommunityMeetupsIdData,
+	GetCustomerCommunityMeetupsIdError,
+	GetCustomerCommunityMeetupsIdResponse,
+	GetCustomerCommunityMeetupsResponse,
+	GetCustomerCommunityMeResponse,
+	GetCustomerCommunityPostsIdCommentsData,
+	GetCustomerCommunityPostsIdCommentsError,
+	GetCustomerCommunityPostsIdCommentsResponse,
+	GetCustomerCommunityPostsIdData,
+	GetCustomerCommunityPostsIdError,
+	GetCustomerCommunityPostsIdResponse,
+	GetCustomerLivesIdChatData,
+	GetCustomerLivesIdChatError,
+	GetCustomerLivesIdChatResponse,
 	GetCustomerMeData,
 	GetCustomerMeError,
 	GetCustomerMembershipData,
@@ -136,6 +172,9 @@ import type {
 	GetCustomerMerchOrdersData,
 	GetCustomerMerchOrdersError,
 	GetCustomerMerchOrdersResponse,
+	GetCustomerNewsletterData,
+	GetCustomerNewsletterError,
+	GetCustomerNewsletterResponse,
 	GetCustomerOrdersData,
 	GetCustomerOrdersError,
 	GetCustomerOrdersIdData,
@@ -451,6 +490,9 @@ import type {
 	PostContentSeriesData,
 	PostContentSeriesError,
 	PostContentSeriesResponse,
+	PostCourtesyRequestsData,
+	PostCourtesyRequestsError,
+	PostCourtesyRequestsResponse,
 	PostCustomerAddressesData,
 	PostCustomerAddressesError,
 	PostCustomerAddressesResponse,
@@ -460,9 +502,33 @@ import type {
 	PostCustomerAuthVerifyData,
 	PostCustomerAuthVerifyError,
 	PostCustomerAuthVerifyResponse,
+	PostCustomerCommunityCommentsIdReportData,
+	PostCustomerCommunityCommentsIdReportError,
+	PostCustomerCommunityCommentsIdReportResponse,
+	PostCustomerCommunityMeetupsIdRsvpData,
+	PostCustomerCommunityMeetupsIdRsvpError,
+	PostCustomerCommunityMeetupsIdRsvpResponse,
+	PostCustomerCommunityPostsIdCommentsData,
+	PostCustomerCommunityPostsIdCommentsError,
+	PostCustomerCommunityPostsIdCommentsResponse,
+	PostCustomerCommunityPostsIdReactionsData,
+	PostCustomerCommunityPostsIdReactionsError,
+	PostCustomerCommunityPostsIdReactionsResponse,
+	PostCustomerCommunityPostsIdReportData,
+	PostCustomerCommunityPostsIdReportError,
+	PostCustomerCommunityPostsIdReportResponse,
+	PostCustomerLivesIdChatMessagesData,
+	PostCustomerLivesIdChatMessagesError,
+	PostCustomerLivesIdChatMessagesResponse,
+	PostCustomerLivesIdChatTokenData,
+	PostCustomerLivesIdChatTokenError,
+	PostCustomerLivesIdChatTokenResponse,
 	PostCustomerLogoutData,
 	PostCustomerLogoutError,
 	PostCustomerLogoutResponse,
+	PostCustomerNewsletterData,
+	PostCustomerNewsletterError,
+	PostCustomerNewsletterResponse,
 	PostCustomerOrdersData,
 	PostCustomerOrdersError,
 	PostCustomerOrdersIdPaymentCardData,
@@ -660,64 +726,6 @@ export type Options<
 	 * used to access values that aren't defined as part of the SDK function.
 	 */
 	meta?: Record<string, unknown>;
-};
-
-/**
- * List an event's dates
- * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
- */
-export const getEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<GetEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetEventsIdDatesResponse,
-		GetEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-	});
-};
-
-/**
- * Add a date to an event
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
- */
-export const postEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<PostEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostEventsIdDatesResponse,
-		PostEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
 };
 
 /**
@@ -1047,6 +1055,64 @@ export const postEventsIdCancel = <ThrowOnError extends boolean = false>(
 		],
 		url: "/events/{id}/cancel",
 		...options,
+	});
+};
+
+/**
+ * List an event's dates
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const getEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsIdDatesResponse,
+		GetEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+	});
+};
+
+/**
+ * Add a date to an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const postEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdDatesResponse,
+		PostEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };
 
@@ -1716,6 +1782,101 @@ export const postSalesIdCancel = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/sales/{id}/cancel",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Refund a sale (moving the funds depends on the payment gateway)
+ * Marks the sale as REFUNDED and releases the associated numbered seats. IMPORTANT: whether the money goes back to the buyer depends on the payment gateway and the payment method used. Sales charged through MercadoPago are fully refunded against the MercadoPago API (stable idempotency key per sale, so retries never refund twice) and marked only once MercadoPago confirms. A 503 GATEWAY_REFUND_PENDING means MercadoPago did not answer clearly: the sale stays CONFIRMED and repeating the same call is safe. Sales charged through Wompi by CARD are voided against the payment gateway before being marked. In every other case this endpoint does NOT trigger the actual refund: the money is NOT returned automatically and a 200 only confirms the accounting status change. Those refunds must be handled separately in the payment gateway's dashboard. PARTIAL REFUND BY TICKET: send `items` with the ids of the sale items to refund (the `id` field of GET /sales/{id}/tickets). Each item refunds its prorated share of the sale total (by item subtotal; shares always add up to the exact total). The refunded tickets are invalidated at the door and their quota returns to stock; when no live item remains the sale becomes REFUNDED. Only MercadoPago (or uncharged / cash sales) support partial refunds: Wompi and Bold answer 409 GATEWAY_REFUND_NOT_SUPPORTED. Items already checked in answer 409 ITEM_ALREADY_CHECKED_IN — also for a FULL refund (no `items`, or all of them): a sale with any checked-in ticket is never refunded whole; refund the unused tickets by item; items from another sale answer 422 ITEM_NOT_IN_SALE; a refund already in flight over the same items answers 409 REFUND_IN_PROGRESS (retry exactly the same items). `block_seats: true` (also valid for a full refund) keeps the refunded numbered seats OUT of sale: seats.io moves them from booked straight to a blocked status, never through free. The `refund` object in the response reports the refunded amount and what happened to the seats. Wompi payment methods without API refunds (PSE, Nequi, Bancolombia transfer) respond 409: return the money in the Wompi dashboard and repeat the call with {"acknowledge_manual": true} to reflect the accounting status. A 502 means the gateway rejected the void and the sale remains CONFIRMED.
+ */
+export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
+	options: Options<PostSalesIdRefundData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSalesIdRefundResponse,
+		PostSalesIdRefundError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/refund",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Transfer one ticket of a sale to another person (destructive)
+ * DESTRUCTIVE: changes the ticket holder and voids the previous QR code (the ticket code is rotated and any installed Apple Wallet pass stops working). The new holder receives the ticket by email and the buyer is notified. Same rules as the dashboard and the buyer: the recipient must already have a verified FreeTicket buyer account (the holder name comes from that account), each ticket can be transferred only once (no staff override) and only until the show starts. 422 RECIPIENT_NOT_REGISTERED / SELF_TRANSFER: fix the recipient. 409 NOT_CONFIRMED, ALREADY_TRANSFERRED, CHECKED_IN, REFUNDED, ADDON, PRESALE_NOT_TRANSFERABLE, MULTI_QUANTITY, EVENT_STARTED or CONFLICT (the ticket changed in flight; re-read and retry). Not idempotent: a retry after success answers 409 ALREADY_TRANSFERRED. Minimum role: `ADMIN`.
+ */
+export const postSalesIdItemsItemIdTransfer = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostSalesIdItemsItemIdTransferData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostSalesIdItemsItemIdTransferResponse,
+		PostSalesIdItemsItemIdTransferError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/items/{itemId}/transfer",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Correct the recipient of a courtesy sale and resend its tickets
+ * DESTRUCTIVE when the email changes (previous QR codes are voided). Only for courtesy sales issued from the dashboard (confirmed, `is_courtesy`); any other sale answers 404. Updates the recipient's name and email and resends the tickets to the corrected address. When the email changes, the ticket codes of the non-transferred tickets are rotated, so the QR codes sent to the wrong address stop working (`ticketCodesRotated: true`). Minimum role: `ADMIN`.
+ */
+export const patchSalesIdRecipient = <ThrowOnError extends boolean = false>(
+	options: Options<PatchSalesIdRecipientData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).patch<
+		PatchSalesIdRecipientResponse,
+		PatchSalesIdRecipientError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/sales/{id}/recipient",
 		...options,
 		headers: {
 			"Content-Type": "application/json",
@@ -2524,7 +2685,7 @@ export const getReportsFinancials = <ThrowOnError extends boolean = false>(
 
 /**
  * Workspace settlements (payouts to the organizer)
- * Lists the settlements visible to the organization (SENT, AWAITING_PAYMENT, PAID) with their standard id, amount, event/event date, and payment proofs. Download the files with `GET /settlements/{id}/document` (PDF) and `GET /settlements/{id}/proofs/{fileName}` (bank transfer proofs).
+ * Lists the settlements visible to the organization (SENT, AWAITING_PAYMENT, PAID) with their standard id, `kind` (EVENT or MEMBERSHIP), amount, event/event date (EVENT) or period/membership plan (MEMBERSHIP), and payment proofs. Membership settlements have no event, so an API key restricted to events (`event_scope`) never sees them. Download the files with `GET /settlements/{id}/document` (PDF) and `GET /settlements/{id}/proofs/{fileName}` (bank transfer proofs).
  */
 export const getSettlements = <ThrowOnError extends boolean = false>(
 	options?: Options<GetSettlementsData, ThrowOnError>,
@@ -3024,6 +3185,35 @@ export const patchTicketsTicketCode = <ThrowOnError extends boolean = false>(
 };
 
 /**
+ * Resend the confirmation email with the ticket
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const postTicketsTicketCodeResend = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostTicketsTicketCodeResendData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostTicketsTicketCodeResendResponse,
+		PostTicketsTicketCodeResendError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/tickets/{ticketCode}/resend",
+		...options,
+	});
+};
+
+/**
  * Undo a ticket check-in (destructive)
  * DESTRUCTIVE: reverts a door check-in so the ticket is valid again. Use it to fix a wrong scan; it is recorded in the audit log as CHECKIN_UNDO. Requires `ADMIN` (not `STAFF`): a checked-in ticket blocks cancelling its sale, and undoing the check-in reopens that path. The show's validation window does not apply. Idempotent: a ticket that is not checked in answers 200 with `undone: false`. 409 CHECKIN_CHANGED when the check-in changed between the read and the write (another undo or a new scan): re-read the ticket and retry. Minimum role: `ADMIN`.
  */
@@ -3380,7 +3570,7 @@ export const postCustomerLogout = <ThrowOnError extends boolean = false>(
 
 /**
  * Exchange the headless SSO one-time token for a session token
- * Server-to-server: requires an enterprise service API key (Bearer or x-api-key). Exchanges the one-time token issued by /api/customer-auth/enterprise-return (single-use, 60 s TTL) for the buyer's session token. Plain body, no { data } envelope.
+ * Server-to-server: requires an enterprise service API key (Bearer or x-api-key). Exchanges the one-time token issued by /api/customer-auth/enterprise-return (single-use, 60 s TTL) for a buyer session token dedicated to the API key's workspace. Plain body, no { data } envelope.
  */
 export const postApiCustomerAuthEnterpriseExchange = <
 	ThrowOnError extends boolean = false,
@@ -3471,7 +3661,7 @@ export const postCustomerSubscriptions = <ThrowOnError extends boolean = false>(
 
 /**
  * Cancel the buyer's own membership
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the workspace is the one pinned to it (any `workspaceId` in the body is ignored); without a key, `workspaceId` is REQUIRED in the body (422 if missing). The membership is ALWAYS resolved from the buyer session (a CustomerMembership id is never accepted). It first cancels the recurring charge at the provider and then marks the membership as CANCELLED. Idempotent.
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the workspace is the one pinned to it (any `workspaceId` in the body is ignored); without a key, `workspaceId` is REQUIRED in the body (422 if missing). The membership is ALWAYS resolved from the buyer session (a CustomerMembership id is never accepted). It first stops the recurring charge at the provider (Stripe: at period end) and then sets `auto_renew=false` and `cancelledAt`: the buyer KEEPS access until `expiresAt`, so `status` stays ACTIVE until then. A membership without expiry (LIFETIME) is cancelled immediately (`status` CANCELLED). Idempotent.
  */
 export const postCustomerSubscriptionsCancel = <
 	ThrowOnError extends boolean = false,
@@ -3699,6 +3889,296 @@ export const getCustomerMerchOrders = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/customer/merch-orders",
+		...options,
+	});
+};
+
+/**
+ * Unsubscribe the buyer from the workspace newsletter
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the workspace is the one pinned to it (`workspaceId` is ignored); without a key, `workspaceId` is REQUIRED (422 if missing, 404 if the workspace does not exist). Idempotent: unsubscribing when not subscribed also returns `subscribed: false`.
+ */
+export const deleteCustomerNewsletter = <ThrowOnError extends boolean = false>(
+	options?: Options<DeleteCustomerNewsletterData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).delete<
+		DeleteCustomerNewsletterResponse,
+		DeleteCustomerNewsletterError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/newsletter",
+		...options,
+	});
+};
+
+/**
+ * Buyer newsletter subscription status in a workspace
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the workspace is the one pinned to it (`workspaceId` is ignored); without a key, `workspaceId` is REQUIRED (422 if missing, 404 if the workspace does not exist). `subscribed` is true while the buyer is subscribed.
+ */
+export const getCustomerNewsletter = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerNewsletterData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerNewsletterResponse,
+		GetCustomerNewsletterError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/newsletter",
+		...options,
+	});
+};
+
+/**
+ * Subscribe the buyer to the workspace newsletter
+ * Requires the `X-Customer-Session` header AND the enterprise service API key: the workspace is the one pinned to the key (403 without a key; `workspaceId` is ignored). The workspace must be on the Legend plan (403 otherwise). The body must carry explicit consent (`consent: true` + `consentTextVersion`; 422 if missing). Idempotent: subscribing twice keeps one subscription, and subscribing after unsubscribing reactivates it; each call records the new consent and `subscribedAt` becomes its date.
+ */
+export const postCustomerNewsletter = <ThrowOnError extends boolean = false>(
+	options: Options<PostCustomerNewsletterData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerNewsletterResponse,
+		PostCustomerNewsletterError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/newsletter",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * The purchase the buyer left unfinished for this event date
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, results are additionally scoped to the workspace pinned to it; without a key, any of the buyer's own unfinished purchases is visible. Returns the PENDING sale whose inventory hold is STILL ALIVE that the buyer has for that event date —with its seats, its total and when it expires—, or `order: null` if there is none. This is what lets reloading the checkout, or coming back from signing in, RESUME the purchase instead of starting from scratch: the seats remain held in that person's name. If `paymentOpened` is true the payment is already open and `POST /customer/orders/{id}/payment` returns the SAME signed configuration; to discard it and pick other seats, use `POST /customer/orders/{id}/release`.
+ */
+export const getCustomerOrders = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerOrdersData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerOrdersResponse,
+		GetCustomerOrdersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders",
+		...options,
+	});
+};
+
+/**
+ * Create the ticket reservation (step 1 of the headless purchase)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the date and the ticket type must belong to the workspace pinned to it (anything else is 404); without a key, it is enough for the ticket type to exist and be on sale (same eligibility as the first-party checkout). Reserves inventory and creates the PENDING sale with the SAME rules as the first-party checkout (stock under lock, seats validated against seats.io, per-buyer limit, presale, memberships and virtual queue turn). The buyer email comes from the session, never from the body. Rejections carry a stable `reason` in `error.details.reason` (`sold_out`, `queue_turn_required`, `seats_not_held`, `members_only`, `members_only_withdrawn` — a members-only ticket whose artist withdrew the permission or left the lineup: it is no longer sold even to members —, …). With `pending_sale_in_progress` the inventory is taken by a half-paid purchase FROM THE SAME buyer: `error.details.pendingSaleId` and `pendingReference` identify it, and the right step is to reopen its payment with `POST /customer/orders/{pendingSaleId}/payment` (idempotent) instead of reserving again. If `free` is true the sale is already confirmed and `/payment` must NOT be called. Next step: `POST /customer/orders/{id}/payment`.
+ */
+export const postCustomerOrders = <ThrowOnError extends boolean = false>(
+	options: Options<PostCustomerOrdersData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersResponse,
+		PostCustomerOrdersError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Open payment for a reservation (Bold or MercadoPago, depending on the event)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). The payment rail is chosen on the SERVER: Bold-eligible events (legend plan + allowlist) return the SIGNED configuration of the embedded Bold Payment Button (`apiKey` + `renderMode: "embedded"` + `integritySignature`, …), which the landing page mounts with `new BoldCheckout({...})`; all others return `publicKey` + `amount` + `currency` + `reference` + `payerEmail` to mount the MercadoPago Payment Brick (`POST .../payment/card` to charge, `POST .../payment/pse` for PSE). The landing page tells the rails apart by the SHAPE of the response (`apiKey`/`renderMode` ⇒ Bold, `publicKey` ⇒ MercadoPago), never by a separate flag. The sale must belong to the session buyer (and, with a key, to the workspace pinned to it): anything else is 404. Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, or (Bold only) the event has no legend plan or a payment attempt is already in flight with another gateway. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
+ */
+export const postCustomerOrdersIdPayment = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdPaymentData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdPaymentResponse,
+		PostCustomerOrdersIdPaymentError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/payment",
+		...options,
+	});
+};
+
+/**
+ * Charge with the MercadoPago Payment Brick token
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Receives the token the Payment Brick produced on the landing page's domain and charges through the Orders API using the sale amount (never one sent by the client); `payer.email` travels in the body but is ignored — the payer is ALWAYS the sale's. `status` is `approved`, `pending` (normal, may require additional authentication from the bank) or `rejected` (business decline; the reason is in `message`) — all three are returned with 200. With `rejected`, `saleAlive` tells what happened to the purchase: `false` = it was cancelled and a new one must be started; `true` = this payment was declined but the purchase is still pending because another payment is in progress on it (do not start a new purchase: wait and check the order). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, the event only charges through Bold, or MercadoPago returned an error that cannot be classified as a decline. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 attempts per minute per buyer (429 with `Retry-After`).
+ */
+export const postCustomerOrdersIdPaymentCard = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdPaymentCardData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdPaymentCardResponse,
+		PostCustomerOrdersIdPaymentCardError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/payment/card",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Open a PSE payment through MercadoPago (redirect)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Creates a MercadoPago preference restricted to PSE and returns `redirectUrl` (`init_point`): the landing page must REDIRECT the browser there, not mount it in an iframe. The buyer picks their bank and confirms the transfer inside MercadoPago; on return, they land on `GET /api/mp/return` (our domain), which issues a 302 to the `returnUrl` sent in `POST /customer/orders` — the landing page must call `GET /customer/orders/{id}` for the authoritative status, never infer it from the return URL. The sale is confirmed by webhook when the bank settles the payment (asynchronous: it may take a while). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, or the event only charges through Bold. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
+ */
+export const postCustomerOrdersIdPaymentPse = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdPaymentPseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdPaymentPseResponse,
+		PostCustomerOrdersIdPaymentPseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/payment/pse",
+		...options,
+	});
+};
+
+/**
+ * Release a reservation the buyer will not pay for
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Abandons the PENDING sale and returns its inventory (and its seats) to stock, so the buyer can start over without waiting for the reservation to expire. It is the counterpart of `pending_sale_in_progress`: when `POST /customer/orders` rejects with that `reason`, the landing page can offer *continue paying* (`/payment`, idempotent) or *start over* (this route). It ONLY releases with evidence that nobody started the payment: if Bold reports any transaction, if a provider response is already stored, or if the payment goes through a rail we cannot query, it responds 409 with `details.reason` = `payment_in_flight` and the sale is left intact. If the gateway does not respond, 503 (`gateway_unreachable`): retry later. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 calls per minute per buyer.
+ */
+export const postCustomerOrdersIdRelease = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerOrdersIdReleaseData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerOrdersIdReleaseResponse,
+		PostCustomerOrdersIdReleaseError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}/release",
+		...options,
+	});
+};
+
+/**
+ * Status of a headless purchase (and its tickets, once paid)
+ * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). `{id}` accepts the `reference` (FT-…) or the sale id. If the sale is still PENDING and its payment goes through Bold, the authoritative payment status is re-read from Bold; between re-reads it responds with the internal status, which the webhook keeps up to date. `status` is `approved`, `pending` or `rejected`; `pending` is a NORMAL state (asynchronous payment methods take time) and the landing page must retry. `tickets` is only present when `status` is `approved`; each `ticketCode` is null until the QR gate opens (event starting in 72 hours or less), so a landing page shows its own countdown until then. The purchase must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. The route MAY rate-limit polling and respond 429: honor `Retry-After` and apply backoff. Polling every ~2 s fits comfortably, but do not treat any threshold as a guarantee.
+ */
+export const getCustomerOrdersId = <ThrowOnError extends boolean = false>(
+	options: Options<GetCustomerOrdersIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCustomerOrdersIdResponse,
+		GetCustomerOrdersIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/orders/{id}",
 		...options,
 	});
 };
@@ -4012,7 +4492,7 @@ export const getContentLivesId = <ThrowOnError extends boolean = false>(
 
 /**
  * Update a live stream's schedule or audience
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same actions as the dashboard's scheduled-time picker and members-only switch. Send `scheduledAt` and/or `memberOnly`; absent fields keep their value. Never returns the stream key.
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same actions as the dashboard's scheduled-time picker, members-only switch and replay switch. Send `scheduledAt`, `memberOnly` and/or `replayEnabled`; absent fields keep their value. Never returns the stream key.
  *
  * Errors (`error.code`):
  * - 400 `BAD_REQUEST`: `scheduledAt` not in "YYYY-MM-DDTHH:mm" format.
@@ -4051,7 +4531,7 @@ export const patchContentLivesId = <ThrowOnError extends boolean = false>(
 
 /**
  * Signed token to play a video or a live stream
- * Requires an enterprise service API key. `memberOnly` content additionally requires the `X-Customer-Session` header of a buyer with a current membership in the key's organization or, for a live stream tied to a show date, a CONFIRMED ticket for that date (otherwise 403 `MEMBERSHIP_REQUIRED`). Rate limited: 600 requests/min per key and 30/min per buyer (429 `RATE_LIMITED` with `Retry-After`). Content from another organization responds 404. Short-lived tokens: 30 minutes for live streams, 1 hour for videos.
+ * Requires an enterprise service API key. `memberOnly` content additionally requires the `X-Customer-Session` header of a buyer with a current membership in the key's organization or, for a live stream tied to a show date, a CONFIRMED ticket for that date (otherwise 403 `MEMBERSHIP_REQUIRED`). Rate limited: 600 requests/min per key and 30/min per buyer (429 `RATE_LIMITED` with `Retry-After`). Content from another organization responds 404. A live stream that is no longer on air plays its recording only while its replay is open (`replayEnabled` and within 24 hours of the end, see `replayUntil` on `GET /content/lives`); otherwise 404. Short-lived tokens: 30 minutes for live streams (cut to the end of the replay window for a replay), 1 hour for videos.
  */
 export const postContentPlaybackToken = <ThrowOnError extends boolean = false>(
 	options: Options<PostContentPlaybackTokenData, ThrowOnError>,
@@ -4130,6 +4610,37 @@ export const postWaitlist = <ThrowOnError extends boolean = false>(
 			},
 		],
 		url: "/waitlist",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Request a courtesy invitation from an enterprise landing
+ * Requires an enterprise service API key; the request belongs to the key's organization (never one from the body). `fullName` is 2-120 characters; emails are trimmed and lowercased. `companion` is optional and, when present, needs only its own `fullName` (422 otherwise); any companion `email` is ignored. One request per (organization, email): the first one wins. 201 on the first call; a resubmit with the same email responds 409 `CONFLICT` and leaves the existing request untouched. Rate limited: 120 requests/min per key and 10/min per email (429 `RATE_LIMITED` with `Retry-After`). Invalid JSON responds 400; an invalid body 422. The list and CSV export live in the dashboard (/dashboard/cortesias), not in this API.
+ */
+export const postCourtesyRequests = <ThrowOnError extends boolean = false>(
+	options: Options<PostCourtesyRequestsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCourtesyRequestsResponse,
+		PostCourtesyRequestsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/courtesy-requests",
 		...options,
 		headers: {
 			"Content-Type": "application/json",
@@ -7113,139 +7624,15 @@ export const postMerchOrdersCodePaymentCard = <
 };
 
 /**
- * Refund a sale (moving the funds depends on the payment gateway)
- * Marks the sale as REFUNDED and releases the associated numbered seats. IMPORTANT: whether the money goes back to the buyer depends on the payment gateway and the payment method used. Sales charged through MercadoPago are fully refunded against the MercadoPago API (stable idempotency key per sale, so retries never refund twice) and marked only once MercadoPago confirms. A 503 GATEWAY_REFUND_PENDING means MercadoPago did not answer clearly: the sale stays CONFIRMED and repeating the same call is safe. Sales charged through Wompi by CARD are voided against the payment gateway before being marked. In every other case this endpoint does NOT trigger the actual refund: the money is NOT returned automatically and a 200 only confirms the accounting status change. Those refunds must be handled separately in the payment gateway's dashboard. PARTIAL REFUND BY TICKET: send `items` with the ids of the sale items to refund (the `id` field of GET /sales/{id}/tickets). Each item refunds its prorated share of the sale total (by item subtotal; shares always add up to the exact total). The refunded tickets are invalidated at the door and their quota returns to stock; when no live item remains the sale becomes REFUNDED. Only MercadoPago (or uncharged / cash sales) support partial refunds: Wompi and Bold answer 409 GATEWAY_REFUND_NOT_SUPPORTED. Items already checked in answer 409 ITEM_ALREADY_CHECKED_IN — also for a FULL refund (no `items`, or all of them): a sale with any checked-in ticket is never refunded whole; refund the unused tickets by item; items from another sale answer 422 ITEM_NOT_IN_SALE; a refund already in flight over the same items answers 409 REFUND_IN_PROGRESS (retry exactly the same items). `block_seats: true` (also valid for a full refund) keeps the refunded numbered seats OUT of sale: seats.io moves them from booked straight to a blocked status, never through free. The `refund` object in the response reports the refunded amount and what happened to the seats. Wompi payment methods without API refunds (PSE, Nequi, Bancolombia transfer) respond 409: return the money in the Wompi dashboard and repeat the call with {"acknowledge_manual": true} to reflect the accounting status. A 502 means the gateway rejected the void and the sale remains CONFIRMED.
+ * Community feed for a buyer
+ * Requires an enterprise service API key; the organization comes from the key. The `X-Customer-Session` header is OPTIONAL: without it, with an unknown or expired token, or when the buyer has no current membership in the key's organization, the redacted version is returned. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After` (retry; it does not mean the session ended). Rate limited: 1200 requests/min per key and 120/min per buyer and key, shared across `/customer/community*` (429 `RATE_LIMITED` with `Retry-After`). Every response, errors included, is `Cache-Control: private, no-store`. Posts of the organization, newest first, with a stable opaque cursor (`page.nextCursor` → `?cursor=`; an invalid or empty cursor responds 422 `INVALID_CURSOR`). A current member also gets approved member posts when the community is enabled for the organization; other readers only get the organization's posts, with members-only ones redacted (`locked: true`). `pinned` says the post is pinned, with the same meaning as in the permalink; where the community is enabled, the pinned post additionally comes FIRST on the first page, on top of `limit` (that page may carry `limit + 1` items), and is not repeated in its chronological place on later pages. `channel` filters by a channel slug from `GET /customer/community/channels` (unknown, archived, or community not enabled: 404). Never returns drafts, posts pending review, deleted posts or posts scheduled for the future. Comments are paginated at `GET /customer/community/posts/{id}/comments`.
  */
-export const postSalesIdRefund = <ThrowOnError extends boolean = false>(
-	options: Options<PostSalesIdRefundData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostSalesIdRefundResponse,
-		PostSalesIdRefundError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/sales/{id}/refund",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Transfer one ticket of a sale to another person (destructive)
- * DESTRUCTIVE: changes the ticket holder and voids the previous QR code (the ticket code is rotated and any installed Apple Wallet pass stops working). The new holder receives the ticket by email and the buyer is notified. Same rules as the dashboard and the buyer: the recipient must already have a verified FreeTicket buyer account (the holder name comes from that account), each ticket can be transferred only once (no staff override) and only until the show starts. 422 RECIPIENT_NOT_REGISTERED / SELF_TRANSFER: fix the recipient. 409 NOT_CONFIRMED, ALREADY_TRANSFERRED, CHECKED_IN, REFUNDED, ADDON, PRESALE_NOT_TRANSFERABLE, MULTI_QUANTITY, EVENT_STARTED or CONFLICT (the ticket changed in flight; re-read and retry). Not idempotent: a retry after success answers 409 ALREADY_TRANSFERRED. Minimum role: `ADMIN`.
- */
-export const postSalesIdItemsItemIdTransfer = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostSalesIdItemsItemIdTransferData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostSalesIdItemsItemIdTransferResponse,
-		PostSalesIdItemsItemIdTransferError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/sales/{id}/items/{itemId}/transfer",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Correct the recipient of a courtesy sale and resend its tickets
- * DESTRUCTIVE when the email changes (previous QR codes are voided). Only for courtesy sales issued from the dashboard (confirmed, `is_courtesy`); any other sale answers 404. Updates the recipient's name and email and resends the tickets to the corrected address. When the email changes, the ticket codes of the non-transferred tickets are rotated, so the QR codes sent to the wrong address stop working (`ticketCodesRotated: true`). Minimum role: `ADMIN`.
- */
-export const patchSalesIdRecipient = <ThrowOnError extends boolean = false>(
-	options: Options<PatchSalesIdRecipientData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).patch<
-		PatchSalesIdRecipientResponse,
-		PatchSalesIdRecipientError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/sales/{id}/recipient",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Resend the confirmation email with the ticket
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
- */
-export const postTicketsTicketCodeResend = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostTicketsTicketCodeResendData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostTicketsTicketCodeResendResponse,
-		PostTicketsTicketCodeResendError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/tickets/{ticketCode}/resend",
-		...options,
-	});
-};
-
-/**
- * The purchase the buyer left unfinished for this event date
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, results are additionally scoped to the workspace pinned to it; without a key, any of the buyer's own unfinished purchases is visible. Returns the PENDING sale whose inventory hold is STILL ALIVE that the buyer has for that event date —with its seats, its total and when it expires—, or `order: null` if there is none. This is what lets reloading the checkout, or coming back from signing in, RESUME the purchase instead of starting from scratch: the seats remain held in that person's name. If `paymentOpened` is true the payment is already open and `POST /customer/orders/{id}/payment` returns the SAME signed configuration; to discard it and pick other seats, use `POST /customer/orders/{id}/release`.
- */
-export const getCustomerOrders = <ThrowOnError extends boolean = false>(
-	options?: Options<GetCustomerOrdersData, ThrowOnError>,
+export const getCustomerCommunityFeed = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerCommunityFeedData, ThrowOnError>,
 ) => {
 	return (options?.client ?? _heyApiClient).get<
-		GetCustomerOrdersResponse,
-		GetCustomerOrdersError,
+		GetCustomerCommunityFeedResponse,
+		GetCustomerCommunityFeedError,
 		ThrowOnError
 	>({
 		security: [
@@ -7258,172 +7645,23 @@ export const getCustomerOrders = <ThrowOnError extends boolean = false>(
 				type: "apiKey",
 			},
 		],
-		url: "/customer/orders",
+		url: "/customer/community/feed",
 		...options,
 	});
 };
 
 /**
- * Create the ticket reservation (step 1 of the headless purchase)
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL: with a key, the date and the ticket type must belong to the workspace pinned to it (anything else is 404); without a key, it is enough for the ticket type to exist and be on sale (same eligibility as the first-party checkout). Reserves inventory and creates the PENDING sale with the SAME rules as the first-party checkout (stock under lock, seats validated against seats.io, per-buyer limit, presale, memberships and virtual queue turn). The buyer email comes from the session, never from the body. Rejections carry a stable `reason` in `error.details.reason` (`sold_out`, `queue_turn_required`, `seats_not_held`, `members_only`, `members_only_withdrawn` — a members-only ticket whose artist withdrew the permission or left the lineup: it is no longer sold even to members —, …). With `pending_sale_in_progress` the inventory is taken by a half-paid purchase FROM THE SAME buyer: `error.details.pendingSaleId` and `pendingReference` identify it, and the right step is to reopen its payment with `POST /customer/orders/{pendingSaleId}/payment` (idempotent) instead of reserving again. If `free` is true the sale is already confirmed and `/payment` must NOT be called. Next step: `POST /customer/orders/{id}/payment`.
+ * Community post permalink
+ * Requires an enterprise service API key; the organization comes from the key. The `X-Customer-Session` header is OPTIONAL: without it, with an unknown or expired token, or when the buyer has no current membership in the key's organization, the redacted version is returned. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After` (retry; it does not mean the session ended). Rate limited: 1200 requests/min per key and 120/min per buyer and key, shared across `/customer/community*` (429 `RATE_LIMITED` with `Retry-After`). Every response, errors included, is `Cache-Control: private, no-store`. `{id}` is the post id or, for an ARTICLE, its `slug`. Same redaction as the feed, plus `body` (the article in Markdown), which is null when `locked`. 404 for a post of another organization, a draft, a post pending review, a deleted post, one scheduled for the future, or a member post read without a current membership.
  */
-export const postCustomerOrders = <ThrowOnError extends boolean = false>(
-	options: Options<PostCustomerOrdersData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersResponse,
-		PostCustomerOrdersError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Open payment for a reservation (Bold or MercadoPago, depending on the event)
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). The payment rail is chosen on the SERVER: Bold-eligible events (legend plan + allowlist) return the SIGNED configuration of the embedded Bold Payment Button (`apiKey` + `renderMode: "embedded"` + `integritySignature`, …), which the landing page mounts with `new BoldCheckout({...})`; all others return `publicKey` + `amount` + `currency` + `reference` + `payerEmail` to mount the MercadoPago Payment Brick (`POST .../payment/card` to charge, `POST .../payment/pse` for PSE). The landing page tells the rails apart by the SHAPE of the response (`apiKey`/`renderMode` ⇒ Bold, `publicKey` ⇒ MercadoPago), never by a separate flag. The sale must belong to the session buyer (and, with a key, to the workspace pinned to it): anything else is 404. Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, or (Bold only) the event has no legend plan or a payment attempt is already in flight with another gateway. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
- */
-export const postCustomerOrdersIdPayment = <
+export const getCustomerCommunityPostsId = <
 	ThrowOnError extends boolean = false,
 >(
-	options: Options<PostCustomerOrdersIdPaymentData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersIdPaymentResponse,
-		PostCustomerOrdersIdPaymentError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders/{id}/payment",
-		...options,
-	});
-};
-
-/**
- * Charge with the MercadoPago Payment Brick token
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Receives the token the Payment Brick produced on the landing page's domain and charges through the Orders API using the sale amount (never one sent by the client); `payer.email` travels in the body but is ignored — the payer is ALWAYS the sale's. `status` is `approved`, `pending` (normal, may require additional authentication from the bank) or `rejected` (business decline; the reason is in `message`) — all three are returned with 200. With `rejected`, `saleAlive` tells what happened to the purchase: `false` = it was cancelled and a new one must be started; `true` = this payment was declined but the purchase is still pending because another payment is in progress on it (do not start a new purchase: wait and check the order). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, the event only charges through Bold, or MercadoPago returned an error that cannot be classified as a decline. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 attempts per minute per buyer (429 with `Retry-After`).
- */
-export const postCustomerOrdersIdPaymentCard = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostCustomerOrdersIdPaymentCardData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersIdPaymentCardResponse,
-		PostCustomerOrdersIdPaymentCardError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders/{id}/payment/card",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
-	});
-};
-
-/**
- * Open a PSE payment through MercadoPago (redirect)
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Creates a MercadoPago preference restricted to PSE and returns `redirectUrl` (`init_point`): the landing page must REDIRECT the browser there, not mount it in an iframe. The buyer picks their bank and confirms the transfer inside MercadoPago; on return, they land on `GET /api/mp/return` (our domain), which issues a 302 to the `returnUrl` sent in `POST /customer/orders` — the landing page must call `GET /customer/orders/{id}` for the authoritative status, never infer it from the return URL. The sale is confirmed by webhook when the bank settles the payment (asynchronous: it may take a while). Responds 409 with code `PAYMENT_UNAVAILABLE` if the reservation expired, the sale is no longer pending, a payment attempt is in flight with another gateway, or the event only charges through Bold. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 opens per minute per buyer (429 with `Retry-After`).
- */
-export const postCustomerOrdersIdPaymentPse = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostCustomerOrdersIdPaymentPseData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersIdPaymentPseResponse,
-		PostCustomerOrdersIdPaymentPseError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders/{id}/payment/pse",
-		...options,
-	});
-};
-
-/**
- * Release a reservation the buyer will not pay for
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). Abandons the PENDING sale and returns its inventory (and its seats) to stock, so the buyer can start over without waiting for the reservation to expire. It is the counterpart of `pending_sale_in_progress`: when `POST /customer/orders` rejects with that `reason`, the landing page can offer *continue paying* (`/payment`, idempotent) or *start over* (this route). It ONLY releases with evidence that nobody started the payment: if Bold reports any transaction, if a provider response is already stored, or if the payment goes through a rail we cannot query, it responds 409 with `details.reason` = `payment_in_flight` and the sale is left intact. If the gateway does not respond, 503 (`gateway_unreachable`): retry later. The sale must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. `{id}` accepts the sale id or its `reference`. Limited to 10 calls per minute per buyer.
- */
-export const postCustomerOrdersIdRelease = <
-	ThrowOnError extends boolean = false,
->(
-	options: Options<PostCustomerOrdersIdReleaseData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostCustomerOrdersIdReleaseResponse,
-		PostCustomerOrdersIdReleaseError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/customer/orders/{id}/release",
-		...options,
-	});
-};
-
-/**
- * Status of a headless purchase (and its tickets, once paid)
- * Requires the `X-Customer-Session` header. The enterprise service API key is OPTIONAL (with a key, results are additionally scoped to the workspace pinned to it). `{id}` accepts the `reference` (FT-…) or the sale id. If the sale is still PENDING and its payment goes through Bold, the authoritative payment status is re-read from Bold; between re-reads it responds with the internal status, which the webhook keeps up to date. `status` is `approved`, `pending` or `rejected`; `pending` is a NORMAL state (asynchronous payment methods take time) and the landing page must retry. `tickets` —with each ticket's `ticketCode`— is only present when `status` is `approved`. The purchase must belong to the session's buyer (and, with a key, to the workspace pinned to it): anything else is 404. The route MAY rate-limit polling and respond 429: honor `Retry-After` and apply backoff. Polling every ~2 s fits comfortably, but do not treat any threshold as a guarantee.
- */
-export const getCustomerOrdersId = <ThrowOnError extends boolean = false>(
-	options: Options<GetCustomerOrdersIdData, ThrowOnError>,
+	options: Options<GetCustomerCommunityPostsIdData, ThrowOnError>,
 ) => {
 	return (options.client ?? _heyApiClient).get<
-		GetCustomerOrdersIdResponse,
-		GetCustomerOrdersIdError,
+		GetCustomerCommunityPostsIdResponse,
+		GetCustomerCommunityPostsIdError,
 		ThrowOnError
 	>({
 		security: [
@@ -7436,7 +7674,483 @@ export const getCustomerOrdersId = <ThrowOnError extends boolean = false>(
 				type: "apiKey",
 			},
 		],
-		url: "/customer/orders/{id}",
+		url: "/customer/community/posts/{id}",
 		...options,
+	});
+};
+
+/**
+ * Visible comments of a community post
+ * Requires an enterprise service API key; the organization comes from the key. The `X-Customer-Session` header is OPTIONAL: without it, with an unknown or expired token, or when the buyer has no current membership in the key's organization, the redacted version is returned. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After` (retry; it does not mean the session ended). Rate limited: 1200 requests/min per key and 120/min per buyer and key, shared across `/customer/community*` (429 `RATE_LIMITED` with `Retry-After`). Every response, errors included, is `Cache-Control: private, no-store`. Flat list, oldest first, with `parentId` for replies (one level): a parent always comes before its replies, so threads can be built while paginating (`page.nextCursor` → `?cursor=`; an invalid or empty cursor responds 422 `INVALID_CURSOR`). Only visible comments: deleted ones, ones hidden by moderation and replies to a hidden comment are never returned. Authors are exposed by public alias and avatar only. `{id}` accepts what `GET /customer/community/posts/{id}` accepts, with the same 404 cases; a post that is `locked` for the reader responds 403 `MEMBERSHIP_REQUIRED`.
+ */
+export const getCustomerCommunityPostsIdComments = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetCustomerCommunityPostsIdCommentsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCustomerCommunityPostsIdCommentsResponse,
+		GetCustomerCommunityPostsIdCommentsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/posts/{id}/comments",
+		...options,
+	});
+};
+
+/**
+ * Comment on a community post
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session, never from the body. Verified email is not required (same as the portal). If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. Rate limited (429 `RATE_LIMITED` with `Retry-After`): the limits of `/customer/community*` plus 30 writes/min per buyer and key, and a per-buyer limit stored in the database for each action. Every response is `Cache-Control: private, no-store`. Anything of another organization responds 404. Creates a comment, or a reply when `parentId` is sent (one level of threading: the parent must be a visible top-level comment of the SAME post; 404 `PARENT_NOT_FOUND` if it does not exist, belongs to another post (of this or another organization), was deleted or is hidden, 422 `INVALID_PARENT` if it is itself a reply). `{id}` accepts what `GET /customer/community/posts/{id}` accepts, with the same 404 cases. Interacting follows the portal's rule: 403 `BANNED` for a buyer expelled from this community; on a members-only post or a member's post, 403 `MEMBERSHIP_REQUIRED` without a current membership. A member's post read from outside the community does not exist (404), like in the reads. Responds 201 with the created comment. With an `Idempotency-Key`, a retry with the SAME `body` and `parentId` responds 200 with the comment created by the first attempt instead of creating another one. 409 `IDEMPOTENCY_KEY_REUSED` if the key was used with a different `body` or `parentId` (the key binds the whole request), or if that comment was deleted or hidden by moderation since. Database limit: 8 comments per minute per buyer. The comment text is never logged.
+ */
+export const postCustomerCommunityPostsIdComments = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerCommunityPostsIdCommentsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerCommunityPostsIdCommentsResponse,
+		PostCustomerCommunityPostsIdCommentsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/posts/{id}/comments",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Community channels for a buyer
+ * Requires an enterprise service API key; the organization comes from the key. The `X-Customer-Session` header is OPTIONAL: without it, with an unknown or expired token, or when the buyer has no current membership in the key's organization, the redacted version is returned. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After` (retry; it does not mean the session ended). Rate limited: 1200 requests/min per key and 120/min per buyer and key, shared across `/customer/community*` (429 `RATE_LIMITED` with `Retry-After`). Every response, errors included, is `Cache-Control: private, no-store`. Active channels of the organization's community, Announcements first; with a buyer session, the channel of the buyer's city comes right after. Read-only: unlike `GET /content/channels`, it never creates the default channels, so an organization that has not opened its community yet returns an empty list. Pass a channel `slug` as `?channel=` to `GET /customer/community/feed`.
+ */
+export const getCustomerCommunityChannels = <
+	ThrowOnError extends boolean = false,
+>(
+	options?: Options<GetCustomerCommunityChannelsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerCommunityChannelsResponse,
+		GetCustomerCommunityChannelsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/channels",
+		...options,
+	});
+};
+
+/**
+ * Upcoming community meetups for a buyer
+ * Requires an enterprise service API key; the organization comes from the key. The `X-Customer-Session` header is OPTIONAL: without it, with an unknown or expired token, or when the buyer has no current membership in the key's organization, the redacted version is returned. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After` (retry; it does not mean the session ended). Rate limited: 1200 requests/min per key and 120/min per buyer and key, shared across `/customer/community*` (429 `RATE_LIMITED` with `Retry-After`). Every response, errors included, is `Cache-Control: private, no-store`. PUBLISHED meetups that have not ended (upcoming or in progress), soonest first; drafts and cancelled meetups are never listed. Without a current membership the meetup is a teaser (`locked: true`): only `id`, `title`, `format`, `status`, `startsAt`, `endsAt`, `timeZone` and `isClosed` are real; `description`, `city`, `locationName`, `capacity`, `goingCount`, `myRsvp`, `locationDetail` and `onlineUrl` are null and `isFull` / `requiresApproval` are false. `locationDetail` and `onlineUrl` are only returned to a current member whose own RSVP is `GOING` (and never to a banned buyer). When the community is not enabled for the organization the list is empty and the detail responds 404.
+ */
+export const getCustomerCommunityMeetups = <
+	ThrowOnError extends boolean = false,
+>(
+	options?: Options<GetCustomerCommunityMeetupsData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerCommunityMeetupsResponse,
+		GetCustomerCommunityMeetupsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/meetups",
+		...options,
+	});
+};
+
+/**
+ * Community meetup for a buyer
+ * Requires an enterprise service API key; the organization comes from the key. The `X-Customer-Session` header is OPTIONAL: without it, with an unknown or expired token, or when the buyer has no current membership in the key's organization, the redacted version is returned. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After` (retry; it does not mean the session ended). Rate limited: 1200 requests/min per key and 120/min per buyer and key, shared across `/customer/community*` (429 `RATE_LIMITED` with `Retry-After`). Every response, errors included, is `Cache-Control: private, no-store`. A PUBLISHED or CANCELLED meetup of the key's organization (a cancelled or past one still resolves, with `status` and `isClosed` saying so). 404 for a draft or a meetup of another organization. Without a current membership the meetup is a teaser (`locked: true`): only `id`, `title`, `format`, `status`, `startsAt`, `endsAt`, `timeZone` and `isClosed` are real; `description`, `city`, `locationName`, `capacity`, `goingCount`, `myRsvp`, `locationDetail` and `onlineUrl` are null and `isFull` / `requiresApproval` are false. `locationDetail` and `onlineUrl` are only returned to a current member whose own RSVP is `GOING` (and never to a banned buyer). When the community is not enabled for the organization the list is empty and the detail responds 404.
+ */
+export const getCustomerCommunityMeetupsId = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<GetCustomerCommunityMeetupsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCustomerCommunityMeetupsIdResponse,
+		GetCustomerCommunityMeetupsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/meetups/{id}",
+		...options,
+	});
+};
+
+/**
+ * Buyer's state in the community
+ * Requires an enterprise service API key; the organization comes from the key. The `X-Customer-Session` header is OPTIONAL: without it, with an unknown or expired token, or when the buyer has no current membership in the key's organization, the redacted version is returned. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After` (retry; it does not mean the session ended). Rate limited: 1200 requests/min per key and 120/min per buyer and key, shared across `/customer/community*` (429 `RATE_LIMITED` with `Retry-After`). Every response, errors included, is `Cache-Control: private, no-store`. Without a valid buyer session it responds 200 with every flag false (never 401). A banned buyer keeps reading as before (`member` does not change) but `canInteract` is false. Reacting to or commenting on a members-only post additionally requires `member`.
+ */
+export const getCustomerCommunityMe = <ThrowOnError extends boolean = false>(
+	options?: Options<GetCustomerCommunityMeData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetCustomerCommunityMeResponse,
+		GetCustomerCommunityMeError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/me",
+		...options,
+	});
+};
+
+/**
+ * Remove the buyer's reaction from a community post
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session, never from the body. Verified email is not required (same as the portal). If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. Rate limited (429 `RATE_LIMITED` with `Retry-After`): the limits of `/customer/community*` plus 30 writes/min per buyer and key, and a per-buyer limit stored in the database for each action. Every response is `Cache-Control: private, no-store`. Anything of another organization responds 404. No request body. Removes the buyer's reaction and returns `{ reacted: false }`. Idempotent: without a reaction it is a no-op. Removing one's own reaction is always allowed, also for a banned buyer or one whose membership ended (like cancelling an RSVP): it only requires the post to exist for this reader in the key's organization (404 otherwise, same cases as `GET /customer/community/posts/{id}`).
+ */
+export const deleteCustomerCommunityPostsIdReactions = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<DeleteCustomerCommunityPostsIdReactionsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteCustomerCommunityPostsIdReactionsResponse,
+		DeleteCustomerCommunityPostsIdReactionsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/posts/{id}/reactions",
+		...options,
+	});
+};
+
+/**
+ * React to a community post
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session, never from the body. Verified email is not required (same as the portal). If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. Rate limited (429 `RATE_LIMITED` with `Retry-After`): the limits of `/customer/community*` plus 30 writes/min per buyer and key, and a per-buyer limit stored in the database for each action. Every response is `Cache-Control: private, no-store`. Anything of another organization responds 404. No request body. Puts the buyer's reaction on the post and returns `{ reacted: true }`. Idempotent: repeating it changes nothing (one reaction per buyer and post). The reaction count is never returned. Interacting follows the portal's rule: 403 `BANNED` for a buyer expelled from this community; on a members-only post or a member's post, 403 `MEMBERSHIP_REQUIRED` without a current membership. A member's post read from outside the community does not exist (404), like in the reads. Database limit: 30 new reactions per minute per buyer.
+ */
+export const postCustomerCommunityPostsIdReactions = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerCommunityPostsIdReactionsData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerCommunityPostsIdReactionsResponse,
+		PostCustomerCommunityPostsIdReactionsError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/posts/{id}/reactions",
+		...options,
+	});
+};
+
+/**
+ * Report another member's community post
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session, never from the body. Verified email is not required (same as the portal). If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. Rate limited (429 `RATE_LIMITED` with `Retry-After`): the limits of `/customer/community*` plus 30 writes/min per buyer and key, and a per-buyer limit stored in the database for each action. Every response is `Cache-Control: private, no-store`. Anything of another organization responds 404. Only member posts can be reported (a post published by the organization responds 404, and so does everything when member posts are not enabled). Idempotent per (post, buyer): reporting again responds 200 with `duplicate: true` and counts nothing. 409 `OWN_CONTENT` for the buyer's own post. Interacting follows the portal's rule: 403 `BANNED` for a buyer expelled from this community; on a members-only post or a member's post, 403 `MEMBERSHIP_REQUIRED` without a current membership. A member's post read from outside the community does not exist (404), like in the reads. Database limit: 20 reports per hour per buyer. The reason and detail are stored for the community's moderation queue and never logged.
+ */
+export const postCustomerCommunityPostsIdReport = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerCommunityPostsIdReportData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerCommunityPostsIdReportResponse,
+		PostCustomerCommunityPostsIdReportError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/posts/{id}/report",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Delete the buyer's own community comment
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session, never from the body. Verified email is not required (same as the portal). If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. Rate limited (429 `RATE_LIMITED` with `Retry-After`): the limits of `/customer/community*` plus 30 writes/min per buyer and key, and a per-buyer limit stored in the database for each action. Every response is `Cache-Control: private, no-store`. Anything of another organization responds 404. Soft-deletes the buyer's own comment; deleting a top-level comment also removes its live replies (`deletedIds`). 404 for someone else's comment (the API does not confirm it exists), and for a comment already deleted, hidden by moderation or of another organization. 409 `UNDER_REVIEW` while the comment, or any of the replies it would take with it, has open reports (the community's team is reviewing it); nothing is deleted. A banned buyer or one without a current membership can still delete their own comments.
+ */
+export const deleteCustomerCommunityCommentsId = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<DeleteCustomerCommunityCommentsIdData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteCustomerCommunityCommentsIdResponse,
+		DeleteCustomerCommunityCommentsIdError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/comments/{id}",
+		...options,
+	});
+};
+
+/**
+ * Report a community comment
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session, never from the body. Verified email is not required (same as the portal). If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. Rate limited (429 `RATE_LIMITED` with `Retry-After`): the limits of `/customer/community*` plus 30 writes/min per buyer and key, and a per-buyer limit stored in the database for each action. Every response is `Cache-Control: private, no-store`. Anything of another organization responds 404. Idempotent per (comment, buyer): reporting again responds 200 with `duplicate: true` and counts nothing. 404 for a comment that is deleted, hidden by moderation, of another organization, on a post the buyer cannot read, or when the community is not enabled. 409 `OWN_CONTENT` for the buyer's own comment. Interacting follows the portal's rule: 403 `BANNED` for a buyer expelled from this community; on a members-only post or a member's post, 403 `MEMBERSHIP_REQUIRED` without a current membership. A member's post read from outside the community does not exist (404), like in the reads. Database limit: 20 reports per hour per buyer. The reason and detail are stored for the community's moderation queue and never logged.
+ */
+export const postCustomerCommunityCommentsIdReport = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerCommunityCommentsIdReportData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerCommunityCommentsIdReportResponse,
+		PostCustomerCommunityCommentsIdReportError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/comments/{id}/report",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
+ * Cancel the buyer's RSVP to a community meetup
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session, never from the body. Verified email is not required (same as the portal). If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. Rate limited (429 `RATE_LIMITED` with `Retry-After`): the limits of `/customer/community*` plus 30 writes/min per buyer and key, and a per-buyer limit stored in the database for each action. Every response is `Cache-Control: private, no-store`. Anything of another organization responds 404. Cancels the buyer's attendance (freeing the seat) or withdraws a pending request, and returns the updated meetup. Does NOT require a current membership and is allowed for a banned buyer: giving up one's own seat is never a privilege (without a current membership the returned meetup is the teaser). Repeating it is a no-op. 409 `MEETUP_CLOSED` once the meetup started. 404 for a draft, a meetup of another organization or when the community is not enabled.
+ */
+export const deleteCustomerCommunityMeetupsIdRsvp = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<DeleteCustomerCommunityMeetupsIdRsvpData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).delete<
+		DeleteCustomerCommunityMeetupsIdRsvpResponse,
+		DeleteCustomerCommunityMeetupsIdRsvpError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/meetups/{id}/rsvp",
+		...options,
+	});
+};
+
+/**
+ * RSVP to a community meetup
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session, never from the body. Verified email is not required (same as the portal). If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. Rate limited (429 `RATE_LIMITED` with `Retry-After`): the limits of `/customer/community*` plus 30 writes/min per buyer and key, and a per-buyer limit stored in the database for each action. Every response is `Cache-Control: private, no-store`. Anything of another organization responds 404. Confirms the buyer's attendance and returns the updated meetup (same shape as `GET /customer/community/meetups/{id}`): `myRsvp` is `GOING`, or `PENDING` when the meetup requires approval (the organization's team decides). Requires a CURRENT MEMBERSHIP in the key's organization: 403 `MEMBERSHIP_REQUIRED` otherwise (the community's creator without a membership cannot RSVP either) and 403 `BANNED` for an expelled buyer. 409 `MEETUP_FULL` when there are no seats left, 409 `MEETUP_CLOSED` when it already started or was cancelled, 409 `RSVP_DECLINED` when the team declined this buyer's request. 404 for a draft, a meetup of another organization or when the community is not enabled. Naturally idempotent (one RSVP per buyer and meetup): repeating it returns the same state without taking another seat. Database limit: RSVPs on 10 different meetups per minute per buyer (repeating a current RSVP never counts).
+ */
+export const postCustomerCommunityMeetupsIdRsvp = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerCommunityMeetupsIdRsvpData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerCommunityMeetupsIdRsvpResponse,
+		PostCustomerCommunityMeetupsIdRsvpError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/community/meetups/{id}/rsvp",
+		...options,
+	});
+};
+
+/**
+ * Recent chat messages of a live stream
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. A live stream of another organization (or deleted) responds 404. Every response, errors included, is `Cache-Control: private, no-store`. Audience: whoever can watch the live reads the chat — a current membership in the organization, the community's creator or, for a live tied to a show date, a CONFIRMED ticket for that date. Otherwise 403 `MEMBERSHIP_REQUIRED`, even when the live itself is public. Writing additionally requires not being banned from the community and the live being on air (`ACTIVE`). Returns the latest `limit` messages (default 100, max 200), oldest first, with the same shape as the Realtime `chat` event, so the backlog and the live channel merge by `id` (order: `sentAt`, then `id`). Authors are exposed only by a per-live pseudonym (`authorId`) and their display name. A banned buyer still reads. Rate limited: 600 requests/min per key and 30/min per buyer and key (429 `RATE_LIMITED` with `Retry-After`).
+ */
+export const getCustomerLivesIdChat = <ThrowOnError extends boolean = false>(
+	options: Options<GetCustomerLivesIdChatData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetCustomerLivesIdChatResponse,
+		GetCustomerLivesIdChatError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/lives/{id}/chat",
+		...options,
+	});
+};
+
+/**
+ * Read-only Realtime token for a live stream's chat
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. A live stream of another organization (or deleted) responds 404. Every response, errors included, is `Cache-Control: private, no-store`. Audience: whoever can watch the live reads the chat — a current membership in the organization, the community's creator or, for a live tied to a show date, a CONFIRMED ticket for that date. Otherwise 403 `MEMBERSHIP_REQUIRED`, even when the live itself is public. Writing additionally requires not being banned from the community and the live being on air (`ACTIVE`). Returns a short-lived JWT to subscribe the browser directly to the private Supabase Realtime channel `topic` (`live:<id>`, Broadcast event `chat` with a `CustomerLiveChatMessage` payload, plus Presence) using `realtime.url` and `realtime.apiKey`. The token is READ-ONLY for the chat: it does not write in the channel and does not identify the buyer (no chat identity, no customer id). Post through `POST /customer/lives/{id}/chat/messages` from your server. `canWrite` / `writeBlockedReason` tell whether the buyer may post now (`BANNED`, or `LIVE_NOT_ACTIVE` when the live is not on air); a banned buyer still reads. Lifetime: 30 minutes when access comes from a ticket for the show date, 60 minutes with a membership (`expiresAt` is the token's own `exp`). `me.authorId` is the buyer's pseudonym in this live, the same `authorId` as the buyer's own messages. 503 `REALTIME_DISABLED` when Realtime is not configured. Rate limited: 600 requests/min per key and 10/min per buyer and key (429 `RATE_LIMITED` with `Retry-After`).
+ */
+export const postCustomerLivesIdChatToken = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerLivesIdChatTokenData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerLivesIdChatTokenResponse,
+		PostCustomerLivesIdChatTokenError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/lives/{id}/chat/token",
+		...options,
+	});
+};
+
+/**
+ * Post a message in a live stream's chat
+ * Requires an enterprise service API key AND a valid `X-Customer-Session` (401 without it); the organization comes from the key and the buyer from the session. If the session cannot be verified right now it responds 503 `SESSION_UNAVAILABLE` with `Retry-After`. A live stream of another organization (or deleted) responds 404. Every response, errors included, is `Cache-Control: private, no-store`. Audience: whoever can watch the live reads the chat — a current membership in the organization, the community's creator or, for a live tied to a show date, a CONFIRMED ticket for that date. Otherwise 403 `MEMBERSHIP_REQUIRED`, even when the live itself is public. Writing additionally requires not being banned from the community and the live being on air (`ACTIVE`). Call it from your server (BFF), never from the browser. Access, ban and the live being on air are re-checked on EVERY message: 403 `MEMBERSHIP_REQUIRED` without access, 403 `BANNED` for a buyer expelled from the community, 409 `LIVE_NOT_ACTIVE` when the live is not on air. The text is collapsed to one line and must be 1-280 characters (422 `EMPTY` / `TOO_LONG`). The author's name and pseudonym come from the session, never from the body. Responds 201 with the message, which every subscriber of the Realtime channel (the sender included) also receives as the `chat` event. If the broadcast fails nothing is stored: 502 `SEND_FAILED` (retry with the same key). 503 `CHAT_DISABLED` when the chat is not configured. Rate limited (429 `RATE_LIMITED` with `Retry-After`): one message per second per buyer and live, 20/min per buyer and key, and 1200/min per key (provisional value, may change once real live traffic is measured).
+ */
+export const postCustomerLivesIdChatMessages = <
+	ThrowOnError extends boolean = false,
+>(
+	options: Options<PostCustomerLivesIdChatMessagesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostCustomerLivesIdChatMessagesResponse,
+		PostCustomerLivesIdChatMessagesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/customer/lives/{id}/chat/messages",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
 	});
 };

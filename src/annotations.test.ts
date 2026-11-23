@@ -83,6 +83,7 @@ const DESTRUCTIVE = [
 	"content_series_delete",
 	"content_videos_delete",
 	"customer_addresses_delete",
+	"customer_community_comments_delete",
 	"customer_order_release",
 	"customer_subscription_cancel",
 	"customer_ticket_cancel",

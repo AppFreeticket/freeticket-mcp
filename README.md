@@ -224,13 +224,15 @@ and ask for confirmation.
 | Memberships | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |
 | Commercial | `discounts_list` · `webhooks_list` · `venues_list` · `venues_get` · `staff_list` · `staff_get` | `discounts_create` · `discounts_update` · `discounts_delete` · `webhooks_create` · `webhooks_update` · `webhooks_delete` · `venues_create` · `venues_update` · `venues_delete` · `staff_create` · `staff_update_role` · `staff_access_set` · `staff_resend_invite` · `staff_delete` |
 | Reports | `reports_summary` · `reports_by_event` · `reports_timeseries` · `reports_inventory` · `reports_financials` · `reconciliation` | — |
-| Settlements | `settlements_list` · `settlements_get` · `settlements_document` · `settlements_proof` | — |
+| Settlements (EVENT and MEMBERSHIP, `kind`) | `settlements_list` · `settlements_get` · `settlements_document` · `settlements_proof` | — |
 | Credentials | `api_keys_list` | — |
 | Exports | `reports_export_buyers` · `reports_export_attendees` · `reports_export_subscribers` · `reports_export_reconciliation` | — |
 | Landing waitlist | `waitlist_list` | `waitlist_join` |
+| Landing courtesy requests | — (the list lives in the dashboard) | `courtesy_requests_create` |
 | Landing merch store | `merch_catalog` · `merch_orders_lookup` · `customer_merch_orders` (both need the enterprise key and the buyer session) | — (placing and paying an order needs the buyer's ID document and the card widget) |
 | Merch store catalog | `merch_products_list` | `merch_products_create` · `merch_products_set_status` · `merch_products_set_images` (replaces the list; dropped photos are deleted) |
-| Members area (buyer session) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` · `customer_addresses_list` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` · `customer_addresses_create` · `customer_addresses_update` · `customer_addresses_delete` |
+| Members area (buyer session) | `customer_me` · `customer_tickets` · `customer_ticket_get` · `customer_membership` · `customer_profile` · `customer_order_pending` · `customer_order_get` · `customer_addresses_list` · `customer_newsletter` | `customer_ticket_cancel` · `customer_subscribe` · `customer_subscription_cancel` · `customer_profile_update` · `customer_logout` · `customer_order_release` · `customer_addresses_create` · `customer_addresses_update` · `customer_addresses_delete` · `customer_newsletter_unsubscribe` (subscribing records the buyer's consent on the landing: not a tool) |
+| Buyer community and live chat (enterprise key + buyer session) | `customer_community_me` · `customer_community_channels` · `customer_community_feed` · `customer_community_post_get` · `customer_community_comments` · `customer_community_meetups` · `customer_community_meetups_get` · `customer_live_chat` | `customer_community_comments_create` · `customer_community_comments_delete` · `customer_community_react` · `customer_community_unreact` · `customer_community_posts_report` · `customer_community_comments_report` · `customer_community_rsvp` · `customer_community_rsvp_cancel` · `customer_live_chat_send` (the browser Realtime token is not a tool) |
 | Content | `content_videos` · `content_posts` · `content_lives` · `content_live_get` | `content_playback_token` · `content_posts_create` · `content_posts_update` · `content_posts_pin` · `content_posts_delete` · `content_comments_delete` |
 | Community channels | — | `content_channels_list` (lists, but its first call creates the default channels, so it is not a read) · `content_channels_create` · `content_channels_update` · `content_channels_reorder` · `content_channels_archive` |
 | Community moderation | `content_moderation_queue` · `content_moderation_bans` · `content_member_posts_list` | `content_comments_hide` · `content_comments_unhide` · `content_comments_ignore_reports` · `content_member_posts_approve` · `content_member_posts_reject` · `content_member_posts_remove` · `content_members_ban` · `content_members_unban` |
@@ -249,7 +251,9 @@ or `FT_CUSTOMER_SESSION` over stdio) and send nothing else — never the B2B key
 and the session is never a tool argument, so it does not pass through the
 model. The exchange that issues that token is not a tool either — it mints
 third-party sessions. `merch_orders_lookup` needs both an enterprise key and
-the buyer session.
+the buyer session, and so does the buyer community (`customer_community_*`,
+`customer_live_chat*`): the organization comes from the key, the buyer from
+the session, and they are registered only when the connection carries both.
 
 `settlements_document` and `settlements_proof` return a **signed URL with a
 5-minute TTL**, not the file: the API answers 302, and following the redirect
@@ -289,12 +293,17 @@ members-only).
 | Users | `admin_users` · `admin_users_get` · `admin_users_update` · `admin_impersonate` · `admin_impersonate_stop` |
 | Platform plans | `admin_platform_plans_list` · `admin_platform_plans_get` · `admin_platform_plans_create` · `admin_platform_plans_update` |
 | Feature flags | `admin_feature_flags_list` · `admin_feature_flags_set` |
-| CRM master (reads only) | `admin_crm_campaigns` · `admin_crm_campaigns_get` · `admin_crm_audience_preview` (counts, sends nothing) · `admin_crm_quota` · `admin_crm_options` · `admin_crm_events` · `admin_crm_event_dates` |
+| CRM master (reads only) | `admin_crm_campaigns` · `admin_crm_campaigns_get` · `admin_crm_audience_preview` (counts, sends nothing) · `admin_crm_quota` · `admin_crm_options` · `admin_crm_events` · `admin_crm_event_dates` · `admin_crm_organizations` · `admin_crm_suppressions` (masked emails) |
+| Settlements (reads only) | `admin_settlements_list` · `admin_settlements_get` |
 
 Launching, advancing or stopping batches and cancelling CRM campaigns is not
 exposed: those operations send real email and WhatsApp to buyers. The contract
 marks them `x-ft-mcp: { expose: false }` and `src/coverage.test.ts` fails if a
-tool calls them. Use the CLI (`ft admin crm`) or the panel.
+tool calls them. Use the CLI (`ft admin crm`) or the panel. The same marker
+keeps out adding or lifting CRM suppressions, the test send, the people search
+(it returns full buyer emails) and every settlement write (create, files,
+regenerate, send, mark paid, proofs, delete: organizers' money), which go
+through `ft admin crm` / `ft admin settlements` or the panel.
 
 ## UI in the host (MCP Apps)
 

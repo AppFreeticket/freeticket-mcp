@@ -9,11 +9,15 @@ import {
 	getCrmEventDates,
 	getCrmEvents,
 	getCrmOptions,
+	getCrmOrganizations,
 	getCrmQuota,
+	getCrmSuppressions,
 	getFeatureFlags,
 	getMe,
 	getPlatformPlans,
 	getPlatformPlansId,
+	getSettlements,
+	getSettlementsId,
 	getTokens,
 	getUsers,
 	getUsersId,
@@ -39,6 +43,10 @@ import { UI_META, uiTool } from "../ui";
 import { limitParam } from "../views";
 
 const CONFIRM = " ⚠️ Sensitive cross-tenant action: confirm with the human.";
+const SETTLEMENTS_READ_ONLY =
+	" Solo lectura: crear, regenerar, enviar, marcar como pagada, adjuntar " +
+	"comprobantes o borrar liquidaciones no se hace desde el MCP, sino con el " +
+	"CLI (`ft admin settlements`) o el panel.";
 const CRM_READ_ONLY =
 	" Solo lectura: lanzar, avanzar lotes, frenar o cancelar campañas no se " +
 	"hace desde el MCP, sino con el CLI (`ft admin crm`) o el panel.";
@@ -49,6 +57,9 @@ const CRM_READ_ONLY =
  * impersonation, platform plans y feature flags. Del CRM maestro solo las
  * lecturas: las escrituras (`x-ft-mcp: { expose: false }` en el contrato)
  * mandan correos y WhatsApp reales a clientes y quedan fuera a propósito.
+ * Igual con las liquidaciones (contrato 1.9): solo se leen; crearlas,
+ * regenerarlas, enviarlas, marcarlas pagadas o adjuntar comprobantes mueve
+ * dinero de los organizadores y queda en el CLI (`ft admin settlements`).
  */
 export function registerAdminTools(server: McpServer, client: Client): void {
 	server.tool(
@@ -473,5 +484,82 @@ export function registerAdminTools(server: McpServer, client: Client): void {
 			run(
 				getCrmEventDates({ query: { eventIds: eventIds.join(",") }, client }),
 			),
+	);
+
+	server.tool(
+		"admin_crm_organizations",
+		"Busca organizaciones activas por nombre o slug para el filtro del CRM " +
+			"(`scope.level: 'orgs'`) o para `sender.workspaceId` " +
+			"(GET /api/admin/crm/organizations): hasta 10 con `query`, las " +
+			"primeras 20 por nombre sin ella.",
+		{
+			query: z.string().max(120).optional().describe("Nombre o slug"),
+		},
+		read("admin_crm_organizations"),
+		async (q) => run(getCrmOrganizations({ query: q, client })),
+	);
+	uiTool(
+		server,
+		"admin_crm_suppressions",
+		"Bajas del CRM maestro, las más recientes primero, con el correo " +
+			"enmascarado (GET /api/admin/crm/suppressions). `scope: 'global'` (por " +
+			"defecto) trae solo las de plataforma; `all` suma las de cada " +
+			"organización. Dar de alta o quitar una baja no se hace desde el MCP." +
+			CRM_READ_ONLY,
+		{
+			query: z
+				.string()
+				.max(254)
+				.optional()
+				.describe("Correo completo o una parte"),
+			scope: z.enum(["global", "all"]).optional(),
+			limit: z
+				.number()
+				.int()
+				.min(1)
+				.max(500)
+				.optional()
+				.describe("1-500, por defecto 100"),
+		},
+		async (q) => run(getCrmSuppressions({ query: q, client })),
+	);
+
+	// ── Liquidaciones (contrato 1.9, solo lectura) ───────────────────────────
+	uiTool(
+		server,
+		"admin_settlements_list",
+		"Liquidaciones de EVENTOS de todas las organizaciones, las más nuevas " +
+			"primero (GET /api/admin/settlements); las de membresías no se listan, " +
+			"igual que en el panel. Del reparto solo vienen los últimos 4 dígitos " +
+			"de cada cuenta. Montos en COP enteros." +
+			SETTLEMENTS_READ_ONLY,
+		{
+			status: z
+				.enum([
+					"DRAFT",
+					"GENERATED",
+					"SENT",
+					"AWAITING_PAYMENT",
+					"PAID",
+					"REQUESTED",
+					"PENDING",
+					"REJECTED",
+				])
+				.optional(),
+			organizationId: z
+				.string()
+				.optional()
+				.describe("Solo las de esa organización"),
+			limit: limitParam,
+			cursor: z.string().optional().describe("Cursor de paginación"),
+		},
+		async (q) => run(getSettlements({ query: q, client })),
+	);
+	server.tool(
+		"admin_settlements_get",
+		`Detalle de una liquidación de cualquier organización (GET /api/admin/settlements/{id}).${SETTLEMENTS_READ_ONLY}`,
+		{ id: z.string().describe("Settlement id") },
+		read("admin_settlements_get"),
+		async ({ id }) => run(getSettlementsId({ path: { id }, client })),
 	);
 }

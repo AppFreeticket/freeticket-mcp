@@ -616,10 +616,15 @@ export function registerB2bTools(
 		server,
 		"settlements_list",
 		"Workspace settlements — what FreeTicket pays the organizer, with amount, " +
-			"status and event or date (GET /settlements). It carries hasDocument and " +
-			"the file names; the PDF is fetched with `settlements_document`.",
+			"status, `kind` and event or date (EVENT) or period and plan " +
+			"(MEMBERSHIP) (GET /settlements). It carries hasDocument and the file " +
+			"names; the PDF is fetched with `settlements_document`.",
 		{
 			event: z.string().optional().describe("Filter by event"),
+			kind: z
+				.enum(["EVENT", "MEMBERSHIP"])
+				.optional()
+				.describe("Omit to list both"),
 			status: z
 				.enum(["SENT", "AWAITING_PAYMENT", "PAID"])
 				.optional()
