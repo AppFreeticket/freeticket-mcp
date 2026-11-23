@@ -11,7 +11,7 @@ import { registerPublicTools } from "./public";
 const stubCreds = { apiUrl: "http://localhost", apiKey: "test" };
 const stub = makeB2bClient(stubCreds);
 
-// El registro no debe tirar y no debe haber nombres duplicados entre capas.
+// Registration must not throw and no name may repeat across layers.
 function names(server: McpServer): string[] {
 	// ponytail: _registeredTools is SDK-internal; if it changes, this test says so.
 	return Object.keys(
@@ -71,7 +71,7 @@ function summaryWorkspaceAcceptsAList(server: McpServer): boolean {
 	return schema?.safeParse(["a", "b"]).success === true;
 }
 
-describe("vista corta de events_list (#8)", () => {
+describe("events_list slim view (#8)", () => {
 	it("trims description and images, keeping what identifies the event", () => {
 		const full = {
 			id: "e1",
@@ -147,7 +147,7 @@ describe("tool registration", () => {
 		registerB2bWriteTools(server, stub);
 		const t = names(server);
 		// 35 writes: 29 from contract 1.5.0 + the 6 from 1.7.0 (members area and
-		// token de reproducción de contenido) + the 7 from 1.19/1.20 (events_cancel,
+		// content playback token) + the 7 from 1.19/1.20 (events_cancel,
 		// tickets_reassign, staff_delete, webhooks_update, customer_order_release,
 		// content_posts_create, workspaces_create) + the 10 from 1.21–1.27
 		// (events_schedule/unschedule, the lineup and its invitations, presale

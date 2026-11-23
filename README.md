@@ -166,7 +166,7 @@ Vercel, the standalone server uses the socket address):
 | Refresh of one same token | 6 per minute |
 
 The consent page starts the device flow only when the user clicks
-"Continuar con FreeTicket" (`POST /device-start`), not on page load.
+"Continue with FreeTicket" (`POST /device-start`), not on page load.
 `MCP_REQUIRE_AUTH=1` turns lazy auth off (401 on any `/mcp` request without a
 token, as before 0.24.0).
 

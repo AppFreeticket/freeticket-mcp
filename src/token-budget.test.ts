@@ -45,7 +45,7 @@ function salesFixture(n = 100) {
 				iva: 3420,
 				total: 201420,
 				currency: "COP",
-				buyerName: `Comprador Número ${i}`,
+				buyerName: `Buyer Number ${i}`,
 				buyerEmail: `comprador.${i}@correo.example.co`,
 				buyerPhone: "+573001234567",
 				buyerDocumentType: "CC",
@@ -124,8 +124,8 @@ describe("size: sales_list before/after", () => {
 		const verbose = await call("sales_list", { limit: 100, verbose: true });
 
 		console.info(
-			`[token-budget] sales_list x100 — antes: texto ${beforeText} + structured ${beforeStructured} = ${before} chars · ` +
-				`después: texto ${afterText} (modelo), con structured para la vista ${after} · verbose ${verbose.content[0].text.length}`,
+			`[token-budget] sales_list x100 — before: text ${beforeText} + structured ${beforeStructured} = ${before} chars · ` +
+				`after: text ${afterText} (model), with structured for the view ${after} · verbose ${verbose.content[0].text.length}`,
 		);
 		expect(afterText).toBeLessThanOrEqual(MAX_TEXT_CHARS);
 		expect(afterText).toBeLessThan(beforeText / 2);
@@ -170,8 +170,8 @@ describe("capJson: truncation", () => {
 	it("without a page it points at the filters instead of a cursor", () => {
 		const { text } = capJson({ data: salesFixture(300).data });
 		const parsed = JSON.parse(text) as { truncated: { hint: string } };
-		expect(parsed.truncated.hint).toContain("no pagina");
-		expect(parsed.truncated.hint).toContain("filtros");
+		expect(parsed.truncated.hint).toContain("does not paginate");
+		expect(parsed.truncated.hint).toContain("filters");
 	});
 
 	it("a bare array is wrapped so the note fits", () => {
@@ -235,7 +235,7 @@ describe("truncation never skips rows (QA #43 P0)", () => {
 		expect(first.page.nextCursor).toBeNull();
 		expect(first.page.hasMore).toBe(true);
 		expect(first.truncated?.hint).toContain(`limit: ${shown}`);
-		expect(first.truncated?.hint).toContain("mismo `cursor`");
+		expect(first.truncated?.hint).toContain("same `cursor`");
 
 		// Follow the hint: same call (no cursor, it was page 1), limit = shown.
 		const seen: string[] = [];
@@ -290,7 +290,7 @@ describe("capJson: shapes (QA #43 P1)", () => {
 	it("the fan-out cuts the rows, not a heavier errors list", () => {
 		const errors = Array.from({ length: 400 }, (_, i) => ({
 			workspaceId: `ws_${i}`,
-			workspaceName: `Workspace con un nombre bastante largo ${i}`,
+			workspaceName: `Workspace with a rather long name ${i}`,
 			error: { code: "forbidden", message: "x".repeat(60) },
 		}));
 		const data = salesFixture(60).data;
@@ -420,7 +420,7 @@ describe("actionable errors", () => {
 		[401, "UNAUTHORIZED", /ft login/],
 		[403, "FORBIDDEN", /whoami/],
 		[404, "NOT_FOUND", /_list/],
-		[409, "CONFLICT", /Relee/],
+		[409, "CONFLICT", /Re-read/],
 	])("%i keeps the code and adds a recovery hint", async (status, code, hint) => {
 		const res = await run(
 			Promise.resolve({
@@ -483,7 +483,7 @@ describe("actionable errors", () => {
 		const { error } = parse(await call("sales_get", { id: "x" }));
 		expect(error.status).toBe(503);
 		expect(error.retryable).toBe(true);
-		expect(error.hint).toMatch(/Reintenta/);
+		expect(error.hint).toMatch(/Retry/);
 	});
 
 	it("a network failure is retryable with code network_error", async () => {

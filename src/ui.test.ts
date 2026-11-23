@@ -54,7 +54,7 @@ describe("MCP Apps wiring", () => {
 
 	it("serves self-contained HTML that speaks the ui/ dialect", async () => {
 		const html = await viewHtml();
-		// Métodos verificados contra ext-apps/src/spec.types.ts (2026-01-26).
+		// Methods verified against ext-apps/src/spec.types.ts (2026-01-26).
 		for (const m of [
 			"ui/initialize",
 			"ui/notifications/initialized",
@@ -400,7 +400,7 @@ describe("MCP Apps view — the branding stays ours", () => {
 		const html = await viewHtml();
 		expect(html).toContain(BRAND.accent);
 		await mount();
-		// Logo real de brand.ts, no un cuadradito de CSS.
+		// Real logo from brand.ts, not a CSS square.
 		expect(document.querySelector("header svg")).toBeTruthy();
 		expect(document.querySelector("header b")?.textContent).toBe("FreeTicket");
 	});

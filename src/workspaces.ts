@@ -32,7 +32,7 @@ export type WorkspaceRow<T> = T & {
 	workspaceName: string;
 };
 
-/** Error de un workspace puntual dentro de un fan-out — no tumba al resto. */
+/** Error from one workspace inside a fan-out — it does not take down the rest. */
 export interface WorkspaceFanOutError {
 	workspaceId: string;
 	workspaceName: string;
@@ -180,7 +180,7 @@ function fanOutContent<T>(
 			{ data: result.rows, errors },
 			{
 				hint: (shown, total) =>
-					`Respuesta recortada a ${shown} de ${total} filas por tamaño. El modo global no pagina: nombra un solo \`workspace\` para paginar con \`limit\`/\`cursor\`, o acota con los filtros del tool.`,
+					`Response cut to ${shown} of ${total} rows by size. Global mode does not paginate: name a single \`workspace\` to paginate with \`limit\`/\`cursor\`, or narrow with the tool filters.`,
 			},
 		),
 		isError: result.rows.length === 0 && errors.length > 0,

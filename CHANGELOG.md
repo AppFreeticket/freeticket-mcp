@@ -37,6 +37,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
   `POST /crm/people/search` (full buyer emails).
 
 ### Changed
+- All MCP-facing text is now in English (the repo is public): every tool
+  description and parameter description (the superadmin/CRM block was
+  Spanish), the server `instructions`, the error and truncation hints, the
+  OAuth consent page and the view footer ("Showing N of M"). Tool names are
+  unchanged.
 - `public_orders_get`: each ticket's `ticketCode` is `null` until the QR gate
   opens (event 72 h away or less), as in public contract 0.11.0.
 
@@ -180,7 +185,7 @@ rows again in `structuredContent` 59 650) → **24 737 chars of text after**
   `hasMore: true`) and the hint says to repeat the same call with the same
   `cursor` and `limit: <shown>` — that response carries the exact cursor.
 - The tools with a view also get the note in `structuredContent.truncated`
-  (the view footer says "Mostrando N de M"); the preview fallback reaches the
+  (the view footer says "Showing N of M"); the preview fallback reaches the
   view as text, not as an object.
 - Trimmed views by default for `sales_list`, `sales_tickets`, `sales_attempts`,
   `reports_export_buyers` and `reports_export_attendees` (ids, codes, status,
@@ -698,7 +703,7 @@ Closes six gaps from the umbrella ledger in one pass (#355, #356, #381, #382,
 ### Added
 - **Login with the free-admin session** as the primary consent path: `/authorize`
   now starts the RFC 8628 device flow against free-admin (same backend as
-  `ft login`). The user clicks "Continuar con FreeTicket", approves with their
+  `ft login`). The user clicks "Continue with FreeTicket", approves with their
   normal session at `/device`, and the consent page polls `/device-token` and
   redirects back to the MCP client automatically — no API keys to paste.
   Multi-workspace accounts get a picker (the minted key travels sealed,

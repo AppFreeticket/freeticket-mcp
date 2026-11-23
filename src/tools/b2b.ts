@@ -196,7 +196,7 @@ async function signedDownload(creds: Creds, path: string) {
 /**
  * Wave A: every read of the B2B /api/v1 contract (one tool = one operationId).
  * Writes (create/update/delete/publish/checkin/refund…) = Wave B, with no
- * global: siguen siendo de un solo workspace, explícito.
+ * global mode: they stay on a single, explicit workspace.
  *
  * Lists and reports register through `uiTool`: alongside the JSON they carry
  * the MCP Apps view (src/ui.ts), which the host renders as a table or KPIs. A
@@ -232,19 +232,19 @@ export function registerB2bTools(
 			`the full event.${ACROSS}`,
 		{
 			...paging,
-			q: z.string().optional().describe("Búsqueda por nombre/descripción"),
+			q: z.string().optional().describe("Search by name/description"),
 			status: eventStatus.optional(),
 			withTotal: z
 				.boolean()
 				.optional()
-				.describe("Incluir page.total (cuenta extra, opt-in)"),
+				.describe("Include page.total (extra count, opt-in)"),
 			verbose: z
 				.boolean()
 				.optional()
 				.describe(
 					"Return the whole event (description and images). The slim view " +
 						"is the default: id, name, slug, status, access, venue and " +
-						"próxima fecha.",
+						"next date.",
 				),
 			workspace: workspaceParam,
 		},
@@ -293,7 +293,7 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"ticket_types_get",
-		"Detalle de un tipo de ticket (GET /ticket-types/{id}).",
+		"Detail of a ticket type (GET /ticket-types/{id}).",
 		{ id },
 		read("ticket_types_get"),
 		async ({ id }) => run(getTicketTypesId({ path: { id }, client })),
@@ -316,10 +316,10 @@ export function registerB2bTools(
 			channel: saleChannel.optional(),
 			event: z.string().optional().describe("Filter by event"),
 			eventDate: z.string().optional().describe("Filter by event date"),
-			reference: z.string().optional().describe("Buscar por referencia"),
+			reference: z.string().optional().describe("Search by reference"),
 			buyer: z.string().optional().describe("Search by buyer (name or email)"),
 			from: z.string().optional().describe("Created from (ISO 8601)"),
-			to: z.string().optional().describe("Creadas hasta (ISO 8601)"),
+			to: z.string().optional().describe("Created until (ISO 8601)"),
 			...paging,
 			verbose: verboseParam,
 			workspace: workspaceParam,
@@ -368,7 +368,7 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"tickets_access",
-		"Estado de acceso de un ticket por su código QR — no admite, solo consulta (GET /tickets/{code}/access).",
+		"Access status of a ticket by its QR code — read-only, it does not admit (GET /tickets/{code}/access).",
 		{ code: z.string().describe("Ticket QR code") },
 		read("tickets_access"),
 		async ({ code }) =>
@@ -391,14 +391,14 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"plans_get",
-		"Detalle de un plan de membresía (GET /membership-plans/{id}).",
+		"Detail of a membership plan (GET /membership-plans/{id}).",
 		{ id },
 		read("plans_get"),
 		async ({ id }) => run(getMembershipPlansId({ path: { id }, client })),
 	);
 	server.tool(
 		"plans_subscribers",
-		"Suscriptores/miembros de un plan (GET /membership-plans/{id}/subscribers).",
+		"Subscribers/members of a plan (GET /membership-plans/{id}/subscribers).",
 		{ id: z.string().describe("Plan id") },
 		read("plans_subscribers"),
 		async ({ id }) =>
@@ -454,7 +454,7 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"venues_get",
-		"Detalle de un venue (GET /venues/{id}).",
+		"Detail of a venue (GET /venues/{id}).",
 		{ id },
 		read("venues_get"),
 		async ({ id }) => run(getVenuesId({ path: { id }, client })),
@@ -529,8 +529,8 @@ export function registerB2bTools(
 			"that status. Use it to compare how events are selling; for workspace " +
 			`KPIs use \`reports_summary\`.${ACROSS}`,
 		{
-			from: z.string().optional().describe("Desde (ISO 8601)"),
-			to: z.string().optional().describe("Hasta (ISO 8601)"),
+			from: z.string().optional().describe("From (ISO 8601)"),
+			to: z.string().optional().describe("To (ISO 8601)"),
 			status: saleStatus.optional(),
 			workspace: workspaceParam,
 		},
@@ -542,7 +542,7 @@ export function registerB2bTools(
 	uiTool(
 		server,
 		"reports_timeseries",
-		"Serie temporal de revenue/tickets (GET /reports/timeseries).",
+		"Revenue/tickets time series (GET /reports/timeseries).",
 		{
 			interval: z.enum(["day", "week", "month"]),
 			from: z.string().optional(),
@@ -594,7 +594,7 @@ export function registerB2bTools(
 					"MISSING_PAYMENT",
 				])
 				.optional(),
-			provider: z.string().optional().describe("Proveedor de pago"),
+			provider: z.string().optional().describe("Payment provider"),
 			page: z.string().optional(),
 			page_size: z.string().optional(),
 			workspace: workspaceParam,
@@ -733,7 +733,7 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"reports_export_subscribers",
-		"Export de suscriptores (GET /reports/exports/subscribers).",
+		"Subscribers export (GET /reports/exports/subscribers).",
 		read("reports_export_subscribers"),
 		async () => run(getReportsExportsSubscribers({ client })),
 	);

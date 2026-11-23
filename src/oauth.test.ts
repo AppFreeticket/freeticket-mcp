@@ -205,7 +205,7 @@ describe("consentPage", () => {
 			redirect: { ok: true, host: "evil.example", unknownHost: true },
 		});
 		expect(page).toContain("evil.example");
-		expect(page).toContain("no es un cliente conocido");
+		expect(page).toContain("is not a known client");
 	});
 });
 

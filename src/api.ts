@@ -6,8 +6,8 @@ import { type Client, createClient, createConfig } from "@hey-api/client-fetch";
 /**
  * Credentials for one session. Over stdio they come from env and config; over
  * remote HTTP they come from the request (never from disk) — which is why the
- * clients are built per session and
- * no hay singleton global compartido entre tenants.
+ * clients are built per session and there is no global singleton shared
+ * across tenants.
  */
 export interface Creds {
 	apiUrl: string;
@@ -288,8 +288,8 @@ export function capJson(
 				? opts.hint(shown, total)
 				: (opts.hint ??
 					(paginated
-						? `Respuesta recortada a ${shown} de ${total} ítems (tope ~${max} caracteres); page.nextCursor se anuló porque saltaría las filas recortadas. Para seguir sin perder filas: repite esta misma llamada con el mismo \`cursor\` que usaste (ninguno si era la primera página) y \`limit: ${Math.max(1, shown)}\`; esa respuesta trae el page.nextCursor exacto para continuar. O acota con los filtros del tool.`
-						: `Respuesta recortada a ${shown} de ${total} ítems (tope ~${max} caracteres). Este tool no pagina: acota con sus filtros (evento, fecha, rango from/to, estado) para traer menos filas.`)),
+						? `Response cut to ${shown} of ${total} items (cap ~${max} characters); page.nextCursor was nulled because it would skip the cut rows. To continue without losing rows: repeat this same call with the same \`cursor\` you used (none if it was the first page) and \`limit: ${Math.max(1, shown)}\`; that response carries the exact page.nextCursor to continue. Or narrow with the tool filters.`
+						: `Response cut to ${shown} of ${total} items (cap ~${max} characters). This tool does not paginate: narrow with its filters (event, date, from/to range, status) to get fewer rows.`)),
 	});
 
 	for (const list of candidates) {
@@ -327,7 +327,7 @@ export function capJson(
 		hint:
 			typeof opts.hint === "string"
 				? opts.hint
-				: `Respuesta demasiado grande (${text.length} caracteres, tope ~${max}). Se muestra solo el comienzo como texto: pide un recurso puntual (*_get) o acota con filtros.`,
+				: `Response too large (${text.length} characters, cap ~${max}). Only the beginning is shown as text: ask for a single resource (*_get) or narrow with filters.`,
 	};
 	const shell = { truncated: n, preview: "" };
 	// Escaping (quotes, backslashes, control chars) can grow the preview once
@@ -432,51 +432,51 @@ export function recoveryHint(
 	if (status === undefined)
 		return {
 			retryable: true,
-			hint: "Fallo de red (DNS, timeout o TLS) antes de recibir respuesta. Es transitorio: reintenta en unos segundos.",
+			hint: "Network failure (DNS, timeout or TLS) before any response. It is transient: retry in a few seconds.",
 		};
 	if (status === 401)
 		return {
 			retryable: false,
-			hint: "Credencial inválida o vencida. Vuelve a autenticar (`ft login`, o reconecta el servidor MCP para repetir el login) o revisa FT_API_KEY. Reintentar igual no sirve.",
+			hint: "Invalid or expired credential. Authenticate again (`ft login`, or reconnect the MCP server to repeat the login) or check FT_API_KEY. Retrying as-is will not help.",
 		};
 	if (status === 403) {
 		const ws =
 			details?.activeWorkspaceName || details?.activeWorkspaceId
-				? ` Workspace activo: ${details.activeWorkspaceName ?? ""}${details.activeWorkspaceId ? ` (${details.activeWorkspaceId})` : ""}.`
+				? ` Active workspace: ${details.activeWorkspaceName ?? ""}${details.activeWorkspaceId ? ` (${details.activeWorkspaceId})` : ""}.`
 				: "";
 		return {
 			retryable: false,
-			hint: `Sin permiso: la API key puede ser de solo lectura (scope) o tu rol en ese workspace no alcanza.${ws} Revisa con \`whoami\` a qué workspaces llegas y con qué rol; si el recurso es de otro, repite con \`workspace\`.`,
+			hint: `Forbidden: the API key may be read-only (scope) or your role in that workspace is not enough.${ws} Check with \`whoami\` which workspaces you reach and with which role; if the resource belongs to another one, repeat with \`workspace\`.`,
 		};
 	}
 	if (status === 404)
 		return {
 			retryable: false,
-			hint: "No existe con ese id en este workspace. Revisa el id: búscalo con el tool *_list del recurso (p. ej. `sales_list`, `events_list`), o con `workspace` si vive en otro workspace.",
+			hint: "Nothing with that id in this workspace. Check the id: look it up with the resource's *_list tool (e.g. `sales_list`, `events_list`), or with `workspace` if it lives in another workspace.",
 		};
 	if (status === 409)
 		return {
 			retryable: false,
-			hint: "Conflicto con el estado actual (ya existe, ya se procesó o cambió mientras tanto). Relee el recurso con su *_get antes de decidir; no repitas la escritura a ciegas.",
+			hint: "Conflict with the current state (already exists, already processed or changed meanwhile). Re-read the resource with its *_get before deciding; do not repeat the write blindly.",
 		};
 	if (status === 400 || status === 422) {
 		const fields = fieldErrors(body.error?.details);
 		return {
 			retryable: false,
 			hint: fields.length
-				? `Validación fallida. Corrige estos campos y repite: ${fields.join("; ")}.`
-				: `Validación fallida: ${body.error?.message ?? "revisa los parámetros"}. Corrige y repite.`,
+				? `Validation failed. Fix these fields and retry: ${fields.join("; ")}.`
+				: `Validation failed: ${body.error?.message ?? "check the parameters"}. Fix and retry.`,
 		};
 	}
 	if (status === 429)
 		return {
 			retryable: true,
-			hint: `Límite de tasa alcanzado. Espera ${retryAfter ?? 30} s y reintenta la misma llamada.`,
+			hint: `Rate limit reached. Wait ${retryAfter ?? 30} s and retry the same call.`,
 		};
 	if (status >= 500)
 		return {
 			retryable: body.error?.retryable ?? true,
-			hint: "Error del servidor de FreeTicket (transitorio). Reintenta en unos segundos; si persiste, repórtalo con la hora y el tool usado.",
+			hint: "FreeTicket server error (transient). Retry in a few seconds; if it persists, report it with the time and the tool used.",
 		};
 	return {
 		retryable: body.error?.retryable ?? false,
