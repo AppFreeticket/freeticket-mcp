@@ -61,6 +61,7 @@ import {
 	getSalesIdTickets,
 	getSettlements,
 	getSettlementsId,
+	getSite,
 	getStaff,
 	getStaffId,
 	getTicketsTicketCodeAccess,
@@ -617,8 +618,10 @@ export function registerB2bTools(
 		"settlements_list",
 		"Workspace settlements — what FreeTicket pays the organizer, with amount, " +
 			"status, `kind` and event or date (EVENT) or period and plan " +
-			"(MEMBERSHIP) (GET /settlements). It carries hasDocument and the file " +
-			"names; the PDF is fetched with `settlements_document`.",
+			"(MEMBERSHIP) (GET /settlements). On MEMBERSHIP rows `grossAmount` " +
+			"includes VAT and `vatAmount` is that VAT (null on EVENT). It carries " +
+			"hasDocument and the file names; the PDF is fetched with " +
+			"`settlements_document`.",
 		{
 			event: z.string().optional().describe("Filter by event"),
 			kind: z
@@ -635,8 +638,9 @@ export function registerB2bTools(
 	);
 	server.tool(
 		"settlements_get",
-		"Detail of one settlement (GET /settlements/{id}). Files via " +
-			"`settlements_document` and `settlements_proof`.",
+		"Detail of one settlement (GET /settlements/{id}). On MEMBERSHIP ones " +
+			"`grossAmount` includes VAT and `vatAmount` is that VAT (null on EVENT). " +
+			"Files via `settlements_document` and `settlements_proof`.",
 		{ id },
 		read("settlements_get"),
 		async ({ id }) => run(getSettlementsId({ path: { id }, client })),
@@ -1063,6 +1067,17 @@ export function registerB2bTools(
 			"`website_put`. Read it before `website_put`, which replaces everything.",
 		read("website_get"),
 		async () => run(getWebsite({ client })),
+	);
+	server.tool(
+		"site_get",
+		"Configuration of the workspace's OWN headless site, on its own domain: " +
+			"`domain`, which modules it shows, hero, SEO and FAQ (`config`, always " +
+			"complete) and the public `identity` (name, bio, logo, socials) " +
+			"(GET /site). It is not the FreeTicket page of the workspace: that is " +
+			"`website_get`. 404 `NOT_FOUND` = the workspace has no active own site. " +
+			'Read-only: it is edited in the dashboard ("Mi sitio").',
+		read("site_get"),
+		async () => run(getSite({ client })),
 	);
 	server.tool(
 		"organization_profile_get",

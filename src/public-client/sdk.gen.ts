@@ -45,6 +45,40 @@ export type Options<
 };
 
 /**
+ * Get a public event by slug
+ * Public (no auth). Detail of a PUBLISHED event: description, dates (with venue and city) and the 'from' price in two flavors: `priceFrom` (base, no fees) and `buyerTotalFrom` (including service fee, VAT (IVA), seat surcharge and any products bundled with that ticket, e.g. a drink combo). For live stock per ticket type, use `/events/{slug}/availability`.
+ */
+export const getEventsSlug = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsSlugData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsSlugResponse,
+		GetEventsSlugError,
+		ThrowOnError
+	>({
+		url: "/events/{slug}",
+		...options,
+	});
+};
+
+/**
+ * Live availability by date and ticket type
+ * Public (no auth). Live stock (capacity - sold - reserved) per date and ticket type, upcoming dates only. Each type includes the base price (`price`) and the final per-unit price (`buyerTotal` = price + service fee + VAT (IVA) + numbered-seat surcharge): quote the buyer with `buyerTotal`, not `price`. For NUMBERED ticket types (`seatsioCategoryKey` not null), `availableSeats` lists the exact label of every seat free right now — those labels are what goes into `items[].seats` in POST /orders. Check this before creating an order. Do not cache aggressively: stock (and seats) change.
+ */
+export const getEventsSlugAvailability = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsSlugAvailabilityData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsSlugAvailabilityResponse,
+		GetEventsSlugAvailabilityError,
+		ThrowOnError
+	>({
+		url: "/events/{slug}/availability",
+		...options,
+	});
+};
+
+/**
  * Resend the ticket/QR email to the buyer (anonymous)
  * Public (no auth). Resends the QR email to the address registered on the purchase. Optional body `{ email }`, which must match the buyer's email. If the ticket was transferred, only this ticket is resent to its current holder (and `email`, if sent, must match the holder's). Returns the masked email address, never the full one. Rate-limited per code (1/min).
  */
@@ -83,42 +117,8 @@ export const getEvents = <ThrowOnError extends boolean = false>(
 };
 
 /**
- * Get a public event by slug
- * Public (no auth). Detail of a PUBLISHED event: description, dates (with venue and city) and the 'from' price in two flavors: `priceFrom` (base, no fees) and `buyerTotalFrom` (including service fee, VAT (IVA), seat surcharge and any products bundled with that ticket, e.g. a drink combo). For live stock per ticket type, use `/events/{slug}/availability`.
- */
-export const getEventsSlug = <ThrowOnError extends boolean = false>(
-	options: Options<GetEventsSlugData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetEventsSlugResponse,
-		GetEventsSlugError,
-		ThrowOnError
-	>({
-		url: "/events/{slug}",
-		...options,
-	});
-};
-
-/**
- * Live availability by date and ticket type
- * Public (no auth). Live stock (capacity - sold - reserved) per date and ticket type, upcoming dates only. Each type includes the base price (`price`) and the final per-unit price (`buyerTotal` = price + service fee + VAT (IVA) + numbered-seat surcharge): quote the buyer with `buyerTotal`, not `price`. For NUMBERED ticket types (`seatsioCategoryKey` not null), `availableSeats` lists the exact label of every seat free right now — those labels are what goes into `items[].seats` in POST /orders. Check this before creating an order. Do not cache aggressively: stock (and seats) change.
- */
-export const getEventsSlugAvailability = <ThrowOnError extends boolean = false>(
-	options: Options<GetEventsSlugAvailabilityData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetEventsSlugAvailabilityResponse,
-		GetEventsSlugAvailabilityError,
-		ThrowOnError
-	>({
-		url: "/events/{slug}/availability",
-		...options,
-	});
-};
-
-/**
  * Create a B2C order and get the payment link (Mercado Pago)
- * Public for general admission (no auth, strict per-IP rate limit); orders with numbered seats REQUIRE a buyer session. Creates a PENDING sale + stock reservation and returns the Mercado Pago `checkoutUrl` to send the buyer to. The reservation holds the inventory for the payment window configured for that date (30 minutes unless the organizer sets it shorter or longer; never less than 10). The response includes `expiresAt`: the EXACT instant (ISO 8601, UTC) at which that reservation expires, the same one stored server-side. This is the value that decides whether it still makes sense to send the buyer to pay: past that instant the inventory has already returned to stock —and, for numbered seating, the seat is already on someone else's map— so the `checkoutUrl` may still open and the payment may arrive late. Do not recompute it by adding minutes on the client: use the returned value. `GET /orders/{id}` repeats it while the order is still `pending` (and returns null once it no longer is), so a countdown can resume after a reload instead of restarting. The agent NEVER processes the payment. Not available for members-only tickets (members_only); PUBLISHED events with sales open, all from a single organizer. Inventory is protected by a Serializable transaction. NUMBERED ticket types (seats.io): `items[].seats` is required, with one EXACT label per unit (taken from `availableSeats` in GET /events/{slug}/availability) — the seat is held in seats.io with the same TTL as the stock reservation, and is released automatically if the order expires unpaid. An order with `items[].seats` additionally requires a BUYER SESSION: the `ft-customer` cookie or the `session_token` from the code login (POST /api/v1/customer/auth/request + POST /api/v1/customer/auth/verify) in the `X-Customer-Session` header; without it the response is 401 `CUSTOMER_SESSION_REQUIRED`. A seats.io hold can only be released by the sale that took it, so a seat held anonymously is inventory nobody can reclaim. The order is linked to that account: it shows up in GET /api/v1/customer/orders and its tickets in /api/v1/customer/tickets. General admission (no `seats`) remains anonymous and is not linked to any account. Dates with an active virtual queue: 409 `QUEUE_REQUIRED` (with `details.waitingRoomUrl`) — the waiting room is the only way in; the gate runs BEFORE the seats.io retrieve/hold. Check the status with `GET /orders/{id}`.
+ * Public for general admission (no auth, strict per-IP rate limit); orders with numbered seats REQUIRE a buyer session. Creates a PENDING sale + stock reservation and returns the Mercado Pago `checkoutUrl` to send the buyer to. The reservation holds the inventory for the payment window configured for that date (30 minutes unless the organizer sets it shorter or longer; never less than 10). The response includes `expiresAt`: the EXACT instant (ISO 8601, UTC) at which that reservation expires, the same one stored server-side. This is the value that decides whether it still makes sense to send the buyer to pay: past that instant the inventory has already returned to stock —and, for numbered seating, the seat is already on someone else's map— so the `checkoutUrl` may still open and the payment may arrive late. Do not recompute it by adding minutes on the client: use the returned value. `GET /orders/{id}` repeats it while the order is still `pending` (and returns null once it no longer is), so a countdown can resume after a reload instead of restarting. The agent NEVER processes the payment. Not available for members-only tickets (members_only); PUBLISHED events with sales open, all from a single organizer. Inventory is protected by a row lock on each ticket type plus a recount of sold and reserved stock within the same transaction. NUMBERED ticket types (seats.io): `items[].seats` is required, with one EXACT label per unit (taken from `availableSeats` in GET /events/{slug}/availability) — the seat is held in seats.io with the same TTL as the stock reservation, and is released automatically if the order expires unpaid. An order with `items[].seats` additionally requires a BUYER SESSION: the `ft-customer` cookie or the `session_token` from the code login (POST /api/v1/customer/auth/request + POST /api/v1/customer/auth/verify) in the `X-Customer-Session` header; without it the response is 401 `CUSTOMER_SESSION_REQUIRED`. A seats.io hold can only be released by the sale that took it, so a seat held anonymously is inventory nobody can reclaim. The order is linked to that account: it shows up in GET /api/v1/customer/orders and its tickets in /api/v1/customer/tickets. General admission (no `seats`) remains anonymous and is not linked to any account. Dates with an active virtual queue: 409 `QUEUE_REQUIRED` (with `details.waitingRoomUrl`) — the waiting room is the only way in; the gate runs BEFORE the seats.io retrieve/hold. Check the status with `GET /orders/{id}`.
  *
  * 409 errors (`error.code`): `MEMBERS_ONLY` (members-only ticket), `NOT_AVAILABLE` (event or date not published, or date already past), `EXTERNAL_SALE` (the event sells elsewhere), `SALE_CLOSED` (outside the sales window), `QUEUE_REQUIRED` (the date is sold through a waiting room: `details.waitingRoomUrl` is the ABSOLUTE URL to send the buyer to — it points to the host where THAT date is sold, which may be the portal (`/eventos/{slug}/fila`) or the organizer's or artist's own subdomain (`/events/{slug}/fila`); use it as-is, do not rebuild it), `MULTIPLE_ORGS` (tickets from multiple organizers), `MIXED_CURRENCY` (mixed currencies), `SEAT_NOT_AVAILABLE` (seat already sold or held), `ADDON_SOLD_OUT` (a product bundled with the ticket, e.g. a drink combo, sold out: the order is not created). Products bundled with a ticket travel with it automatically —they are not requested in `items`— and their price is already included in `total`.
  */

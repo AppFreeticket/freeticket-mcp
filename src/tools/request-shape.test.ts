@@ -200,6 +200,14 @@ describe.each([
 		body: undefined,
 	},
 	{
+		// The own headless site, not the legacy page (`website_get`, /website).
+		tool: "site_get",
+		args: {},
+		method: "GET",
+		url: "https://api.test/api/v1/site",
+		body: undefined,
+	},
+	{
 		tool: "content_lives_update",
 		args: { id: "live_1", replayEnabled: true },
 		method: "PATCH",

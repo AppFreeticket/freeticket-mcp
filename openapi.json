@@ -2,7 +2,7 @@
 	"openapi": "3.1.0",
 	"info": {
 		"title": "FreeTicket B2B API",
-		"version": "1.55.0",
+		"version": "1.60.0",
 		"description": "FreeTicket B2B REST API for integrations, the `ft` CLI and the FreeTicket MCP server. Authentication is by API key (`Authorization: Bearer <key>` header or `x-api-key`); the active workspace is selected with the `X-Workspace-Id` header.\n\nScopes: each key is either `read` (GET/HEAD only) or `write` (additionally creates, edits, deletes, cancels, refunds and checks in). Self-service keys are issued as `read`. A `read` key calling a mutating method gets a 403, except on the buyer-session endpoints under `/customer/*`: there an enterprise service key acts on behalf of the buyer in `X-Customer-Session`, and its scope does not limit the buyer's own writes (e.g. `/customer/community/*`). The machine-readable declaration lives at `/.well-known/oauth-protected-resource` (RFC 9728).\n\nGetting a key (self-serve, no sales contact): `ft login` runs the Device Authorization Grant (RFC 8628, `POST /auth/device/code` + `POST /auth/device/token`); the user approves the code at https://admin.appfreeticket.com/device and the CLI receives a key. New organizers can bootstrap headless with `POST /auth/signup` (verify-first, then `ft login`). With a key, `POST /api-keys` mints more (born `read` unless `write` is requested). There is no sandbox environment: test against a dedicated workspace with `read` keys.\n\n## Versioning and deprecation\n\n- **Path version.** The B2B API is versioned in the path (`/api/v1`). A breaking change ships under a new path (`/api/v2`); the previous version keeps running in parallel until its sunset date.\n- **Contract version.** `info.version` is the semantic version of this document. MINOR = additive (new endpoints, new optional fields, new enum values, new error codes; clients must ignore unknown fields). PATCH = documentation or fixes that do not change shapes. The public API (`/api/public`) is pre-1.0 and not versioned in the path: there, a MINOR bump may include a breaking change and PATCH never does.\n- **Deprecation signals.** A deprecated operation is marked `deprecated: true` in this document and its responses carry `Deprecation` (RFC 9745, e.g. `Deprecation: @1767225600`), `Sunset` (RFC 8594, an HTTP-date after which the operation may stop working) and `Link: <https://appfreeticket.com/desarrolladores>; rel=\"deprecation\"`.\n- **Timeline.** At least 6 months between the first `Deprecation` header and the `Sunset` date for `/api/v1`, and at least 90 days for `/api/public`. A path version is only retired after all its operations have sunset.\n- **Current status.** No operation is deprecated today.\n\n## Rate limits\n\n- **429 always carries `Retry-After`** (seconds). Wait at least that long before retrying the same request. The JSON error envelope comes with `error.retryable: true`; most rate-limited responses use `error.code: \"RATE_LIMITED\"`, and some return a more specific code (for example `TOO_MANY_REQUESTS` or `SEAT_BUDGET_EXHAUSTED`).\n- **RateLimit headers are sent where listed below.** Those endpoints answer every response, success or error, with the IETF RateLimit headers (draft-ietf-httpapi-ratelimit-headers): `RateLimit-Policy: \"<policy>\";q=<quota>;w=<window seconds>` and `RateLimit: \"<policy>\";r=<remaining>;t=<seconds until reset>`. Other endpoints may answer 429 without them.\n- Counters are fixed windows kept per server instance: treat the numbers as pacing hints, not as a global account quota.\n\nEndpoints that send RateLimit headers today: `POST /auth/signup` (per client IP), `POST /customer/auth/request` and `POST /customer/auth/verify` (per client IP), and the buyer-session endpoints `GET /customer/orders/{id}`, `POST /customer/orders/{id}/payment`, `/payment/card`, `/payment/pse`, `/release`, `POST /customer/purchase-sessions` and `POST /customer/purchase-sessions/{id}/release`, and the buyer community endpoints under `/customer/community/*` (per key and per buyer)."
 	},
 	"servers": [
@@ -19,6 +19,203 @@
 		}
 	],
 	"paths": {
+		"/events/{id}/dates": {
+			"get": {
+				"operationId": "getEventsIdDates",
+				"tags": ["events"],
+				"summary": "List an event's dates",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"type": "array",
+											"items": {
+												"$ref": "#/components/schemas/EventDate"
+											}
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			},
+			"post": {
+				"operationId": "postEventsIdDates",
+				"tags": ["events"],
+				"summary": "Add a date to an event",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"required": true,
+						"schema": {
+							"type": "string"
+						}
+					},
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"$ref": "#/components/schemas/EventDateCreate"
+							}
+						}
+					}
+				},
+				"responses": {
+					"201": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/EventDate"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/auth/device/code": {
 			"post": {
 				"operationId": "postAuthDeviceCode",
@@ -157,7 +354,7 @@
 				"operationId": "postWorkspaces",
 				"tags": ["me"],
 				"summary": "Create your own workspace/tenant (self-serve)",
-				"description": "Requires a valid API key — does NOT require an active workspace (`X-Workspace-Id` does not apply here: it is ignored if sent). The caller becomes ADMIN of the new workspace. If they already administer their own Organization (umbrella), another workspace is added there, subject to the plan quota (spark=1, star=3, icon=7); if they have no link at all, a new Organization is created on the free Spark plan. A user who is already a collaborator (staff) of someone else's workspace gets 409 `ALREADY_HAS_ACCESS`: ask an administrator to add them, instead of creating a tenant that would override their current access.",
+				"description": "Requires a valid API key — does NOT require an active workspace (`X-Workspace-Id` does not apply here: it is ignored if sent). The caller becomes ADMIN of the new workspace. If they already administer their own Organization (umbrella), another workspace is added there, subject to the plan quota (spark=1, star=3, icon=7); if they have no link at all, a new Organization is created on the free Spark plan. A user who is already a collaborator (staff) of someone else's workspace gets 409 `ALREADY_HAS_ACCESS`: ask an administrator to add them, instead of creating a tenant that would override their current access. A store-management account (`MERCH_MANAGER`, global or in any workspace) gets 403 `MERCH_MANAGER_FORBIDDEN`. The caller's global role only rises to `ADMIN` from `VIEWER` or `STAFF` with no other access; otherwise it stays as it is and they administer the new workspace through their organization membership.",
 				"security": [
 					{
 						"apiKey": []
@@ -899,7 +1096,7 @@
 				"operationId": "postEventsIdPublish",
 				"tags": ["events"],
 				"summary": "Publish an event",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nPublishes the event and its dates (cancelled dates stay cancelled unless the whole event was `CANCELLED`). Requires at least one future date (409 `CONFLICT`).\n\nSeated (seats.io) events are validated first:\n- 409 `SEATSIO_INVALID`: a seated date has no ticket type mapped to a chart category, or maps a category missing from the chart.\n- 409 `SEAT_MAP_CATEGORIES_UNCOVERED`: a chart category with seats on sale has no ticket type on that date and is not fully blocked (booked). `error.details.zones[]` lists each one (`dateLabel`, `categoryKey`, `categoryLabel`, `seats`). Create its ticket type or block those seats, then retry.\n- 503 `SEAT_MAP_UNVERIFIABLE` (retryable): seats.io could not be reached to verify the map.\n\nPaid events (any ticket type with price > 0) require the workspace identity verification to be approved:\n- 409 `IDENTITY_VERIFICATION_REQUIRED`: the event stays `DRAFT` and is queued; it publishes automatically within ~5 minutes of the verification being approved.",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nPublishes the event and its dates (cancelled dates stay cancelled unless the whole event was `CANCELLED`). Requires at least one future date (409 `CONFLICT`).\n\nSeated (seats.io) events are validated first:\n- 409 `SEATSIO_INVALID`: a seated date has no ticket type mapped to a chart category, or maps a category missing from the chart.\n- 409 `SEAT_MAP_CATEGORIES_UNCOVERED`: a chart category with seats on sale has no ticket type on that date and is not fully blocked (booked). `error.details.zones[]` lists each one (`dateLabel`, `categoryKey`, `categoryLabel`, `seats`). Create its ticket type or block those seats, then retry.\n- 503 `SEAT_MAP_UNVERIFIABLE` (retryable): seats.io could not be reached to verify the map.\n\nPaid events (any ticket type with price > 0 or with any price stage > 0) require the workspace identity verification to be approved:\n- 409 `IDENTITY_VERIFICATION_REQUIRED`: a `DRAFT` event stays `DRAFT` and is queued; it publishes automatically within ~5 minutes of the verification being approved. A `CANCELLED` (or `COMPLETED`) event keeps its status and is NOT queued: publish it again once the verification is approved.",
 				"security": [
 					{
 						"apiKey": []
@@ -1050,203 +1247,6 @@
 									"properties": {
 										"data": {
 											"$ref": "#/components/schemas/Event"
-										}
-									},
-									"required": ["data"]
-								}
-							}
-						}
-					},
-					"401": {
-						"description": "Missing or invalid credential.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"403": {
-						"description": "Insufficient role or resource not accessible.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "Resource does not exist or is out of scope.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "Request body/parameter validation failed.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					}
-				}
-			}
-		},
-		"/events/{id}/dates": {
-			"get": {
-				"operationId": "getEventsIdDates",
-				"tags": ["events"],
-				"summary": "List an event's dates",
-				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.",
-				"security": [
-					{
-						"apiKey": []
-					},
-					{
-						"apiKeyHeader": []
-					}
-				],
-				"parameters": [
-					{
-						"name": "id",
-						"in": "path",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"name": "X-Workspace-Id",
-						"in": "header",
-						"required": false,
-						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "OK",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": {
-										"data": {
-											"type": "array",
-											"items": {
-												"$ref": "#/components/schemas/EventDate"
-											}
-										}
-									},
-									"required": ["data"]
-								}
-							}
-						}
-					},
-					"401": {
-						"description": "Missing or invalid credential.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"403": {
-						"description": "Insufficient role or resource not accessible.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"404": {
-						"description": "Resource does not exist or is out of scope.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					},
-					"422": {
-						"description": "Request body/parameter validation failed.",
-						"content": {
-							"application/json": {
-								"schema": {
-									"$ref": "#/components/schemas/Error"
-								}
-							}
-						}
-					}
-				}
-			},
-			"post": {
-				"operationId": "postEventsIdDates",
-				"tags": ["events"],
-				"summary": "Add a date to an event",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.",
-				"security": [
-					{
-						"apiKey": []
-					},
-					{
-						"apiKeyHeader": []
-					}
-				],
-				"parameters": [
-					{
-						"name": "id",
-						"in": "path",
-						"required": true,
-						"schema": {
-							"type": "string"
-						}
-					},
-					{
-						"name": "X-Workspace-Id",
-						"in": "header",
-						"required": false,
-						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
-						"schema": {
-							"type": "string"
-						}
-					}
-				],
-				"requestBody": {
-					"required": true,
-					"content": {
-						"application/json": {
-							"schema": {
-								"$ref": "#/components/schemas/EventDateCreate"
-							}
-						}
-					}
-				},
-				"responses": {
-					"201": {
-						"description": "OK",
-						"content": {
-							"application/json": {
-								"schema": {
-									"type": "object",
-									"properties": {
-										"data": {
-											"$ref": "#/components/schemas/EventDate"
 										}
 									},
 									"required": ["data"]
@@ -2904,7 +2904,7 @@
 				"operationId": "postTicketTypes",
 				"tags": ["ticket-types"],
 				"summary": "Create a ticket type",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nSetting a price greater than 0 on an event that is already public (`PUBLISHED` or `SOLD_OUT`) and has no paid ticket types requires the workspace identity verification to be approved:\n- 409 `IDENTITY_VERIFICATION_REQUIRED`: nothing is written. Draft events are not affected, and neither are events that already have a paid ticket type.",
 				"security": [
 					{
 						"apiKey": []
@@ -2973,6 +2973,16 @@
 					},
 					"404": {
 						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -3090,7 +3100,7 @@
 				"operationId": "patchTicketTypesId",
 				"tags": ["ticket-types"],
 				"summary": "Update a ticket type",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nSetting a price greater than 0 on an event that is already public (`PUBLISHED` or `SOLD_OUT`) and has no paid ticket types requires the workspace identity verification to be approved:\n- 409 `IDENTITY_VERIFICATION_REQUIRED`: nothing is written. Draft events are not affected, and neither are events that already have a paid ticket type.",
 				"security": [
 					{
 						"apiKey": []
@@ -3501,7 +3511,7 @@
 				"operationId": "postSales",
 				"tags": ["sales"],
 				"summary": "Create a sale/order (complimentary tickets and programmatic sales)",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nAccepts `Idempotency-Key`: retrying with the same key returns the sale created on the first attempt (a 201 response with the `Idempotent-Replay: true` header) instead of issuing another one. Recommended for any client that retries on its own.\n\n`comp: true` issues complimentary tickets at price 0. The sale is flagged as a courtesy, like the ones issued from the dashboard: reports count it apart from paid sales, and `PATCH /sales/{id}/recipient` can correct its recipient.",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nAccepts `Idempotency-Key`: retrying with the same key returns the sale created on the first attempt (a 201 response with the `Idempotent-Replay: true` header) instead of issuing another one. Recommended for any client that retries on its own.\n\nNumbered seats (`items[].seats`): if another live sale (confirmed, or pending with an active reservation) claims one of the seats by the time the sale is written, the response is 409 `SEAT_NOT_AVAILABLE` (`details.seat` is the label) and nothing is created. Choose other seats.\n\n`comp: true` issues complimentary tickets at price 0. The sale is flagged as a courtesy, like the ones issued from the dashboard: reports count it apart from paid sales, and `PATCH /sales/{id}/recipient` can correct its recipient.",
 				"security": [
 					{
 						"apiKey": []
@@ -5598,7 +5608,7 @@
 				"operationId": "deleteStaffId",
 				"tags": ["staff"],
 				"summary": "Revoke a staff member's access to this workspace",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nRevokes access to THIS workspace: granted sections, ticket validation permissions, read-only events, membership, and the home workspace if it was this one. Terminates live sessions and invalidates the invitation QR code. It does NOT delete the account or its history: the person may belong to other workspaces. An `ADMIN` cannot revoke another admin (403) or themselves (409).",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nRevokes access to THIS workspace: granted sections, ticket validation permissions, read-only events, membership, and the home workspace if it was this one. When this is their home workspace, it also terminates live sessions and invalidates the invitation QR code. It does NOT delete the account or its history: the person may belong to other workspaces. Only a `SUPER_ADMIN` can revoke a user whose global role is `SUPER_ADMIN`, `ADMIN` or `MINCULTURA`, or who is an `OWNER`/`ADMIN` of the organization that owns the workspace (403 `TARGET_ROLE_FORBIDDEN`). A `SUPER_ADMIN` gets 409 `TARGET_IS_ORG_ADMIN` for an `OWNER`/`ADMIN` of that organization: they would keep access through the organization, so nothing is changed. Nobody can revoke themselves (409).",
 				"security": [
 					{
 						"apiKey": []
@@ -5695,7 +5705,7 @@
 				"operationId": "patchStaffIdRole",
 				"tags": ["staff"],
 				"summary": "Change a staff user's role",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nAn `ADMIN` can only assign `STAFF` or `VIEWER`, and only to users whose home workspace is the active one (otherwise 404). Only a `SUPER_ADMIN` can change the role of a user whose global role is `SUPER_ADMIN`, `ADMIN` or `MINCULTURA`, or who is an `OWNER`/`ADMIN` of the organization that owns the workspace (403 `TARGET_ROLE_FORBIDDEN`).",
 				"security": [
 					{
 						"apiKey": []
@@ -5808,7 +5818,7 @@
 				"operationId": "postStaffIdResendInvite",
 				"tags": ["staff"],
 				"summary": "Resend a staff member's invitation email",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nEmails the staff member their invitation link again (to set a password and enter the panel). The link is the same persistent one already shared, so previously shared links and QR codes keep working; the link itself is never returned by the API. An `ADMIN` can only target users whose home workspace is the active one (otherwise 404). 409 `NO_EMAIL` for quick-access accounts without an email address (share their QR from the panel). 502 `EMAIL_NOT_SENT` when the email provider failed (retry). Rate limited: 3 resends per hour per API key and user (429 `RATE_LIMITED` with `Retry-After`). Keys restricted by `event_scope` get 403.",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.\n\nEmails the staff member their invitation link again (to set a password and enter the panel). The link is the same persistent one already shared, so previously shared links and QR codes keep working; the link itself is never returned by the API. An `ADMIN` can only target users whose home workspace is the active one (otherwise 404). Only a `SUPER_ADMIN` can target a user whose global role is `SUPER_ADMIN`, `ADMIN` or `MINCULTURA`, or who is an `OWNER`/`ADMIN` of any organization or an `ADMIN` member of any workspace (403 `TARGET_ROLE_FORBIDDEN`). 409 `NO_EMAIL` for quick-access accounts without an email address (share their QR from the panel). 409 `ACCOUNT_ALREADY_ACTIVE` when the account shows signs of having been activated: nothing is sent. 502 `EMAIL_NOT_SENT` when the email provider failed (retry). Rate limited: 3 resends per hour per API key and user (429 `RATE_LIMITED` with `Retry-After`). Keys restricted by `event_scope` get 403.",
 				"security": [
 					{
 						"apiKey": []
@@ -20653,6 +20663,91 @@
 				}
 			}
 		},
+		"/site": {
+			"get": {
+				"operationId": "getSite",
+				"tags": ["website"],
+				"summary": "Get the workspace's own headless site configuration",
+				"description": "Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Read by the workspace's own headless site (enterprise service key). Returns which modules to render, hero, SEO and FAQ (`config`, SiteConfig v1, always complete with defaults) plus the public identity (name, bio, logo, socials). Edited by the artist in the dashboard's \"Mi sitio\" screen (`/dashboard/sitio`); bio and socials are the same workspace columns the profile uses.\n\nErrors (`error.code`):\n- 404 `NOT_FOUND`: the workspace has no active site.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.",
+				"security": [
+					{
+						"apiKey": []
+					},
+					{
+						"apiKeyHeader": []
+					}
+				],
+				"parameters": [
+					{
+						"name": "X-Workspace-Id",
+						"in": "header",
+						"required": false,
+						"description": "Active workspace to operate on. Optional: when omitted, the default workspace of the user who owns the key is used (pickActiveOrg).",
+						"schema": {
+							"type": "string"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"type": "object",
+									"properties": {
+										"data": {
+											"$ref": "#/components/schemas/Site"
+										}
+									},
+									"required": ["data"]
+								}
+							}
+						}
+					},
+					"401": {
+						"description": "Missing or invalid credential.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"403": {
+						"description": "Insufficient role or resource not accessible.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"404": {
+						"description": "Operation error.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"422": {
+						"description": "Request body/parameter validation failed.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					}
+				}
+			}
+		},
 		"/organization": {
 			"patch": {
 				"operationId": "patchOrganization",
@@ -21462,7 +21557,7 @@
 				"operationId": "postTicketTemplatesIdInstantiate",
 				"tags": ["ticket-templates"],
 				"summary": "Create a ticket type from a template",
-				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Use template\" in the dashboard: creates a ticket type on `eventDateId` copying the template (price, capacity, discount, members-only gate, buyer form). `name`, `price` and `capacity` override the template's. A discount or gate whose plan is no longer valid is dropped instead of failing. Keys restricted to events may use it only on dates of their events.\n\nErrors (`error.code`):\n- 404 `NOT_FOUND`: the template does not exist, is deleted or belongs to another workspace.\n- 404 `EVENT_DATE_NOT_FOUND`: the event date does not exist or belongs to another workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to events and the date's event is not one of them.\n- 400 `CAPACITY_REQUIRED`: the template has no capacity and `capacity` was not sent.\n- 400 `INVALID_CURRENCY`: the template's legacy currency is not one the checkout charges.",
+				"description": "Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header. Same action as \"Use template\" in the dashboard: creates a ticket type on `eventDateId` copying the template (price, capacity, discount, members-only gate, buyer form). `name`, `price` and `capacity` override the template's. A discount or gate whose plan is no longer valid is dropped instead of failing. Keys restricted to events may use it only on dates of their events.\n\nErrors (`error.code`):\n- 404 `NOT_FOUND`: the template does not exist, is deleted or belongs to another workspace.\n- 404 `EVENT_DATE_NOT_FOUND`: the event date does not exist or belongs to another workspace.\n- 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to events and the date's event is not one of them.\n- 400 `CAPACITY_REQUIRED`: the template has no capacity and `capacity` was not sent.\n- 400 `INVALID_CURRENCY`: the template's legacy currency is not one the checkout charges.\n- 409 `IDENTITY_VERIFICATION_REQUIRED`: the resulting price is greater than 0, the event is already public (`PUBLISHED` or `SOLD_OUT`) without paid ticket types and the workspace identity verification is not approved.",
 				"security": [
 					{
 						"apiKey": []
@@ -21549,6 +21644,16 @@
 					},
 					"404": {
 						"description": "Resource does not exist or is out of scope.",
+						"content": {
+							"application/json": {
+								"schema": {
+									"$ref": "#/components/schemas/Error"
+								}
+							}
+						}
+					},
+					"409": {
+						"description": "Conflict: the resource does not allow this operation in its current state.",
 						"content": {
 							"application/json": {
 								"schema": {
@@ -29390,6 +29495,11 @@
 						"type": "number"
 					},
 					"grossAmount": {
+						"description": "Gross snapshot taken when the settlement was generated (null on old ones). MEMBERSHIP: total charged to fans, VAT included.",
+						"type": ["number", "null"]
+					},
+					"vatAmount": {
+						"description": "MEMBERSHIP only: VAT (19% IVA, remitted to DIAN) included in `grossAmount`; neither organizer revenue nor FreeTicket fee. 0 for charges without VAT (before Nov 2026, legacy Stripe). null for EVENT. For MEMBERSHIP, `grossAmount − vatAmount` = sales ex-VAT, the commission base.",
 						"type": ["number", "null"]
 					},
 					"unitsSold": {
@@ -29556,6 +29666,7 @@
 					"status",
 					"amount",
 					"grossAmount",
+					"vatAmount",
 					"unitsSold",
 					"currency",
 					"notes",
@@ -36703,6 +36814,199 @@
 					}
 				},
 				"required": ["id", "deleted"],
+				"additionalProperties": false
+			},
+			"Site": {
+				"type": "object",
+				"properties": {
+					"domain": {
+						"type": "string",
+						"description": "Bare host of the site, e.g. `example.com`."
+					},
+					"status": {
+						"type": "string",
+						"const": "ACTIVE",
+						"description": "Always `ACTIVE`; any other state answers 404."
+					},
+					"config": {
+						"type": "object",
+						"properties": {
+							"version": {
+								"default": 1,
+								"type": "number",
+								"const": 1
+							},
+							"modules": {
+								"default": {
+									"shows": true,
+									"membresias": true,
+									"enVivo": true,
+									"media": true,
+									"listaDeEspera": true,
+									"newsletter": false,
+									"tienda": false,
+									"comunidad": false,
+									"encuentros": false
+								},
+								"type": "object",
+								"properties": {
+									"shows": {
+										"default": true,
+										"type": "boolean"
+									},
+									"membresias": {
+										"default": true,
+										"type": "boolean"
+									},
+									"enVivo": {
+										"default": true,
+										"type": "boolean"
+									},
+									"media": {
+										"default": true,
+										"type": "boolean"
+									},
+									"listaDeEspera": {
+										"default": true,
+										"type": "boolean"
+									},
+									"newsletter": {
+										"default": false,
+										"type": "boolean"
+									},
+									"tienda": {
+										"default": false,
+										"type": "boolean"
+									},
+									"comunidad": {
+										"default": false,
+										"type": "boolean"
+									},
+									"encuentros": {
+										"default": false,
+										"type": "boolean"
+									}
+								},
+								"required": [
+									"shows",
+									"membresias",
+									"enVivo",
+									"media",
+									"listaDeEspera",
+									"newsletter",
+									"tienda",
+									"comunidad",
+									"encuentros"
+								],
+								"additionalProperties": false
+							},
+							"hero": {
+								"default": {},
+								"type": "object",
+								"properties": {
+									"eyebrow": {
+										"type": "string",
+										"maxLength": 80
+									},
+									"title": {
+										"type": "string",
+										"maxLength": 120
+									},
+									"subtitle": {
+										"type": "string",
+										"maxLength": 280
+									},
+									"ctaLabel": {
+										"type": "string",
+										"maxLength": 40
+									},
+									"ctaHref": {
+										"type": "string",
+										"maxLength": 500
+									}
+								},
+								"additionalProperties": false
+							},
+							"seo": {
+								"default": {},
+								"type": "object",
+								"properties": {
+									"title": {
+										"type": "string",
+										"maxLength": 70
+									},
+									"description": {
+										"type": "string",
+										"maxLength": 170
+									},
+									"ogImageUrl": {
+										"type": "string",
+										"maxLength": 1000
+									}
+								},
+								"additionalProperties": false
+							},
+							"faq": {
+								"default": [],
+								"maxItems": 20,
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"q": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 200
+										},
+										"a": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 1000
+										}
+									},
+									"required": ["q", "a"],
+									"additionalProperties": false
+								}
+							}
+						},
+						"required": ["version", "modules", "hero", "seo", "faq"],
+						"additionalProperties": false,
+						"description": "SiteConfig v1. Always complete: missing fields come with their defaults."
+					},
+					"identity": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"bio": {
+								"type": ["string", "null"]
+							},
+							"logoUrl": {
+								"type": ["string", "null"]
+							},
+							"socials": {
+								"type": "object",
+								"properties": {
+									"instagram": {
+										"type": ["string", "null"]
+									},
+									"tiktok": {
+										"type": ["string", "null"]
+									},
+									"youtube": {
+										"type": ["string", "null"]
+									}
+								},
+								"required": ["instagram", "tiktok", "youtube"],
+								"additionalProperties": false
+							}
+						},
+						"required": ["name", "bio", "logoUrl", "socials"],
+						"additionalProperties": false
+					}
+				},
+				"required": ["domain", "status", "config", "identity"],
 				"additionalProperties": false
 			},
 			"MerchProductCreate": {

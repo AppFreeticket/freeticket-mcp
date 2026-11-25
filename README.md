@@ -239,7 +239,7 @@ and ask for confirmation.
 | Community meetups | `content_meetups_list` · `content_meetups_get` | `content_meetups_create` · `content_meetups_update` · `content_meetups_publish` · `content_meetups_cancel` · `content_meetups_rsvp_review` · `content_meetups_attendance` |
 | Digital products and courses | `products_list` · `products_get` | `products_create` · `products_update` (with `modules` replaces the whole course tree) · `products_set_status` · `products_delete` |
 | Videos, series and lives (Mux) | `content_series_list` · `content_lives_chat` | `content_videos_update` · `content_videos_set_published` · `content_videos_set_series` · `content_videos_delete` · `content_series_create` · `content_series_update` · `content_series_set_published` · `content_series_delete` · `content_lives_create` 🔒 · `content_lives_update` · `content_lives_reset_key` 🔒 · `content_lives_delete` |
-| Website and profile | `website_get` · `organization_profile_get` | `website_put` (full replace, destructive) · `website_set_published` · `organization_update` · `organization_analytics_update` · `organization_profile_update` |
+| Website and profile | `website_get` · `site_get` (the workspace's own headless site, when it has one) · `organization_profile_get` | `website_put` (full replace, destructive) · `website_set_published` · `organization_update` · `organization_analytics_update` · `organization_profile_update` |
 | Ticket templates | `ticket_templates_list` | `ticket_templates_create` · `ticket_templates_update` · `ticket_templates_delete` · `ticket_templates_instantiate` |
 | Box-office QR codes | `master_qrs_list` 🔒 | `master_qrs_create` 🔒 · `master_qrs_update` 🔒 · `master_qrs_set_active` · `master_qrs_delete` |
 
