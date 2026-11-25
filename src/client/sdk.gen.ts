@@ -308,6 +308,9 @@ import type {
 	GetSettlementsIdProofsFileNameError,
 	GetSettlementsIdResponse,
 	GetSettlementsResponse,
+	GetSiteData,
+	GetSiteError,
+	GetSiteResponse,
 	GetStaffData,
 	GetStaffError,
 	GetStaffIdData,
@@ -729,6 +732,64 @@ export type Options<
 };
 
 /**
+ * List an event's dates
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const getEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<GetEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).get<
+		GetEventsIdDatesResponse,
+		GetEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+	});
+};
+
+/**
+ * Add a date to an event
+ * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ */
+export const postEventsIdDates = <ThrowOnError extends boolean = false>(
+	options: Options<PostEventsIdDatesData, ThrowOnError>,
+) => {
+	return (options.client ?? _heyApiClient).post<
+		PostEventsIdDatesResponse,
+		PostEventsIdDatesError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/events/{id}/dates",
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...options?.headers,
+		},
+	});
+};
+
+/**
  * Start the Device Authorization Grant (RFC 8628)
  * Public endpoint (no auth): credential bootstrap for the Device Authorization Grant (RFC 8628).
  */
@@ -789,7 +850,7 @@ export const postAuthSignup = <ThrowOnError extends boolean = false>(
 
 /**
  * Create your own workspace/tenant (self-serve)
- * Requires a valid API key — does NOT require an active workspace (`X-Workspace-Id` does not apply here: it is ignored if sent). The caller becomes ADMIN of the new workspace. If they already administer their own Organization (umbrella), another workspace is added there, subject to the plan quota (spark=1, star=3, icon=7); if they have no link at all, a new Organization is created on the free Spark plan. A user who is already a collaborator (staff) of someone else's workspace gets 409 `ALREADY_HAS_ACCESS`: ask an administrator to add them, instead of creating a tenant that would override their current access.
+ * Requires a valid API key — does NOT require an active workspace (`X-Workspace-Id` does not apply here: it is ignored if sent). The caller becomes ADMIN of the new workspace. If they already administer their own Organization (umbrella), another workspace is added there, subject to the plan quota (spark=1, star=3, icon=7); if they have no link at all, a new Organization is created on the free Spark plan. A user who is already a collaborator (staff) of someone else's workspace gets 409 `ALREADY_HAS_ACCESS`: ask an administrator to add them, instead of creating a tenant that would override their current access. A store-management account (`MERCH_MANAGER`, global or in any workspace) gets 403 `MERCH_MANAGER_FORBIDDEN`. The caller's global role only rises to `ADMIN` from `VIEWER` or `STAFF` with no other access; otherwise it stays as it is and they administer the new workspace through their organization membership.
  */
 export const postWorkspaces = <ThrowOnError extends boolean = false>(
 	options: Options<PostWorkspacesData, ThrowOnError>,
@@ -1003,8 +1064,8 @@ export const patchEventsId = <ThrowOnError extends boolean = false>(
  * - 409 `SEAT_MAP_CATEGORIES_UNCOVERED`: a chart category with seats on sale has no ticket type on that date and is not fully blocked (booked). `error.details.zones[]` lists each one (`dateLabel`, `categoryKey`, `categoryLabel`, `seats`). Create its ticket type or block those seats, then retry.
  * - 503 `SEAT_MAP_UNVERIFIABLE` (retryable): seats.io could not be reached to verify the map.
  *
- * Paid events (any ticket type with price > 0) require the workspace identity verification to be approved:
- * - 409 `IDENTITY_VERIFICATION_REQUIRED`: the event stays `DRAFT` and is queued; it publishes automatically within ~5 minutes of the verification being approved.
+ * Paid events (any ticket type with price > 0 or with any price stage > 0) require the workspace identity verification to be approved:
+ * - 409 `IDENTITY_VERIFICATION_REQUIRED`: a `DRAFT` event stays `DRAFT` and is queued; it publishes automatically within ~5 minutes of the verification being approved. A `CANCELLED` (or `COMPLETED`) event keeps its status and is NOT queued: publish it again once the verification is approved.
  */
 export const postEventsIdPublish = <ThrowOnError extends boolean = false>(
 	options: Options<PostEventsIdPublishData, ThrowOnError>,
@@ -1055,64 +1116,6 @@ export const postEventsIdCancel = <ThrowOnError extends boolean = false>(
 		],
 		url: "/events/{id}/cancel",
 		...options,
-	});
-};
-
-/**
- * List an event's dates
- * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header.
- */
-export const getEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<GetEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).get<
-		GetEventsIdDatesResponse,
-		GetEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-	});
-};
-
-/**
- * Add a date to an event
- * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
- */
-export const postEventsIdDates = <ThrowOnError extends boolean = false>(
-	options: Options<PostEventsIdDatesData, ThrowOnError>,
-) => {
-	return (options.client ?? _heyApiClient).post<
-		PostEventsIdDatesResponse,
-		PostEventsIdDatesError,
-		ThrowOnError
-	>({
-		security: [
-			{
-				name: "Authorization",
-				type: "apiKey",
-			},
-			{
-				name: "x-api-key",
-				type: "apiKey",
-			},
-		],
-		url: "/events/{id}/dates",
-		...options,
-		headers: {
-			"Content-Type": "application/json",
-			...options?.headers,
-		},
 	});
 };
 
@@ -1557,6 +1560,9 @@ export const getTicketTypes = <ThrowOnError extends boolean = false>(
 /**
  * Create a ticket type
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Setting a price greater than 0 on an event that is already public (`PUBLISHED` or `SOLD_OUT`) and has no paid ticket types requires the workspace identity verification to be approved:
+ * - 409 `IDENTITY_VERIFICATION_REQUIRED`: nothing is written. Draft events are not affected, and neither are events that already have a paid ticket type.
  */
 export const postTicketTypes = <ThrowOnError extends boolean = false>(
 	options: Options<PostTicketTypesData, ThrowOnError>,
@@ -1642,6 +1648,9 @@ export const getTicketTypesId = <ThrowOnError extends boolean = false>(
 /**
  * Update a ticket type
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * Setting a price greater than 0 on an event that is already public (`PUBLISHED` or `SOLD_OUT`) and has no paid ticket types requires the workspace identity verification to be approved:
+ * - 409 `IDENTITY_VERIFICATION_REQUIRED`: nothing is written. Draft events are not affected, and neither are events that already have a paid ticket type.
  */
 export const patchTicketTypesId = <ThrowOnError extends boolean = false>(
 	options: Options<PatchTicketTypesIdData, ThrowOnError>,
@@ -1702,6 +1711,8 @@ export const getSales = <ThrowOnError extends boolean = false>(
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  *
  * Accepts `Idempotency-Key`: retrying with the same key returns the sale created on the first attempt (a 201 response with the `Idempotent-Replay: true` header) instead of issuing another one. Recommended for any client that retries on its own.
+ *
+ * Numbered seats (`items[].seats`): if another live sale (confirmed, or pending with an active reservation) claims one of the seats by the time the sale is written, the response is 409 `SEAT_NOT_AVAILABLE` (`details.seat` is the label) and nothing is created. Choose other seats.
  *
  * `comp: true` issues complimentary tickets at price 0. The sale is flagged as a courtesy, like the ones issued from the dashboard: reports count it apart from paid sales, and `PATCH /sales/{id}/recipient` can correct its recipient.
  */
@@ -2262,7 +2273,7 @@ export const postStaff = <ThrowOnError extends boolean = false>(
  * Revoke a staff member's access to this workspace
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  *
- * Revokes access to THIS workspace: granted sections, ticket validation permissions, read-only events, membership, and the home workspace if it was this one. Terminates live sessions and invalidates the invitation QR code. It does NOT delete the account or its history: the person may belong to other workspaces. An `ADMIN` cannot revoke another admin (403) or themselves (409).
+ * Revokes access to THIS workspace: granted sections, ticket validation permissions, read-only events, membership, and the home workspace if it was this one. When this is their home workspace, it also terminates live sessions and invalidates the invitation QR code. It does NOT delete the account or its history: the person may belong to other workspaces. Only a `SUPER_ADMIN` can revoke a user whose global role is `SUPER_ADMIN`, `ADMIN` or `MINCULTURA`, or who is an `OWNER`/`ADMIN` of the organization that owns the workspace (403 `TARGET_ROLE_FORBIDDEN`). A `SUPER_ADMIN` gets 409 `TARGET_IS_ORG_ADMIN` for an `OWNER`/`ADMIN` of that organization: they would keep access through the organization, so nothing is changed. Nobody can revoke themselves (409).
  */
 export const deleteStaffId = <ThrowOnError extends boolean = false>(
 	options: Options<DeleteStaffIdData, ThrowOnError>,
@@ -2317,6 +2328,8 @@ export const getStaffId = <ThrowOnError extends boolean = false>(
 /**
  * Change a staff user's role
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
+ *
+ * An `ADMIN` can only assign `STAFF` or `VIEWER`, and only to users whose home workspace is the active one (otherwise 404). Only a `SUPER_ADMIN` can change the role of a user whose global role is `SUPER_ADMIN`, `ADMIN` or `MINCULTURA`, or who is an `OWNER`/`ADMIN` of the organization that owns the workspace (403 `TARGET_ROLE_FORBIDDEN`).
  */
 export const patchStaffIdRole = <ThrowOnError extends boolean = false>(
 	options: Options<PatchStaffIdRoleData, ThrowOnError>,
@@ -2349,7 +2362,7 @@ export const patchStaffIdRole = <ThrowOnError extends boolean = false>(
  * Resend a staff member's invitation email
  * Minimum role: `ADMIN`. Active workspace via the `X-Workspace-Id` header.
  *
- * Emails the staff member their invitation link again (to set a password and enter the panel). The link is the same persistent one already shared, so previously shared links and QR codes keep working; the link itself is never returned by the API. An `ADMIN` can only target users whose home workspace is the active one (otherwise 404). 409 `NO_EMAIL` for quick-access accounts without an email address (share their QR from the panel). 502 `EMAIL_NOT_SENT` when the email provider failed (retry). Rate limited: 3 resends per hour per API key and user (429 `RATE_LIMITED` with `Retry-After`). Keys restricted by `event_scope` get 403.
+ * Emails the staff member their invitation link again (to set a password and enter the panel). The link is the same persistent one already shared, so previously shared links and QR codes keep working; the link itself is never returned by the API. An `ADMIN` can only target users whose home workspace is the active one (otherwise 404). Only a `SUPER_ADMIN` can target a user whose global role is `SUPER_ADMIN`, `ADMIN` or `MINCULTURA`, or who is an `OWNER`/`ADMIN` of any organization or an `ADMIN` member of any workspace (403 `TARGET_ROLE_FORBIDDEN`). 409 `NO_EMAIL` for quick-access accounts without an email address (share their QR from the panel). 409 `ACCOUNT_ALREADY_ACTIVE` when the account shows signs of having been activated: nothing is sent. 502 `EMAIL_NOT_SENT` when the email provider failed (retry). Rate limited: 3 resends per hour per API key and user (429 `RATE_LIMITED` with `Retry-After`). Keys restricted by `event_scope` get 403.
  */
 export const postStaffIdResendInvite = <ThrowOnError extends boolean = false>(
 	options: Options<PostStaffIdResendInviteData, ThrowOnError>,
@@ -6777,6 +6790,37 @@ export const putWebsitePublished = <ThrowOnError extends boolean = false>(
 };
 
 /**
+ * Get the workspace's own headless site configuration
+ * Minimum role: `VIEWER`. Active workspace via the `X-Workspace-Id` header. Read by the workspace's own headless site (enterprise service key). Returns which modules to render, hero, SEO and FAQ (`config`, SiteConfig v1, always complete with defaults) plus the public identity (name, bio, logo, socials). Edited by the artist in the dashboard's "Mi sitio" screen (`/dashboard/sitio`); bio and socials are the same workspace columns the profile uses.
+ *
+ * Errors (`error.code`):
+ * - 404 `NOT_FOUND`: the workspace has no active site.
+ * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to specific events.
+ */
+export const getSite = <ThrowOnError extends boolean = false>(
+	options?: Options<GetSiteData, ThrowOnError>,
+) => {
+	return (options?.client ?? _heyApiClient).get<
+		GetSiteResponse,
+		GetSiteError,
+		ThrowOnError
+	>({
+		security: [
+			{
+				name: "Authorization",
+				type: "apiKey",
+			},
+			{
+				name: "x-api-key",
+				type: "apiKey",
+			},
+		],
+		url: "/site",
+		...options,
+	});
+};
+
+/**
  * Update the organization's public identity
  * Minimum role: `ADMIN`, and the user must be OWNER/ADMIN of the umbrella organization of the active workspace (`X-Workspace-Id`). Same action as the identity card in the dashboard's organization settings: public name, profile photo and cover. Partial: absent fields keep their value; `null` clears an image. The name is mirrored to the primary workspace. The slug (public URL) cannot be changed here. Returns the organization.
  *
@@ -7066,6 +7110,7 @@ export const patchTicketTemplatesId = <ThrowOnError extends boolean = false>(
  * - 403 `EVENT_SCOPE_FORBIDDEN`: the key is restricted to events and the date's event is not one of them.
  * - 400 `CAPACITY_REQUIRED`: the template has no capacity and `capacity` was not sent.
  * - 400 `INVALID_CURRENCY`: the template's legacy currency is not one the checkout charges.
+ * - 409 `IDENTITY_VERIFICATION_REQUIRED`: the resulting price is greater than 0, the event is already public (`PUBLISHED` or `SOLD_OUT`) without paid ticket types and the workspace identity verification is not approved.
  */
 export const postTicketTemplatesIdInstantiate = <
 	ThrowOnError extends boolean = false,

@@ -6,8 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 ## [Unreleased]
 
 ### Added
-- Contracts synced: `/api/v1` 1.45.0 → 1.55.0, `/api/admin` 1.8.0 → 1.9.0,
-  `/api/public` 0.10.1 → 0.11.0; clients regenerated.
+- Contracts synced: `/api/v1` 1.45.0 → 1.60.0, `/api/admin` 1.8.0 → 1.9.0,
+  `/api/public` 0.10.1 → 0.11.1; clients regenerated.
+- `site_get` (`GET /site`, contract 1.60): configuration and identity of the
+  workspace's own headless site; 404 when it has none. A different resource
+  from `website_get` (the FreeTicket page).
+- `settlements_list` / `settlements_get` return `vatAmount` (the VAT included
+  in `grossAmount` on MEMBERSHIP settlements; null on EVENT).
 - Buyer community and live chat (`/api/v1/customer/community/*`,
   `/api/v1/customer/lives/{id}/chat*`), new `src/tools/customer-community.ts`.
   Double credential by contract (enterprise key + buyer session), registered
@@ -42,6 +47,14 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
   Spanish), the server `instructions`, the error and truncation hints, the
   OAuth consent page and the view footer ("Showing N of M"). Tool names are
   unchanged.
+- Descriptions follow contract 1.60: 409 `IDENTITY_VERIFICATION_REQUIRED` on
+  `ticket_types_create`, `ticket_types_update` and
+  `ticket_templates_instantiate`; `events_publish` queues only a DRAFT; 403
+  `TARGET_ROLE_FORBIDDEN` on `staff_update_role`, `staff_delete` and
+  `staff_resend_invite` (plus 409 `TARGET_IS_ORG_ADMIN` and 409
+  `ACCOUNT_ALREADY_ACTIVE`); `staff_delete` ends live sessions only in the
+  member's home workspace; 403 `MERCH_MANAGER_FORBIDDEN` on
+  `workspaces_create`.
 - `public_orders_get`: each ticket's `ticketCode` is `null` until the QR gate
   opens (event 72 h away or less), as in public contract 0.11.0.
 

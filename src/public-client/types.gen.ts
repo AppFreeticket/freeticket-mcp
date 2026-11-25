@@ -157,6 +157,91 @@ export type OrderStatus = {
 	tickets: Array<OrderTicket>;
 };
 
+export type GetEventsSlugData = {
+	body?: never;
+	path: {
+		slug: string;
+	};
+	query?: never;
+	url: "/events/{slug}";
+};
+
+export type GetEventsSlugErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventsSlugError = GetEventsSlugErrors[keyof GetEventsSlugErrors];
+
+export type GetEventsSlugResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: PublicEventDetail;
+	};
+};
+
+export type GetEventsSlugResponse =
+	GetEventsSlugResponses[keyof GetEventsSlugResponses];
+
+export type GetEventsSlugAvailabilityData = {
+	body?: never;
+	path: {
+		slug: string;
+	};
+	query?: never;
+	url: "/events/{slug}/availability";
+};
+
+export type GetEventsSlugAvailabilityErrors = {
+	/**
+	 * Missing or invalid credential.
+	 */
+	401: _Error;
+	/**
+	 * Insufficient role or resource not accessible.
+	 */
+	403: _Error;
+	/**
+	 * Resource does not exist or is out of scope.
+	 */
+	404: _Error;
+	/**
+	 * Request body/parameter validation failed.
+	 */
+	422: _Error;
+};
+
+export type GetEventsSlugAvailabilityError =
+	GetEventsSlugAvailabilityErrors[keyof GetEventsSlugAvailabilityErrors];
+
+export type GetEventsSlugAvailabilityResponses = {
+	/**
+	 * OK
+	 */
+	200: {
+		data: PublicAvailability;
+	};
+};
+
+export type GetEventsSlugAvailabilityResponse =
+	GetEventsSlugAvailabilityResponses[keyof GetEventsSlugAvailabilityResponses];
+
 export type PostTicketsCodeResendData = {
 	body: ResendTicketRequest;
 	path: {
@@ -276,91 +361,6 @@ export type GetEventsResponses = {
 
 export type GetEventsResponse = GetEventsResponses[keyof GetEventsResponses];
 
-export type GetEventsSlugData = {
-	body?: never;
-	path: {
-		slug: string;
-	};
-	query?: never;
-	url: "/events/{slug}";
-};
-
-export type GetEventsSlugErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetEventsSlugError = GetEventsSlugErrors[keyof GetEventsSlugErrors];
-
-export type GetEventsSlugResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: PublicEventDetail;
-	};
-};
-
-export type GetEventsSlugResponse =
-	GetEventsSlugResponses[keyof GetEventsSlugResponses];
-
-export type GetEventsSlugAvailabilityData = {
-	body?: never;
-	path: {
-		slug: string;
-	};
-	query?: never;
-	url: "/events/{slug}/availability";
-};
-
-export type GetEventsSlugAvailabilityErrors = {
-	/**
-	 * Missing or invalid credential.
-	 */
-	401: _Error;
-	/**
-	 * Insufficient role or resource not accessible.
-	 */
-	403: _Error;
-	/**
-	 * Resource does not exist or is out of scope.
-	 */
-	404: _Error;
-	/**
-	 * Request body/parameter validation failed.
-	 */
-	422: _Error;
-};
-
-export type GetEventsSlugAvailabilityError =
-	GetEventsSlugAvailabilityErrors[keyof GetEventsSlugAvailabilityErrors];
-
-export type GetEventsSlugAvailabilityResponses = {
-	/**
-	 * OK
-	 */
-	200: {
-		data: PublicAvailability;
-	};
-};
-
-export type GetEventsSlugAvailabilityResponse =
-	GetEventsSlugAvailabilityResponses[keyof GetEventsSlugAvailabilityResponses];
-
 export type PostOrdersData = {
 	body: CreateOrderRequest;
 	path?: never;
@@ -455,5 +455,5 @@ export type GetOrdersIdResponse =
 	GetOrdersIdResponses[keyof GetOrdersIdResponses];
 
 export type ClientOptions = {
-	baseUrl: "https://appfreeticket.com/api/public" | (string & {});
+	baseUrl: "https://admin.appfreeticket.com/api/public" | (string & {});
 };

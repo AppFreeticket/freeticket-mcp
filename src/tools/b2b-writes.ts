@@ -120,6 +120,12 @@ import { write } from "../tool-meta";
 /** Remind the agent in the description, not only in the annotation. */
 const CONFIRM = " ⚠️ Irreversible: confirm with the human before running it.";
 
+/** Shared by the three tools that can put the first price on an event (1.60). */
+const PAID_ON_PUBLIC =
+	" 409 `IDENTITY_VERIFICATION_REQUIRED` when it would be the first paid " +
+	"ticket type of an event already public and the workspace identity is not " +
+	"verified; nothing is written.";
+
 /**
  * Wave B: writes of the B2B /api/v1 contract (one tool = one operationId).
  *
@@ -252,9 +258,10 @@ export function registerB2bWriteTools(
 			"date (409 `CONFLICT`). Seated events are checked against seats.io " +
 			"(409 `SEATSIO_INVALID`, 409 `SEAT_MAP_CATEGORIES_UNCOVERED`, 503 " +
 			"`SEAT_MAP_UNVERIFIABLE`). A paid event of an unverified workspace " +
-			"answers 409 `IDENTITY_VERIFICATION_REQUIRED` and publishes itself " +
-			"once the verification is approved. To publish later, use " +
-			"`events_schedule`.",
+			"answers 409 `IDENTITY_VERIFICATION_REQUIRED`: a DRAFT is queued and " +
+			"publishes itself once the verification is approved; a CANCELLED or " +
+			"COMPLETED event is not queued, publish it again then. To publish " +
+			"later, use `events_schedule`.",
 		{ id: z.string().describe("Event id") },
 		// openWorld: puts the event on the public web and validates the seat
 		// map against seats.io.
@@ -364,7 +371,7 @@ export function registerB2bWriteTools(
 	// ── Ticket types ─────────────────────────────────────────────────────────
 	server.tool(
 		"ticket_types_create",
-		"Creates a ticket type for a date (POST /ticket-types).",
+		`Creates a ticket type for a date (POST /ticket-types).${PAID_ON_PUBLIC}`,
 		{
 			eventDateId: z.string().describe("Event date id"),
 			name: z.string().min(1).max(100),
@@ -400,7 +407,9 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"ticket_types_update",
-		"Updates a ticket type — price, stock, visibility (PATCH /ticket-types/{id}).",
+		"Updates a ticket type — price, stock, visibility " +
+			"(PATCH /ticket-types/{id})." +
+			PAID_ON_PUBLIC,
 		{
 			id: z.string().describe("Ticket type id"),
 			name: z.string().min(1).max(100).optional(),
@@ -681,8 +690,10 @@ export function registerB2bWriteTools(
 			"staff), STAFF validates tickets at the door, VIEWER only reads, " +
 			"MERCH_MANAGER only runs the merch store, MINCULTURA is the Ministry " +
 			"of Culture auditor that only sees the global sales report " +
-			"(PATCH /staff/{id}/role). Takes effect immediately; confirm with the " +
-			"user first.",
+			"(PATCH /staff/{id}/role). An ADMIN can only assign STAFF or " +
+			"VIEWER, to users whose home workspace is this one; changing an " +
+			"admin, owner or MINCULTURA user takes a SUPER_ADMIN (403 `TARGET_ROLE_FORBIDDEN`). Takes " +
+			"effect immediately; confirm with the user first.",
 		{
 			id: z.string().describe("Member id"),
 			role: z.enum([
@@ -702,8 +713,11 @@ export function registerB2bWriteTools(
 	);
 	server.tool(
 		"staff_delete",
-		"Revokes a staff member's access to THIS workspace and ends their live " +
-			"sessions; the account and its history stay (DELETE /staff/{id})." +
+		"Revokes a staff member's access to THIS workspace; if it is their home " +
+			"workspace, also ends their live sessions. The account and its history " +
+			"stay (DELETE /staff/{id}). Revoking an admin, owner or MINCULTURA user " +
+			"takes a SUPER_ADMIN (403 `TARGET_ROLE_FORBIDDEN`; 409 `TARGET_IS_ORG_ADMIN` " +
+			"when they would keep access through the organization)." +
 			CONFIRM,
 		{ id: z.string().describe("Member id") },
 		write("staff_delete", { destructive: true }),
@@ -850,7 +864,8 @@ export function registerB2bWriteTools(
 		"workspaces_create",
 		"Creates a new workspace; the caller becomes its ADMIN (POST /workspaces). " +
 			"Subject to the plan quota; 409 `ALREADY_HAS_ACCESS` if the caller is " +
-			"staff of someone else's workspace. Ignores the pinned workspace.",
+			"staff of someone else's workspace; 403 `MERCH_MANAGER_FORBIDDEN` for " +
+			"a store-management account. Ignores the pinned workspace.",
 		{
 			name: z.string().min(2).max(80),
 			slug: z
@@ -2325,7 +2340,8 @@ export function registerB2bWriteTools(
 			"`capacity` override the template's; a discount or gate whose plan " +
 			"is no longer valid is dropped instead of failing. Returns " +
 			"`ticketTypeId`. Errors: 404 `EVENT_DATE_NOT_FOUND`, 400 " +
-			"`CAPACITY_REQUIRED` (template without capacity). Requires ADMIN.",
+			"`CAPACITY_REQUIRED` (template without capacity). Requires ADMIN." +
+			PAID_ON_PUBLIC,
 		{
 			id: z.string().describe("Template id"),
 			eventDateId: z.string().min(1).describe("Event date of this workspace"),
@@ -2550,7 +2566,10 @@ export function registerB2bWriteTools(
 		"staff_resend_invite",
 		"Emails a staff member their invitation link again, the same persistent " +
 			"link (POST /staff/{id}/resend-invite); the link itself is never " +
-			"returned. 409 NO_EMAIL for quick-access accounts without email. 502 " +
+			"returned. 409 NO_EMAIL for quick-access accounts without email; 409 " +
+			"ACCOUNT_ALREADY_ACTIVE when already activated (nothing is sent). 403 " +
+			"TARGET_ROLE_FORBIDDEN for an admin, owner or MINCULTURA user unless " +
+			"the caller is SUPER_ADMIN. 502 " +
 			"EMAIL_NOT_SENT: retry. 3 per hour per key and user (429).",
 		{ id: z.string().describe("Staff member (user) id") },
 		write("staff_resend_invite", { destructive: false, openWorld: true }),
