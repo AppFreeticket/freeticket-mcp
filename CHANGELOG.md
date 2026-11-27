@@ -5,6 +5,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) · versioning: 
 
 ## [Unreleased]
 
+### Removed
+- `sales_refund`. OpenAI's plugin review (5.1-5.2) rejects tools that move
+  money back to buyers; refunds stay in the dashboard, `/api/v1` and the CLI.
+  `postSalesIdRefund` is listed in the coverage exclusions with that reason.
+
+### Fixed
+- `products_set_status` is `destructiveHint: true`: DRAFT withdraws the
+  product from public access and the plan check can block republishing
+  (OpenAI review, 6.3).
+
 ### Added
 - Contracts synced: `/api/v1` 1.45.0 → 1.55.0, `/api/admin` 1.8.0 → 1.9.0,
   `/api/public` 0.10.1 → 0.11.0; clients regenerated.

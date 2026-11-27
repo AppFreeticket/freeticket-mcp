@@ -108,7 +108,7 @@ describe("MCP Apps wiring", () => {
 			"sales_get",
 			"events_create",
 			"events_delete",
-			"sales_refund",
+			"sales_cancel",
 			"tickets_checkin",
 			"whoami",
 		])

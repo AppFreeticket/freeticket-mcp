@@ -163,7 +163,8 @@ describe("tool registration", () => {
 		// (customer_community_*, 1.47–1.55) live in ./customer-community.ts.
 		// The customer_* writes (6 + the 3 customer_addresses_*) live in the
 		// buyer layer (./customer.ts) since 0.24.0.
-		expect(t.length).toBe(111);
+		// sales_refund left the MCP (OpenAI plugin review, nov-2026).
+		expect(t.length).toBe(110);
 		expect(new Set(t).size).toBe(t.length);
 		for (const n of [
 			"events_create",

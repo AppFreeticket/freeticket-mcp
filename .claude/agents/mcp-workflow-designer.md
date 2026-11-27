@@ -114,7 +114,7 @@ pattern), and update the coverage test's mapping instead of deleting coverage.
   the three layers (public / B2B / admin), how workspaces work (global by
   default on lists), and the 3–5 workflows above with which tool answers each.
 - Every tool carries annotations. Reads: `readOnlyHint: true`. Writes:
-  `destructiveHint` and `idempotentHint` set honestly (`sales_refund`,
+  `destructiveHint` and `idempotentHint` set honestly (`sales_cancel`,
   `events_delete`, `tickets_checkin` are not the same risk as `events_update`).
   `openWorldHint` where the tool reaches outside FreeTicket (emails, payments).
   A read tool without `readOnlyHint` forces the host to ask for approval on

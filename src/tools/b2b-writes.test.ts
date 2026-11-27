@@ -38,7 +38,6 @@ const DESTRUCTIVE = [
 	"venues_delete",
 	"webhooks_delete",
 	"sales_cancel",
-	"sales_refund",
 	"subscriptions_cancel",
 	"events_cancel",
 	"staff_delete",

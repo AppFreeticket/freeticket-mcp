@@ -42,6 +42,11 @@ const sourceOf = (files: string[]) =>
  * removing it is never a silent way in.
  */
 const EXCLUDED: Record<string, string> = {
+	// Refunds move money back to the buyer at the gateway. OpenAI's plugin
+	// review (5.1-5.2, nov-2026) rejected the plugin for exposing it; refunds
+	// stay in the dashboard, the API and the CLI.
+	postSalesIdRefund:
+		"refunds are rejected by the ChatGPT plugin review — dashboard/CLI only",
 	// Device flow mechanics: used by the embedded AS (src/handler.ts), not by an
 	// agent. Exposing it as a tool would hand the model the login flow.
 	postAuthDeviceCode: "device flow — handled by the AS inside the mcp",
