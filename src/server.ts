@@ -79,7 +79,7 @@ export const INSTRUCTIONS = [
 	"- sales_list, sales_tickets, sales_attempts and the buyer/attendee exports return a trimmed view by default; verbose: true returns the full row.",
 	"- Errors carry error.code, status, retryable and a hint with the next step; if retryAfterSeconds is present, wait that long before retrying.",
 	"- Ids and slugs are not interchangeable: public_* takes a slug, everything else takes an id.",
-	"- Destructive tools (delete, cancel, refund, ban) are confirmed with the user before running.",
+	"- Destructive tools (delete, cancel, ban) are confirmed with the user before running.",
 ].join("\n");
 
 /**

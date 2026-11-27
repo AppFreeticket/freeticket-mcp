@@ -30,9 +30,10 @@ with `events_list` + `q`) and the date (`event_dates_list`).
    (`REJECTED` carries the gateway `reason`). For a specific PENDING sale,
    `sales_list` with `eventDate` and `status: "PENDING"`, then
    `sales_attempts` explains what the gateway did. Releasing the stock of a
-   PENDING sale whose payment never started is `sales_abandon`; cancelling
-   or refunding a confirmed one is `sales_cancel` / `sales_refund`. All three
-   are irreversible: only on explicit request.
+   PENDING sale whose payment never started is `sales_abandon`; cancelling a
+   confirmed one is `sales_cancel`. Both are irreversible: only on explicit
+   request. Refunds are not available over MCP; they are made from the
+   FreeTicket dashboard.
 6. **Door, one ticket.** `tickets_access` with its QR code (read-only).
    Admitting someone is `tickets_checkin` — only on request.
 7. **Attendees.** `reports_export_attendees` with `eventDate` (one row per

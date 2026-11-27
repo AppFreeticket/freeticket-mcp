@@ -195,7 +195,7 @@ async function signedDownload(creds: Creds, path: string) {
 
 /**
  * Wave A: every read of the B2B /api/v1 contract (one tool = one operationId).
- * Writes (create/update/delete/publish/checkin/refund…) = Wave B, with no
+ * Writes (create/update/delete/publish/checkin…) = Wave B, with no
  * global mode: they stay on a single, explicit workspace.
  *
  * Lists and reports register through `uiTool`: alongside the JSON they carry
@@ -306,7 +306,7 @@ export function registerB2bTools(
 			"and channel (GET /sales). Filters: `status`, `channel`, `event`, " +
 			"`eventDate`, `reference`, `buyer` (name or email, partial match) and " +
 			"a `from`/`to` creation range in ISO 8601. Use it to find a sale " +
-			"before reading its tickets or refunding it; for totals per event use " +
+			"before reading its tickets; for totals per event use " +
 			`\`reports_by_event\`.${ACROSS}`,
 		{
 			// The contract declares these as enums; typing them as a loose string

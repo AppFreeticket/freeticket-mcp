@@ -88,7 +88,6 @@ import {
 	postSalesIdAbandon,
 	postSalesIdCancel,
 	postSalesIdItemsItemIdTransfer,
-	postSalesIdRefund,
 	postStaff,
 	postStaffIdResendInvite,
 	postSubscriptionsIdCancel,
@@ -272,7 +271,7 @@ export function registerB2bWriteTools(
 		"events_cancel",
 		"Cancels an event and ALL its dates, keeping the record, its sales and " +
 			"tickets (POST /events/{id}/cancel). Idempotent. It does not refund: " +
-			`refunds go one by one with \`sales_refund\`.${CONFIRM}`,
+			`refunds are made from the FreeTicket dashboard.${CONFIRM}`,
 		{ id: z.string().describe("Event id") },
 		write("events_cancel", { destructive: true }),
 		async ({ id }) => run(postEventsIdCancel({ path: { id }, client })),
@@ -485,22 +484,6 @@ export function registerB2bWriteTools(
 		write("sales_cancel", { destructive: true }),
 		async ({ id, ...body }) =>
 			run(postSalesIdCancel({ path: { id }, body, client })),
-	);
-	server.tool(
-		"sales_refund",
-		`Refunds a sale (POST /sales/{id}/refund).${CONFIRM}`,
-		{
-			id: z.string().describe("Sale id"),
-			acknowledge_manual: z
-				.boolean()
-				.optional()
-				.describe(
-					"Confirms the money is returned by hand, outside the gateway.",
-				),
-		},
-		write("sales_refund", { destructive: true, openWorld: true }),
-		async ({ id, ...body }) =>
-			run(postSalesIdRefund({ path: { id }, body, client })),
 	);
 	server.tool(
 		"tickets_checkin",
@@ -1826,8 +1809,10 @@ export function registerB2bWriteTools(
 			status: z.enum(["DRAFT", "PUBLISHED"]),
 		},
 		// openWorld: PUBLISHED lists it on the public storefront for sale.
+		// destructive: DRAFT pulls it from public access, and the plan check
+		// on PUBLISHED can block putting it back (OpenAI review, 6.3).
 		write("products_set_status", {
-			destructive: false,
+			destructive: true,
 			idempotent: true,
 			openWorld: true,
 		}),

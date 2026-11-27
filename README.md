@@ -206,7 +206,7 @@ nothing.
 ## Tools
 
 **B2B `/api/v1`** (one tool = one contract operation). Destructive writes
-(`*_delete`, `*_refund`, `*_cancel`, and every operation the contract flags
+(`*_delete`, `*_cancel`, and every operation the contract flags
 `x-ft-destructive`, such as `sales_abandon`, `event_dates_access_close_sign`,
 `content_channels_archive` or `content_members_ban`) carry `destructiveHint`
 and ask for confirmation.
@@ -218,7 +218,7 @@ and ask for confirmation.
 | Lineup | `artists_search` · `event_artist_invitations_list` | `events_artists_set` · `events_artists_delete` · `event_artist_invitations_resend` · `event_artist_invitations_cancel` |
 | Tickets | `ticket_types_list` · `ticket_types_get` · `tickets_access` | `ticket_types_create` · `ticket_types_update` · `ticket_types_delete` · `tickets_checkin` · `tickets_checkin_undo` · `tickets_reassign` · `tickets_resend` |
 | Presales | `presale_windows_list` | `presale_windows_create` · `presale_windows_update` · `presale_windows_delete` |
-| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` · `sales_payment_intents` | `sales_create` · `sales_abandon` · `sales_cancel` · `sales_refund` · `sales_transfer` · `sales_recipient_update` |
+| Sales | `sales_list` · `sales_get` · `sales_tickets` · `sales_attempts` · `sales_payment_intents` | `sales_create` · `sales_abandon` · `sales_cancel` · `sales_transfer` · `sales_recipient_update` |
 | Door | `reports_live_attendance` · `event_dates_access_close_status` · `events_validators_list` | `event_dates_access_close_sign` · `events_validators_add` |
 | Event viewers (read-only stats) | `events_viewers_list` | `events_viewers_add` · `events_viewers_delete` |
 | Memberships | `plans_list` · `plans_get` · `plans_subscribers` | `plans_create` · `plans_update` · `plans_delete` · `subscriptions_cancel` |

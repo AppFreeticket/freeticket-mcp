@@ -278,7 +278,7 @@ describe("(b) read scope", () => {
 			expect(roTools[n], n).toBeDefined();
 		for (const n of [
 			"events_create",
-			"sales_refund",
+			"sales_cancel",
 			"customer_logout",
 			// A GET that seeds the default channels: not a read.
 			"content_channels_list",
